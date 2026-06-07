@@ -27,7 +27,7 @@ function emailValidation(){
 
 
 async function passget(username){
-    const re=await fetch('/api/register?action=get&key=username');
+    const re=await fetch('/api/register-get?action=get&key=username');
     const data=await re.json();
     if(re.ok){
       return data.value;
