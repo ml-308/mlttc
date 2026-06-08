@@ -3,7 +3,7 @@ let t1=0,t2=0,t3=0,t4=0;
 
 
 
-function emailValidation(){
+async function emailValidation(){
     username="";
     username = document.getElementById("username").value;
     let t = username.indexOf("@");
