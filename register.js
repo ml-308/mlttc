@@ -10,6 +10,7 @@ function emailValidation(){
 
     if (t > 0 && e > 0 && t < e) {
         passget(username);
+        document.getElementById('passwordMsg').innerHTML=pass;
         if(pass!=null){
         document.getElementById("username").style.borderColor = "#1eff00";
         document.getElementById("usernameMsg").style.display = "block";
@@ -117,6 +118,9 @@ async function handleRegister() {
   // 1. 获取用户输入（假设你的 HTML 中有 id 为 username 和 password 的输入框）
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
+  const passwordConfirm = document.getElementById('passc').value;
+
+
 
 
   // 3. 禁用提交按钮，防止重复点击
