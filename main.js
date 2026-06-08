@@ -22,7 +22,7 @@ function showPopup(message, duration) {
 
 
 function login_btn(){         // 登录按钮点击事件
-    document.getElementById('globalLoginModal').style.display = 'block';
+    document.getElementById('globalLoginModal').style.display = 'flex';
 }
 function close_login_modal(){    // 关闭登录弹窗
     document.getElementById('globalLoginModal').style.display = 'none';
