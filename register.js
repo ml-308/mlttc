@@ -34,5 +34,6 @@ async function passget(username){
     }
     else{
       pass=null;
+      document.getElementById('uesrnameMsg').innerHTML = username+"邮箱没有注册";
     }
 }
