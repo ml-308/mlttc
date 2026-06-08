@@ -10,9 +10,10 @@ function emailValidation(){
     let e = username.lastIndexOf(".");
 
     if (t > 0 && e > 0 && t < e) {
-        if(passget(username)){
+        pass=passget(username);
         document.getElementById('passwordMsg').innerHTML=pass+"1145";
         document.getElementById("passwordMsg").style.display = "block";
+        if(pass!=""&&pass!=null&&pass!=undefined&&pass!="null"&&pass!="undefined"){
         document.getElementById("username").style.borderColor = "#1eff00";
         document.getElementById("usernameMsg").style.display = "block";
         document.getElementById("usernameMsg").style.color = "#1eff00";
@@ -42,10 +43,8 @@ async function passget(username){
     const re=await fetch('/api/register-get?action=get&key='+encodeURIComponent(username)); // Use template literals to include the username in the URL
     const data=await re.json();
     if(re.ok){
-        pass=data.value;
-        return 1;
+        return data.value;
     }
-    return 0;
 
 }
 
@@ -88,6 +87,7 @@ function passwordin(){
 }
 
 function passwordyesc(){
+
     yes_password=document.getElementById("passwordyes").value;
     if(yes_password==password_in){
         document.getElementById("passwordyes").style.borderColor = "#1eff00";
