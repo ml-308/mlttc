@@ -12,8 +12,6 @@ async function emailValidation(){
     if (t > 0 && e > 0 && t < e) {
         pass="";
         pass=await passget(username);
-        document.getElementById('passwordMsg').innerHTML=pass+"1145";
-        document.getElementById("passwordMsg").style.display = "block";
         if(pass!=""&&pass!=null&&pass!=undefined&&pass!="null"&&pass!="undefined"){
         document.getElementById("username").style.borderColor = "#1eff00";
         document.getElementById("usernameMsg").style.display = "block";
@@ -46,7 +44,7 @@ async function passget(username) {
     document.getElementById("usernameMsg").style.color = "#ffd20a";
     document.getElementById("usernameMsg").innerHTML = username+"邮箱合法，但您没有注册权限";
     t1=0;  // 让调用方捕获
-        throw new Error(data.error || '获取失败');
+    throw new Error(data.error || '获取失败');
   }
 }
 
