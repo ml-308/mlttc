@@ -30,9 +30,9 @@ async function passget(username){
     const re=await fetch('/api/register-get?action=get&key='+username); // Use template literals to include the username in the URL
     const data=await re.json();
     if(re.ok){
-      return data.value;
+      pass=data.value;
     }
     else{
-      return null;
+      pass=null;
     }
 }
