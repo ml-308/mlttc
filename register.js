@@ -51,6 +51,7 @@ async function passget(username){
 function passinc(){
     passin=document.getElementById("passc").value;
     pass=passget(username);
+    document.getElementById("passwordMsg").innerHTML = "1145";
     if(passin==pass){
         document.getElementById("passc").style.borderColor = "#1eff00";
         document.getElementById("passcMsg").style.display = "block";
