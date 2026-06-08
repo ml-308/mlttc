@@ -35,10 +35,10 @@ async function passget(username){
     const data=await re.json();
     if(re.ok){
       pass=data.value;
-      document.getElementById('uesrnameMsg').innerHTML = username+"邮箱";
+      document.getElementById('usernameMsg').innerHTML = username+"邮箱";
     }
     else{
       pass=null;
-      document.getElementById('uesrnameMsg').innerHTML = username+"邮箱没有注册";
+      document.getElementById('usernameMsg').innerHTML = username+"邮箱没有注册";
     }
 }
