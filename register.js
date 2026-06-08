@@ -21,13 +21,7 @@ async function emailValidation(){
         document.getElementById("usernameMsg").innerHTML = username+"邮箱格式正确，且有注册权限";
         t1=1;
         }
-        else{
-        document.getElementById("username").style.borderColor = "#ffd20a";
-        document.getElementById("usernameMsg").style.display = "block";
-        document.getElementById("usernameMsg").style.color = "#ffd20a";
-        document.getElementById("usernameMsg").innerHTML = username+"邮箱合法，但您没有注册权限";
-        t1=0;   
-    }
+   
     } 
 
     else {
@@ -47,7 +41,12 @@ async function passget(username) {
   if (re.ok&&re!=undefined) {
     return data.value;
   } else {
-    throw new Error(data.error || '获取失败');  // 让调用方捕获
+    throw new Error(data.error || '获取失败');
+    document.getElementById("username").style.borderColor = "#ffd20a";
+    document.getElementById("usernameMsg").style.display = "block";
+    document.getElementById("usernameMsg").style.color = "#ffd20a";
+    document.getElementById("usernameMsg").innerHTML = username+"邮箱合法，但您没有注册权限";
+    t1=0;  // 让调用方捕获
   }
 }
 
