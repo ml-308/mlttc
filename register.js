@@ -10,11 +10,9 @@ function emailValidation(){
     let e = username.lastIndexOf(".");
 
     if (t > 0 && e > 0 && t < e) {
-        pass="";
-        passget(username);
+        if(passget(username)){
         document.getElementById('passwordMsg').innerHTML=pass+"1145";
         document.getElementById("passwordMsg").style.display = "block";
-        if(pass!=""){
         document.getElementById("username").style.borderColor = "#1eff00";
         document.getElementById("usernameMsg").style.display = "block";
         document.getElementById("usernameMsg").style.color = "#1eff00";
@@ -45,12 +43,13 @@ async function passget(username){
     const data=await re.json();
     if(re.ok){
         pass=data.value;
+        return 1;
     }
+    return 0;
 
 }
 
 function passinc(){
-    passin="";
     passin=document.getElementById("passc").value;
     pass=passget(username);
     if(passin==pass){
@@ -70,7 +69,6 @@ function passinc(){
 }
 
 function passwordin(){
-    password_in="";
     password_in=document.getElementById("password").value;
     if(password_in.length>=6&&password_in.length<=16){
     document.getElementById("password").style.borderColor = "#1eff00";
@@ -90,7 +88,6 @@ function passwordin(){
 }
 
 function passwordyesc(){
-    paswod_yes="";
     yes_password=document.getElementById("passwordyes").value;
     if(yes_password==password_in){
         document.getElementById("passwordyes").style.borderColor = "#1eff00";
