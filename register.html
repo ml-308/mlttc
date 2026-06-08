@@ -30,19 +30,22 @@
                 <div class="input-group">
                     <label for="username">邮箱</label>
                     <input type="text" id="username" placeholder="请输入邮箱"  required onchange="emailValidation()">
-                    <p id="usernameMsg" class='LP'style="display: none;">请输入正确邮箱</p>
+                    <p id="usernameMsg" class='LP'style="display: none;"></p>
                 </div>
                 <div class="input-group">
                     <label for="email">注册码</label>
-                    <input type="email" id="email" placeholder="请输入注册码" autocomplete="pass" required>
+                    <input type="email" id="passc" placeholder="请输入注册码" autocomplete="pass" required onchange="passinc()">
+                    <p id="passcMsg" class='LP'style="display: none;"></p>
                 </div>
                 <div class="input-group">
                     <label for="password">密码</label>
-                    <input type="password" id="password" placeholder="请输入密码" autocomplete="new-password" required>
+                    <input type="password" id="password" placeholder="请输入密码" autocomplete="new-password" required onchange="passwordin()">
+                    <p id="passwordMsg" class='LP'style="display: none;"></p>
                 </div>
                 <div class="input-group">
                     <label for="confirm-password">确认密码</label>
-                    <input type="password" id="confirm-password" placeholder="请再次输入密码" autocomplete="new-password" required>
+                    <input type="password" id="passwordyes" placeholder="请再次输入密码" autocomplete="new-password" required onchange="passwordyesc()">
+                    <p id="passwordyesMsg" class='LP'style="display: none;"></p>
                 </div>
                 <button type="submit" class="register-submit" onclick="register()">注 册</button>
                 <div class="error-msg" id="errorMsg" style="display: none;"></div>
