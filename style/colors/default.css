@@ -31,12 +31,15 @@
     --border-light: rgba(232, 238, 244, 0.6);
 
     --button-bg: #fafafa81;
-    --button-color: black;
+    --button-color: #383838;
     --button-fill-bg: #dfdfdfea;
     --button-fill-color: #121212;
     --button-bg-hl: #ffffff;
     --button-color-hl: #323232;
     --button-color-disabled: var(--text-muted);
+
+    --input-bg: #fafafa66;
+    --input-color: #282828;
 
     --bg-page: #f6f9fc;
     --bg-card: rgba(255, 255, 255, 0.6);

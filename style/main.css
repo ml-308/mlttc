@@ -1,8 +1,10 @@
 @import url('./colors/default.css');
 @import url('./components/card.css');
 @import url('./components/button.css');
+@import url('./components/input.css');
 @import url('./components/header.css');
 @import url('./components/modal.css');
+@import url('./derive/deepseek.css');
 
 /*
     --- BASIC UI OBJECT DEFINITIONS ---
@@ -31,4 +33,34 @@
     --radius-full: 3rem;
 
     font-size: 16px;
+}
+
+body {
+    font-family: var(--font-family);
+    background: var(--bg-page);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+    background-attachment: fixed;
+}
+
+@media (max-width: 480px) {
+    [hidden-on-mobile] {
+        display: none !important;
+    }
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
 }

@@ -35,6 +35,10 @@ hcw-button,
         font-size: 1.25rem;
     }
 
+    &[inline] {
+        display: inline-flex;
+    }
+
     &[icon] {
         aspect-ratio: 1;
         height: 2rem;

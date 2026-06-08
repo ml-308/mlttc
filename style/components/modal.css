@@ -1,4 +1,5 @@
-hcw-modal, [hcw-modal] {
+hcw-modal,
+[hcw-modal] {
     max-width: 420px;
     width: 100%;
     position: relative;
@@ -32,5 +33,12 @@ hcw-modal, [hcw-modal] {
         &>:is(hcw-modal-icon, [hcw-modal-icon]) {
             aspect-ratio: 1;
         }
+    }
+
+    &>:is(hcw-modal-body, [hcw-modal-body]) {
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: .75rem;
     }
 }
