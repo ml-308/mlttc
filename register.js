@@ -11,13 +11,13 @@ function emailValidation(){
         document.getElementById("username").style.borderColor = "#1eff00";
         document.getElementById("usernameMsg").style.display = "block";
         document.getElementById("usernameMsg").style.color = "#1eff00";
-        //document.getElementById("usernameMsg").innerHTML = username+"邮箱格式正确";
+        document.getElementById("usernameMsg").innerHTML = username+"邮箱格式正确，且有注册权限";
         }
         else{
         document.getElementById("username").style.borderColor = "#ffd20a";
         document.getElementById("usernameMsg").style.display = "block";
         document.getElementById("usernameMsg").style.color = "#ffd20a";
-        //document.getElementById("usernameMsg").innerHTML = username+"邮箱合法，但您没有注册权限";
+        document.getElementById("usernameMsg").innerHTML = username+"邮箱合法，但您没有注册权限";
     }
     } 
 
