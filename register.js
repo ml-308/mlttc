@@ -35,7 +35,7 @@ async function passget(username){
     const data=await re.json();
     if(re.ok){
       pass=data.value;
-      document.getElementById('usernameMsg').innerHTML = username+"邮箱";
+      document.getElementById('usernameMsg').innerHTML = pass;
     }
     else{
       pass=null;
