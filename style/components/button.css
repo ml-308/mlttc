@@ -1,0 +1,84 @@
+hcw-button,
+[hcw-button] {
+    appearance: none;
+    border: none;
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--radius-lg);
+    background-color: var(--button-bg);
+    color: var(--button-color);
+    padding: .45rem .25rem;
+    backdrop-filter: blur(.5rem) saturate(3);
+    box-shadow:
+        0 0 .25rem #0001,
+        inset 0 .1rem .025rem .025rem var(--glass-inner-hl),
+        inset 0 -.1rem .025rem .025rem var(--glass-inner-dl);
+    text-shadow: 0 0 .25rem var(--glass-inner-hl);
+    transition: var(--transition-fast);
+    transition-property: transform, background-color, color, box-shadow;
+    text-align: center;
+    cursor: pointer;
+    font-size: 1rem;
+
+    :is(hcw-card, [hcw-card])>& {
+        background-color: transparent;
+        box-shadow:
+            0 0 .25rem #0001,
+            inset 0 .1rem .015rem .015rem var(--glass-inner-hl),
+            inset 0 -.1rem .015rem .015rem var(--glass-inner-dl);
+        border-radius: var(--radius-md);
+    }
+
+    &[large] {
+        font-size: 1.25rem;
+    }
+
+    &[icon] {
+        aspect-ratio: 1;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &[large] {
+            height: 3rem;
+        }
+    }
+
+    &:not([disabled], [primary]):hover {
+        background-color: var(--button-bg-hl);
+        color: var(--button-color-hl);
+    }
+
+    &[tp] {
+        background-color: transparent;
+    }
+
+    &[fill] {
+        background-color: var(--button-fill-bg);
+        color: var(--button-fill-color);
+    }
+
+    &[primary] {
+        background-color: var(--primary);
+        color: var(--on-primary);
+
+        &:hover {
+            background-color: var(--primary-hl);
+            color: var(--on-primary-hl);
+        }
+    }
+
+    &[flat] {
+        box-shadow: none;
+    }
+
+    &[disabled] {
+        filter: saturate(0);
+        cursor: not-allowed;
+        box-shadow: none;
+        color: var(--button-color-disabled);
+    }
+}
