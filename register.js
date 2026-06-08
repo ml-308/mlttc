@@ -11,8 +11,7 @@ function emailValidation(){
     if (t > 0 && e > 0 && t < e) {
         passget(username);
         document.getElementById('passwordMsg').innerHTML=pass+"1145";
-        document.getElementById("username").style.borderColor = "#1eff00";
-        document.getElementById("usernameMsg").style.display = "block";
+        document.getElementById("passwordMsg").style.display = "block";
         if(pass!=null){
         document.getElementById("username").style.borderColor = "#1eff00";
         document.getElementById("usernameMsg").style.display = "block";
