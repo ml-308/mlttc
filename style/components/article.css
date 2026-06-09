@@ -1,0 +1,10 @@
+hcw-article,
+[hcw-article] {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: min(1.5rem, 5vw);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}

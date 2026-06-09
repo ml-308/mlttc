@@ -1,56 +1,57 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>注册</title>
-    <link rel="stylesheet" href="register.css">
+    <link rel="stylesheet" href="style/register.css">
     <script src="register.js"></script>
 </head>
+
 <body>
-    <!-- 悬浮头部 -->
-    <header class="floating-header">
+    <hcw-body-header>
         <div class="logo-area">
             <span class="logo-text">TTC</span>
         </div>
-        <div class="header-action">
-            <span>已有账号？</span>
-            <a href="index.html" class="login-link">立即登录</a>
-        </div>
-    </header>
+        <span style="margin-left: auto;">已有账号？</span>
+        <a hcw-button primary flat style="min-width: 8rem;" href="index.html" class="login-link">立即登录</a>
+    </hcw-body-header>
 
     <!-- 注册卡片 -->
-    <main class="register-wrapper">
-        <div class="register-card">
-            <div class="card-header">
-                <h2>创建账户</h2>
-                <p>请填写以下信息以创建您的账户</p>
-            </div>
+    <hcw-article>
+        <hcw-card>
+            <hcw-card-title>创建账户</hcw-card-title>
+            <p>请填写以下信息以创建您的账户</p>
             <form class="register-form" id="registerForm">
                 <div class="input-group">
                     <label for="username">邮箱</label>
-                    <input type="text" id="username" placeholder="请输入邮箱"  required onchange="emailValidation()">
-                    <p id="usernameMsg" class='LP'style="display: none;"></p>
+                    <input hcw-input type="text" id="username" placeholder="请输入邮箱" required onchange="emailValidation()">
+                    <p id="usernameMsg" class='LP' style="display: none;"></p>
                 </div>
                 <div class="input-group">
                     <label for="email">注册码</label>
-                    <input type="email" id="passc" placeholder="请输入注册码" required onchange="passinc()">
-                    <p id="passcMsg" class='LP'style="display: none;"></p>
+                    <input hcw-input type="email" id="passc" placeholder="请输入注册码" required onchange="passinc()">
+                    <p id="passcMsg" class='LP' style="display: none;"></p>
                 </div>
                 <div class="input-group">
                     <label for="password">密码</label>
-                    <input type="password" id="password" placeholder="请输入密码" autocomplete="new-password" required onchange="passwordin()">
-                    <p id="passwordMsg" class='LP'style="display: none;"></p>
+                    <input hcw-input type="password" id="password" placeholder="请输入密码" autocomplete="new-password" required
+                        onchange="passwordin()">
+                    <p id="passwordMsg" class='LP' style="display: none;"></p>
                 </div>
                 <div class="input-group">
                     <label for="confirm-password">确认密码</label>
-                    <input type="password" id="passwordyes" placeholder="请再次输入密码" autocomplete="new-password" required onchange="passwordyesc()">
-                    <p id="passwordyesMsg" class='LP'style="display: none;"></p>
+                    <input hcw-input type="password" id="passwordyes" placeholder="请再次输入密码" autocomplete="new-password" required
+                        onchange="passwordyesc()">
+                    <p id="passwordyesMsg" class='LP' style="display: none;"></p>
                 </div>
-                <button type="submit" class="register-submit" onclick="register()">注 册</button>
+                <br>
+                <button hcw-button primary flat style="min-width: 8rem;" type="submit" onclick="register()">注 册</button>
                 <div class="error-msg" id="errorMsg" style="display: none;"></div>
             </form>
-        </div>
-    </main>
+        </hcw-card>
+    </hcw-article>
 </body>
+
 </html>
