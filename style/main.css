@@ -69,4 +69,5 @@ html {
 body {
     background: url('../asset/bg-main.jpg') no-repeat center;
     background-size: cover;
+    background-attachment: fixed;
 }
