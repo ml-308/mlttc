@@ -1,7 +1,8 @@
 let username,pass,passin,password_in,yes_password;
 let t1=0,t2=0,t3=0,t4=0;
 
-
+const API_BASE='/api/register-keep';
+const TOKEN_COOKIE_NAME='users';
 
 async function emailValidation(){
     username="";
@@ -116,52 +117,54 @@ function register(){
     }
 }
 
-async function handleRegister() {
-  // 1. 获取用户输入（假设你的 HTML 中有 id 为 username 和 password 的输入框）
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
-  const passwordConfirm = document.getElementById('passc').value;
+function setCookie(name, value, days=30){
+    const expeires=new Date(Date.now()+days*864e5).toUTCString();
+    document.cookie=`${endcodeURIComponent(name)}=${encodeURIComponent(value)};expires=${expeires};path=/;SameSite=Lax`;
+} 
 
-
-
-
-  // 3. 禁用提交按钮，防止重复点击
-  const btn = document.getElementById('registerBtn');
-  btn.disabled = true;
-  btn.textContent = '注册中...';
-
-  try {
-    const response = await fetch('/api/register-keep', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      showMessage('注册成功！即将跳转到登录页...', 'success');
-      // 可选：自动跳转到登录页
-      setTimeout(() => { window.location.href = '/login.html'; }, 1500);
-    } else {
-      // 显示后端返回的具体错误（如“用户名已存在”）
-      showMessage(data.error || '注册失败，请稍后再试', 'error');
+function getcookie(name){
+    const cookies=document.cookie.split(';');
+    for(const cookie of cookies){
+        const [key,value]=cookie.split('=');
+        if(decodeURIComponent(key)==name){
+            return decodeURIComponent(value);
+        }
     }
-  } catch (err) {
-    // 网络错误或 JSON 解析失败
-    showMessage('网络错误，请检查连接后重试', 'error');
-    console.error('注册请求失败:', err);
-  } finally {
-    // 4. 恢复按钮状态
-    btn.disabled = false;
-    btn.textContent = '注册';
-  }
+    return null;
 }
 
-// 简易消息提示函数（可用你自己的 UI 库替代）
-function showMessage(msg, type) {
-  const box = document.getElementById('messageBox');
-  box.textContent = msg;
-  box.className = type;  // 通过 CSS 控制颜色
-  box.style.display = 'block';
+function erasecookie(name){
+    document.cookie=`${encodeURIComponent(name)}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+}
+
+async function request(path, method = 'GET', body = null, needAuth = false) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (needAuth) {
+    const token = getCookie(TOKEN_COOKIE_NAME);
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  const options = { method, headers };
+  if (body) options.body = JSON.stringify(body);
+
+  const res = await fetch(API_BASE + path, options);
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || `请求失败 (${res.status})`);
+  }
+  return data;
+}
+
+async function handleRegister() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  try {
+    const data = await request('/register', 'POST', { username, password });
+    showMessage(data.message || '注册成功，请登录');
+  } catch (err) {
+    showMessage(err.message, true);
+  }
 }

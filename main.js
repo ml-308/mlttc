@@ -22,7 +22,7 @@ function showPopup(message, duration) {
 
 
 function login_btn(){         // 登录按钮点击事件
-    document.getElementById('globalLoginModal').style.display = 'flex';
+    document.getElementById('globalLoginModal').style.display = 'block';
 }
 function close_login_modal(){    // 关闭登录弹窗
     document.getElementById('globalLoginModal').style.display = 'none';
@@ -117,10 +117,3 @@ function register_btn(){
 }
 
 
-test_user=["SFYLTLHRIL", 'PIJRHGEXGK','IUQBQEZDWK', 
-    'DGIUTRQZYL', 'CIIQKBSLMV', 'MHVCWXBWST', 'SAGKKMDXIJ', 
-    'NABTDJPMJB', 'GANEKZFYNM', 'JHSUCFHWAD',"1"]
-
-test_password=['OVTXQPATPI', 'DMPHJBGZGW', 'TFRERWEZYS', 'VZEYYNUSYG', 
-    'PUFBWSQGSQ', 'JDVNCUREPD', 'GAAFKAFAVH', 'EKVLKKQIUZ', 'QDLKRGXJNL', 
-    'ICVYKITDBT',"1"]
