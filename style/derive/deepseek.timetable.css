@@ -240,29 +240,6 @@ footer::before {
 
 /* ---------- 响应式设计 ---------- */
 @media (max-width: 768px) {
-    body {
-        padding: 14px 10px 32px;
-    }
-
-    .dashboard {
-        gap: 18px;
-        max-width: 100%;
-    }
-
-    .hero {
-        padding: 26px 18px 22px;
-        border-radius: var(--radius-lg);
-    }
-
-    .hero h1 {
-        font-size: 1.5rem;
-    }
-
-    .hero p {
-        font-size: 0.75rem;
-        padding: 3px 12px;
-    }
-
     .menu-bar {
         gap: 8px;
     }
@@ -279,11 +256,6 @@ footer::before {
         gap: 14px;
     }
 
-    .btn-group {
-        gap: 8px;
-        margin-top: 16px;
-    }
-
     .result-card {
         padding: 14px 16px;
         font-size: 0.84rem;
@@ -291,47 +263,12 @@ footer::before {
 }
 
 @media (max-width: 480px) {
-    body {
-        padding: 8px 6px 24px;
-    }
-
-    .dashboard {
-        gap: 14px;
-    }
-
-    .hero {
-        padding: 20px 14px 16px;
-        border-radius: var(--radius-md);
-    }
-
-    .hero h1 {
-        font-size: 1.3rem;
-    }
-
-    .hero p {
-        font-size: 0.7rem;
-        padding: 3px 10px;
-    }
-
-    .hero::before {
-        height: 2px;
-    }
 
     .menu-btn {
         padding: 9px 10px;
         font-size: 0.76rem;
         min-width: 60px;
         flex: 1 1 calc(50% - 6px);
-        border-radius: var(--radius-xs);
-    }
-
-    .form-group label {
-        font-size: 0.8rem;
-    }
-
-    .form-group input[type="text"] {
-        padding: 10px 12px;
-        font-size: 0.84rem;
         border-radius: var(--radius-xs);
     }
 
@@ -344,20 +281,6 @@ footer::before {
     footer {
         font-size: 0.72rem;
         padding: 14px 10px;
-    }
-}
-
-@media (min-width: 1024px) {
-    .dashboard {
-        max-width: 760px;
-    }
-
-    .hero h1 {
-        font-size: 2rem;
-    }
-
-    .grid-2col {
-        gap: 22px 20px;
     }
 }
 

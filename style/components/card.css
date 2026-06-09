@@ -1,4 +1,5 @@
-hcw-card, [hcw-card] {
+hcw-card,
+[hcw-card] {
     position: relative;
     box-sizing: border-box;
     display: flex;
@@ -15,6 +16,7 @@ hcw-card, [hcw-card] {
     text-shadow: 0 0 .25rem var(--glass-inner-hl);
     transition: var(--transition-fast);
     transition-property: transform, background, color, box-shadow;
+    animation: general__fadeIn .15s ease-in-out 0s 1 forwards;
 
     &>:is(hcw-card-title, [hcw-card-title]) {
         font-size: 1.5rem;
