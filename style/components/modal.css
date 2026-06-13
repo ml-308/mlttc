@@ -19,7 +19,6 @@ hcw-modal,
     transition: var(--transition-fast);
     transition-property: transform, background-color, color, box-shadow;
     overflow: hidden;
-    animation: general__fadeIn .15s ease-in-out 0s 1 forwards;
 
     &>:is(hcw-modal-title, [hcw-modal-title]) {
         font-size: 1.5rem;

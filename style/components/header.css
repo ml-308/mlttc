@@ -18,8 +18,4 @@ hcw-body-header,
         inset 0 -.1rem .025rem .025rem var(--glass-inner-dl);
     transition: var(--transition-fast);
     transition-property: transform, background, color, box-shadow;
-
-    & :is(hcw-button, [hcw-button], [hcw-input]) {
-        animation: none;
-    }
 }

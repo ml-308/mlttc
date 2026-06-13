@@ -24,7 +24,6 @@ hcw-button,
     cursor: pointer;
     font-size: 1rem;
     text-decoration: none;
-    animation: general__fadeIn .25s ease-in-out 0s 1 forwards;
 
     :is(hcw-card, [hcw-card])>& {
         background-color: transparent;
@@ -74,7 +73,7 @@ hcw-button,
         color: var(--success-light);
 
         &:hover {
-            filter: brightness(1.15);
+            filter: brightness(1.05);
         }
     }
 
@@ -83,7 +82,7 @@ hcw-button,
         color: var(--danger-light);
 
         &:hover {
-            filter: brightness(1.15);
+            filter: brightness(1.05);
         }
     }
 
@@ -92,7 +91,7 @@ hcw-button,
         color: var(--warning-light);
 
         &:hover {
-            filter: brightness(1.15);
+            filter: brightness(1.05);
         }
     }
 
