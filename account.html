@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="style/index.css">
+    <script src="main.js"></script>
+    <script src="login.js"></script>
+    <script src="lib/ui/init.mjs" type="module"></script>
+</head>
+
+<body>
+    <hcw-body-header>
+        <hcw-button flat fill style="min-width: 5rem;" onclick="back()">
+            返回
+        </hcw-button>
+        <div class="logo-area">
+            <div class="logo-text">
+                TTC - 个人空间
+            </div>
+        </div>
+        <p hidden-on-mobile style="margin-left: auto; color: var(--text-muted)">Beta测试版，功能仍在完善中</p>
+        <div id="headerAuthArea">
+            <!-- 动态显示登录按钮或用户信息 -->
+            <hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem" onclick=login_btn()>登录</hcw-button>
+            <div id="globalUserInfo" style="display: none;">
+                <span><strong id="globalDisplayName">用户</strong></span>
+                <hcw-button id="globalLogoutBtn" tp flat inline style="min-width: 5rem"
+                    onclick="login_out()">退出</hcw-button>
+            </div>
+        </div>
+    </hcw-body-header>
+
+    <hcw-article>
+        <skeleton><img style="width: 8rem; height: 8rem" src="./asset/bg-main.jpg" alt="UI-avatar"></skeleton>
+        <skeleton style="display: flex">
+            <h1>UI-username</h1>
+            <badge>UI-accountType</badge>
+        </skeleton>
+        <skeleton>
+            <p>UI-description</p>
+        </skeleton>
+        <skeleton>
+            <p>UI-city</p>
+        </skeleton>
+    </hcw-article>
+
+    <hcw-body-footer>
+
+    </hcw-body-footer>
+</body>
+
+</html>
