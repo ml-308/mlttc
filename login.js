@@ -1,98 +1,68 @@
 // ==================== 配置 ====================
-const API_BASE = '/api/auth';   // 后端认证接口前缀，按实际调整
+const API_BASE = '/api/auth';
 
-// ==================== 通用请求（自动携带 HttpOnly Cookie） ====================
+// ==================== 通用请求 ====================
 async function request(path, method = 'GET', body = null) {
   const options = {
     method,
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',   // 让浏览器自动发送 Cookie
+    credentials: 'include',
   };
   if (body) options.body = JSON.stringify(body);
 
   const res = await fetch(API_BASE + path, options);
   const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.error || `请求失败 (${res.status})`);
-  }
+  if (!res.ok) throw new Error(data.error || `请求失败 (${res.status})`);
   return data;
 }
 
-// ==================== UI 状态更新 ====================
+// ==================== UI 状态控制 ====================
 function updateUIForLoggedIn(email) {
-  const loginModal = document.getElementById('globalLoginModal');
-  const loginBtn = document.getElementById('globalLoginBtn');
-  const userInfoDiv = document.getElementById('globalUserInfo');
-  const displayName = document.getElementById('globalDisplayName');
-
-  if (loginModal) loginModal.style.display = 'none';
-  if (loginBtn) loginBtn.style.display = 'none';
-  if (userInfoDiv) userInfoDiv.style.display = 'block';
-  if (displayName) displayName.textContent = email || '用户';
+  document.getElementById('globalLoginModal').style.display = 'none';
+  document.getElementById('globalLoginBtn').style.display = 'none';
+  document.getElementById('globalUserInfo').style.display = 'block';
+  document.getElementById('globalDisplayName').textContent = email || '用户';
 }
 
 function updateUIForLoggedOut() {
-  const loginModal = document.getElementById('globalLoginModal');
-  const loginBtn = document.getElementById('globalLoginBtn');
-  const userInfoDiv = document.getElementById('globalUserInfo');
-  const displayName = document.getElementById('globalDisplayName');
-  const errorEl = document.getElementById('ErrorLogin');
-
-  if (loginModal) loginModal.style.display = 'none';
-  if (loginBtn) loginBtn.style.display = 'block';
-  if (userInfoDiv) userInfoDiv.style.display = 'none';
-  if (displayName) displayName.textContent = '';
-  if (errorEl) {
-    errorEl.style.display = 'none';
-    errorEl.textContent = '';
-  }
-
-  // 清空输入框
-  const usernameInput = document.getElementById('username');
-  const passwordInput = document.getElementById('password');
-  if (usernameInput) usernameInput.value = '';
-  if (passwordInput) passwordInput.value = '';
+  document.getElementById('globalLoginModal').style.display = 'none';
+  document.getElementById('globalLoginBtn').style.display = 'block';
+  document.getElementById('globalUserInfo').style.display = 'none';
+  document.getElementById('globalDisplayName').textContent = '';
+  const err = document.getElementById('ErrorLogin');
+  if (err) err.style.display = 'none';
+  ['username', 'password'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
 }
 
 function showMessage(msg, isError = false) {
-  // 优先显示在错误提示区域
   const box = document.getElementById('ErrorLogin');
   if (box) {
     box.textContent = msg;
     box.style.display = 'block';
     box.style.color = isError ? 'red' : 'green';
   }
-  // 同时弹出浮层提示
+  // 浮层提示
   const popup = document.createElement('div');
   popup.textContent = msg;
-  popup.style.position = 'fixed';
-  popup.style.top = '20px';
-  popup.style.left = '50%';
-  popup.style.transform = 'translateX(-50%)';
+  popup.style = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); padding:10px 20px; border-radius:5px; z-index:9999; color:#fff;';
   popup.style.backgroundColor = isError ? '#f44336' : '#4CAF50';
-  popup.style.color = '#fff';
-  popup.style.padding = '10px 20px';
-  popup.style.borderRadius = '5px';
-  popup.style.zIndex = '9999';
   document.body.appendChild(popup);
   setTimeout(() => popup.remove(), 2000);
 }
 
-// ==================== 登录操作 ====================
-async function login_btn2() {
+// ==================== 核心功能 ====================
+async function login() {
   const email = document.getElementById('username')?.value.trim();
   const password = document.getElementById('password')?.value;
-
   if (!email || !password) {
     showMessage('请输入邮箱和密码', true);
     return;
   }
-
   try {
-    // 1. 调用登录接口（后端会设置 HttpOnly Cookie）
     await request('/login', 'POST', { email, password });
-    // 2. 获取用户信息以显示邮箱
     const data = await request('/me', 'GET');
     updateUIForLoggedIn(data.user.email);
     showMessage('登录成功');
@@ -101,7 +71,12 @@ async function login_btn2() {
   }
 }
 
-// ==================== 检查登录状态（页面加载时调用） ====================
+async function logout() {
+  try { await request('/logout', 'POST'); } catch (e) {}
+  updateUIForLoggedOut();
+  showMessage('已退出登录');
+}
+
 async function checkLoginStatus() {
   try {
     const data = await request('/me', 'GET');
@@ -111,11 +86,30 @@ async function checkLoginStatus() {
   }
 }
 
-// ==================== 初始化 ====================
+// ==================== 弹窗控制（供 HTML onclick 使用） ====================
+function login_btn() {
+  document.getElementById('globalLoginModal').style.display = 'flex';
+  document.getElementById('ErrorLogin').style.display = 'none';
+}
+
+function close_login_modal() {
+  document.getElementById('globalLoginModal').style.display = 'none';
+}
+
+// 登录模态框内的登录按钮事件
+function login_btn_model() {
+  login();
+}
+
+// ==================== 页面加载初始化 ====================
 window.addEventListener('DOMContentLoaded', () => {
   checkLoginStatus();
-
-  // 暴露函数给全局，以便在 HTML 中通过 onclick 调用
-  window.login = login;
-  window.logout = logout;
 });
+
+// 暴露全局函数
+window.login = login;
+window.logout = logout;
+window.login_btn = login_btn;
+window.close_login_modal = close_login_modal;
+window.login_btn_model = login_btn_model;
+window.login_out = logout;   // 兼容已有退出调用 login_out()
