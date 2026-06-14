@@ -80,7 +80,7 @@ function showMessage(msg, isError = false) {
 }
 
 // ==================== 登录操作 ====================
-async function login() {
+async function login_btn2() {
   const email = document.getElementById('username')?.value.trim();
   const password = document.getElementById('password')?.value;
 

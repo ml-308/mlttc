@@ -61,7 +61,7 @@ function updateUIForLoggedOut() {
 }
 
 // ==================== 登录状态检测（页面加载时调用） ====================
-async function checkLoginStatus() {
+windows.download=async function checkLoginStatus() {
   try {
     const data = await request('/me', 'GET');
     updateUIForLoggedIn(data.user);
