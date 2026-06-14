@@ -1,7 +1,7 @@
 // ==================== 配置 ====================
 const API_BASE = '/api/auth';
 
-// ==================== 通用请求 ====================
+// ==================== 通用请求（修复：安全解析 JSON） ====================
 async function request(path, method = 'GET', body = null) {
   const options = {
     method,
@@ -11,26 +11,49 @@ async function request(path, method = 'GET', body = null) {
   if (body) options.body = JSON.stringify(body);
 
   const res = await fetch(API_BASE + path, options);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `请求失败 (${res.status})`);
+
+  let data;
+  try {
+    data = await res.json();   // 尝试解析 JSON
+  } catch (e) {
+    // 如果响应体为空或不是 JSON（如 405 HTML 页面），抛出明确错误
+    throw new Error(`服务器返回了无效的响应 (${res.status})`);
+  }
+
+  if (!res.ok) {
+    throw new Error(data.error || `请求失败 (${res.status})`);
+  }
   return data;
 }
 
 // ==================== UI 状态控制 ====================
 function updateUIForLoggedIn(email) {
-  document.getElementById('globalLoginModal').style.display = 'none';
-  document.getElementById('globalLoginBtn').style.display = 'none';
-  document.getElementById('globalUserInfo').style.display = 'block';
-  document.getElementById('globalDisplayName').textContent = email || '用户';
+  const loginModal = document.getElementById('globalLoginModal');
+  const loginBtn = document.getElementById('globalLoginBtn');
+  const userInfoDiv = document.getElementById('globalUserInfo');
+  const displayName = document.getElementById('globalDisplayName');
+
+  if (loginModal) loginModal.style.display = 'none';
+  if (loginBtn) loginBtn.style.display = 'none';
+  if (userInfoDiv) userInfoDiv.style.display = 'block';
+  if (displayName) displayName.textContent = email || '用户';
 }
 
 function updateUIForLoggedOut() {
-  document.getElementById('globalLoginModal').style.display = 'none';
-  document.getElementById('globalLoginBtn').style.display = 'block';
-  document.getElementById('globalUserInfo').style.display = 'none';
-  document.getElementById('globalDisplayName').textContent = '';
+  const loginModal = document.getElementById('globalLoginModal');
+  const loginBtn = document.getElementById('globalLoginBtn');
+  const userInfoDiv = document.getElementById('globalUserInfo');
+  const displayName = document.getElementById('globalDisplayName');
   const err = document.getElementById('ErrorLogin');
-  if (err) err.style.display = 'none';
+
+  if (loginModal) loginModal.style.display = 'none';
+  if (loginBtn) loginBtn.style.display = 'block';
+  if (userInfoDiv) userInfoDiv.style.display = 'none';
+  if (displayName) displayName.textContent = '';
+  if (err) {
+    err.style.display = 'none';
+    err.textContent = '';
+  }
   ['username', 'password'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -72,7 +95,11 @@ async function login() {
 }
 
 async function logout() {
-  try { await request('/logout', 'POST'); } catch (e) {}
+  try {
+    await request('/logout', 'POST');
+  } catch (e) {
+    // 即使后端出错（如未实现 /logout），也强制清理前端状态
+  }
   updateUIForLoggedOut();
   showMessage('已退出登录');
 }
@@ -86,20 +113,28 @@ async function checkLoginStatus() {
   }
 }
 
-// ==================== 弹窗控制（供 HTML onclick 使用） ====================
+// ==================== 弹窗控制 ====================
 function login_btn() {
-  document.getElementById('globalLoginModal').style.display = 'flex';
-  document.getElementById('ErrorLogin').style.display = 'none';
+  const modal = document.getElementById('globalLoginModal');
+  const errorEl = document.getElementById('ErrorLogin');
+  if (modal) modal.style.display = 'flex';
+  if (errorEl) errorEl.style.display = 'none';
 }
 
 function close_login_modal() {
-  document.getElementById('globalLoginModal').style.display = 'none';
+  const modal = document.getElementById('globalLoginModal');
+  if (modal) modal.style.display = 'none';
 }
 
-// 登录模态框内的登录按钮事件
 function login_btn_model() {
   login();
 }
+
+// ==================== 兼容旧 HTML 中残留的函数调用 ====================
+// 如果 HTML 中仍有 onchange="username_in()" 等，可保留空函数避免报错
+function username_in() {}
+function password_in() {}
+function login_btn2() { login(); }   // 如果旧按钮用 login_btn2，也指向 login
 
 // ==================== 页面加载初始化 ====================
 window.addEventListener('DOMContentLoaded', () => {
@@ -112,4 +147,7 @@ window.logout = logout;
 window.login_btn = login_btn;
 window.close_login_modal = close_login_modal;
 window.login_btn_model = login_btn_model;
-window.login_out = logout;   // 兼容已有退出调用 login_out()
+window.login_out = logout;
+window.username_in = username_in;
+window.password_in = password_in;
+window.login_btn2 = login_btn2;
