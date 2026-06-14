@@ -20,27 +20,26 @@ export async function onRequest(context) {
   }
 
   const url = new URL(request.url);
-  console.log(`Auth request: ${request.method} ${url.pathname}`); // 调试日志
+  console.log(`Auth request: ${request.method} ${url.pathname}`);
 
   try {
     // 注册
     if (request.method === 'POST' && url.pathname.endsWith('/register')) {
-      return await handleRegister(request, env.mlttcd1, corsHeaders);
+      return await handleRegister(request, env.mlttcd, corsHeaders);
     }
     // 登录
     if (request.method === 'POST' && url.pathname.endsWith('/login')) {
-      return await handleLogin(request, env.mlttcd1, corsHeaders);
+      return await handleLogin(request, env.mlttcd, corsHeaders);
     }
     // 获取当前用户
     if (request.method === 'GET' && url.pathname.endsWith('/me')) {
-      return await handleGetCurrentUser(request, env.mlttcd1, corsHeaders);
+      return await handleGetCurrentUser(request, env.mlttcd, corsHeaders);
     }
     // 登出
     if (request.method === 'POST' && url.pathname.endsWith('/logout')) {
       return await handleLogout(corsHeaders);
     }
 
-    // 未匹配任何路由，返回 404
     return json({ error: 'Not found' }, 404, corsHeaders);
   } catch (err) {
     console.error('Auth error:', err.message);
@@ -65,8 +64,7 @@ async function handleRegister(request, db, corsHeaders) {
     return json({ error: 'Invalid email format or password too short (min 6 chars)' }, 400, corsHeaders);
   }
 
-  // 检查邮箱是否已注册（注意表名为 users）
-  const exists = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+  const exists = await db.prepare('SELECT id FROM user WHERE email = ?').bind(email).first();
   if (exists) {
     return json({ error: 'Email already registered' }, 409, corsHeaders);
   }
@@ -75,7 +73,7 @@ async function handleRegister(request, db, corsHeaders) {
   const today = new Date().toISOString().split('T')[0];
 
   await db.prepare(
-    'INSERT INTO users (email, password, city, adm, registertime) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO user (email, password, city, adm, registertime) VALUES (?, ?, ?, ?, ?)'
   ).bind(email, hashed, '-', 'user', today).run();
 
   return json({ success: true, message: 'Registration successful' }, 201, corsHeaders);
@@ -95,7 +93,7 @@ async function handleLogin(request, db, corsHeaders) {
     return json({ error: 'Email and password are required' }, 400, corsHeaders);
   }
 
-  const user = await db.prepare('SELECT id, password FROM users WHERE email = ?').bind(email).first();
+  const user = await db.prepare('SELECT id, password FROM user WHERE email = ?').bind(email).first();
   if (!user) {
     return json({ error: 'Invalid credentials' }, 401, corsHeaders);
   }
@@ -106,7 +104,7 @@ async function handleLogin(request, db, corsHeaders) {
   }
 
   const token = generateToken();
-  await db.prepare('UPDATE users SET token = ? WHERE id = ?').bind(token, user.id).run();
+  await db.prepare('UPDATE user SET token = ? WHERE id = ?').bind(token, user.id).run();
 
   const cookieHeader = `token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${7 * 86400}`;
   const headers = {
@@ -149,7 +147,7 @@ async function requireAuthFromCookie(request, db) {
     return json({ error: 'Unauthorized' }, 401);
   }
   const user = await db.prepare(
-    'SELECT id, email, city, adm, registertime FROM users WHERE token = ?'
+    'SELECT id, email, city, adm, registertime FROM user WHERE token = ?'
   ).bind(token).first();
   if (!user) {
     return json({ error: 'Invalid or expired token' }, 401);
