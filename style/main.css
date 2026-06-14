@@ -69,6 +69,37 @@ html {
     scroll-behavior: smooth;
 }
 
+#headerAuthArea {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: 1rem;
+
+    & strong {
+        font-size: 1rem;
+    }
+}
+
+@media(max-width: 768px) {
+    #headerAuthArea {
+        font-size: .9rem;
+
+        & strong {
+            font-size: .9rem;
+        }
+    }
+}
+
+@media(max-width: 480px) {
+    #headerAuthArea {
+        font-size: .8rem;
+
+        & strong {
+            font-size: .75rem;
+        }
+    }
+}
+
 @keyframes general_fadeIn_nomove_fixed_noreplace_dontrestore {
     from {
         opacity: 0;

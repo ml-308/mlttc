@@ -146,6 +146,79 @@
     </div>
 </template>
 
+<template id="template-hcw-input">
+    <style>
+        .inner-root {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+
+        input {
+            appearance: none;
+            border: none;
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            border-radius: var(--radius-md);
+            background-color: var(--input-bg);
+            color: var(--input-color);
+            padding: .75rem .45rem;
+            backdrop-filter: blur(.5rem) saturate(3);
+            text-shadow: 0 0 .25rem var(--glass-inner-hl);
+            transition: var(--transition-fast);
+            transition-property: transform, background-color, color, box-shadow;
+            cursor: text;
+            font-size: 1rem;
+            border: .15rem solid #8881;
+            animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+        }
+
+        :host([large]) input {
+            font-size: 1.25rem;
+        }
+
+        :host(:not([disabled]):hover) input {
+            background-color: var(--input-bg-hl);
+            color: var(--input-color-hl);
+        }
+
+        :host([tp]) input {
+            background-color: transparent;
+        }
+
+        :host([primary]) input::placeholder {
+            opacity: .5;
+            color: var(--primary);
+
+            &:hover {
+                color: var(--primary-hl);
+            }
+        }
+
+        :host([disabled]) input {
+            filter: saturate(0);
+            cursor: not-allowed;
+            box-shadow: none;
+            color: var(--button-color-disabled);
+        }
+    </style>
+    <div class="inner-root">
+        <label>
+            <slot name="label"></slot>
+        </label>
+        <input>
+    </div>
+</template>
+
 <template id="template-hcw-hero">
     <style>
         :host {
