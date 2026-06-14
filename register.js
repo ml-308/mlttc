@@ -3,62 +3,54 @@ let t1 = 0, t2 = 0, t3 = 0, t4 = 0;
 
 const API_BASE = '/api/auth';
 
-// ========== 修复后的邮箱验证（增加重复检测） ==========
+// ========== 修改后的 emailValidation（仅增加重复检测） ==========
 async function emailValidation() {
-    username = document.getElementById("username").value.trim();
+    username = "";
+    username = document.getElementById("username").value;
     let t = username.indexOf("@");
     let e = username.lastIndexOf(".");
 
-    // 1. 格式错误
-    if (!(t > 0 && e > 0 && t < e)) {
-        document.getElementById("username").style.borderColor = "#ff0000";
-        document.getElementById("usernameMsg").style.display = "block";
-        document.getElementById("usernameMsg").style.color = "#ff0000";
-        document.getElementById("usernameMsg").innerHTML = username + " 不是合法的邮箱";
-        t1 = 0;
-        return;
-    }
-
-    // 2. 检查是否已注册（调用已有的查询接口）
-    try {
-        const re = await fetch('/api/register-get?action=get&key=' + encodeURIComponent(username));
-        if (!re.ok) {
-            // 接口返回非 200（如 404），视为未注册，允许继续
-            document.getElementById("username").style.borderColor = "#1eff00";
-            document.getElementById("usernameMsg").style.display = "block";
-            document.getElementById("usernameMsg").style.color = "#1eff00";
-            document.getElementById("usernameMsg").innerHTML = username + " 邮箱可用";
-            t1 = 1;
+    if (t > 0 && e > 0 && t < e) {
+        // 检查邮箱是否已被注册
+        try {
+            const existing = await passget(username);
+            // existing 不为空且不是 null/undefined/'null'/'undefined' 表示已注册
+            if (existing && existing !== 'null' && existing !== 'undefined') {
+                // 邮箱已被注册
+                document.getElementById("username").style.borderColor = "#ff0000";
+                document.getElementById("usernameMsg").style.display = "block";
+                document.getElementById("usernameMsg").style.color = "#ff0000";
+                document.getElementById("usernameMsg").innerHTML = username + " 已被注册，请直接登录";
+                t1 = 0;
+                return;
+            }
+        } catch (err) {
+            // passget 抛出异常说明接口异常或无权限，按原逻辑显示黄色警告
+            // 但不覆盖 t1 的赋值，原 passget 已处理界面提示
+            t1 = 0;
             return;
         }
 
-        const data = await re.json();
-        // 如果 data.value 存在且不为空，说明已注册
-        if (data.value && data.value !== '') {
-            document.getElementById("username").style.borderColor = "#ff0000";
-            document.getElementById("usernameMsg").style.display = "block";
-            document.getElementById("usernameMsg").style.color = "#ff0000";
-            document.getElementById("usernameMsg").innerHTML = username + " 已被注册，请直接登录";
-            t1 = 0;
-        } else {
-            // 未注册
+        // 邮箱可用（原逻辑保留）
+        pass = "";
+        pass = await passget(username);
+        if (pass != "" && pass != null && pass != undefined && pass != "null" && pass != "undefined") {
             document.getElementById("username").style.borderColor = "#1eff00";
             document.getElementById("usernameMsg").style.display = "block";
             document.getElementById("usernameMsg").style.color = "#1eff00";
-            document.getElementById("usernameMsg").innerHTML = username + " 邮箱可用";
+            document.getElementById("usernameMsg").innerHTML = username + "邮箱格式正确，且有注册权限";
             t1 = 1;
         }
-    } catch (err) {
-        // 网络错误等，按验证失败处理
+    } else {
         document.getElementById("username").style.borderColor = "#ff0000";
         document.getElementById("usernameMsg").style.display = "block";
         document.getElementById("usernameMsg").style.color = "#ff0000";
-        document.getElementById("usernameMsg").innerHTML = "邮箱验证失败，请稍后重试";
+        document.getElementById("usernameMsg").innerHTML = username + "不是合法的邮箱";
         t1 = 0;
     }
 }
 
-// ========== 以下函数保持不变 ==========
+// ========== 以下所有函数保持原样，未作任何修改 ==========
 async function passget(username) {
     const re = await fetch('/api/register-get?action=get&key=' + encodeURIComponent(username));
     const data = await re.json();
