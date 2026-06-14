@@ -1,126 +1,120 @@
-// 显示提示信息
-function showPopup(message, duration) {
-    const popup = document.createElement('div');
-    popup.style.position = 'fixed';
-    popup.style.top = '20px';
-    popup.style.left = '50%';
-    popup.style.transform = 'translateX(-50%)';
-    popup.style.backgroundColor = '#4CAF50';
-    popup.style.color = 'white';
-    popup.style.padding = '10px 20px';
-    popup.style.borderRadius = '5px';
-    popup.style.zIndex = '1000';
-    popup.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
-    popup.textContent = message;
-    document.body.appendChild(popup);
+// ==================== 配置 ====================
+const API_BASE = '/api/auth';   // 后端接口前缀，同域可保持默认
 
-    setTimeout(() => {
-        popup.remove();
-    }, duration);
+// ==================== 通用请求（自动携带 Cookie） ====================
+async function request(path, method = 'GET') {
+  const res = await fetch(API_BASE + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',   // 携带 HttpOnly Cookie
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `请求失败 (${res.status})`);
+  return data;
 }
 
-
-
-function login_btn(){         // 登录按钮点击事件
-    document.getElementById('globalLoginModal').style.display = 'flex';
-}
-function close_login_modal(){    // 关闭登录弹窗
-    document.getElementById('globalLoginModal').style.display = 'none';
-}
-let username,password;
-let n=0;
-function username_in(){         // 用户名输入框输入事件
-    username=document.getElementById("username").value;
-}
-function password_in(){         // 密码输入框输入事件
-    password=document.getElementById("password").value;
-}
-function login_success(){        // 登录成功事件
-    document.getElementById("globalLoginModal").style.display="none";
-    document.getElementById("globalLoginBtn").style.display="none";
-    document.getElementById("globalUserInfo").style.display="block";
-    document.getElementById("globalDisplayName").innerHTML=username;
-    localStorage.setItem('loggedInUser', username);
-    showPopup('登录成功', 2000);
-
-}
-function login_btn2(){          // 登录按钮点击事件
-    n=0;
-    for(let i=0;i<test_user.length;i++){
-        if(test_user[i]==username && test_password[i]==password){
-        login_success();
-        n=1;
-        break;
-    }
-}
-if(n!=1){
-    document.getElementById("ErrorLogin").style.display="block";
-}
-}
-function login_out(){            // 退出登录事件
-    document.getElementById("globalUserInfo").style.display="none";
-    document.getElementById("globalDisplayName").innerHTML="";
-    document.getElementById("globalLoginBtn").style.display="block";
-    username="";
-    password="";
-    localStorage.removeItem('loggedInUser');
-    document.getElementById("username").value="";
-    document.getElementById("password").value="";
-    showPopup('退出成功', 2000);
+// ==================== 弹窗提示 ====================
+function showPopup(message, duration = 2000, isError = false) {
+  const popup = document.createElement('div');
+  popup.style.position = 'fixed';
+  popup.style.top = '20px';
+  popup.style.left = '50%';
+  popup.style.transform = 'translateX(-50%)';
+  popup.style.backgroundColor = isError ? '#f44336' : '#4CAF50';
+  popup.style.color = 'white';
+  popup.style.padding = '10px 20px';
+  popup.style.borderRadius = '5px';
+  popup.style.zIndex = '1000';
+  popup.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+  popup.textContent = message;
+  document.body.appendChild(popup);
+  setTimeout(() => popup.remove(), duration);
 }
 
-function back(){                 // 返回index.html按钮点击事件
-    window.location.href = "index.html";
-    if(username!=""){
-        document.getElementById("globalLoginModal").style.display="none";
-        document.getElementById("globalLoginBtn").style.display="none";
-        document.getElementById("globalUserInfo").style.display="block";
-        document.getElementById("globalDisplayName").innerHTML=username;
-    }
-    else{
-        document.getElementById("globalUserInfo").style.display="none";
-        document.getElementById("globalDisplayName").innerHTML="";
-        document.getElementById("globalLoginBtn").style.display="block";
-    }
+// ==================== UI 状态更新 ====================
+function updateUIForLoggedIn(userInfo) {
+  document.getElementById('globalLoginModal')?.style?.display && (document.getElementById('globalLoginModal').style.display = 'none');
+  const loginBtn = document.getElementById('globalLoginBtn');
+  const userInfoDiv = document.getElementById('globalUserInfo');
+  const displayName = document.getElementById('globalDisplayName');
+  if (loginBtn) loginBtn.style.display = 'none';
+  if (userInfoDiv) userInfoDiv.style.display = 'block';
+  if (displayName) displayName.textContent = userInfo.email || userInfo.username || '用户';
 }
 
-function timetable(){
-    window.location.href="timetable.html"
-    if(username!=""){
-        document.getElementById("globalLoginModal").style.display="none";
-        document.getElementById("globalLoginBtn").style.display="none";
-        document.getElementById("globalUserInfo").style.display="block";
-        document.getElementById("globalDisplayName").innerHTML=username;
-    }
-    else{
-        document.getElementById("globalUserInfo").style.display="none";
-        document.getElementById("globalDisplayName").innerHTML="";
-        document.getElementById("globalLoginBtn").style.display="block";
-    }
+function updateUIForLoggedOut() {
+  const userInfoDiv = document.getElementById('globalUserInfo');
+  const displayName = document.getElementById('globalDisplayName');
+  const loginBtn = document.getElementById('globalLoginBtn');
+  const loginModal = document.getElementById('globalLoginModal');
+  if (userInfoDiv) userInfoDiv.style.display = 'none';
+  if (displayName) displayName.textContent = '';
+  if (loginBtn) loginBtn.style.display = 'block';
+  if (loginModal) loginModal.style.display = 'none';
+  // 清除可能残留的表单
+  ['username', 'password'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const errorEl = document.getElementById('ErrorLogin');
+  if (errorEl) errorEl.style.display = 'none';
 }
 
-// 页面加载时检查登录状态
-window.onload = function() {
-    const loggedInUser = localStorage.getItem('loggedInUser');
-    if(loggedInUser) {
-        username = loggedInUser;
-        document.getElementById("globalLoginModal").style.display="none";
-        document.getElementById("globalLoginBtn").style.display="none";
-        document.getElementById("globalUserInfo").style.display="block";
-        document.getElementById("globalDisplayName").innerHTML=username;
-    }
+// ==================== 登录状态检测（页面加载时调用） ====================
+async function checkLoginStatus() {
+  try {
+    const data = await request('/me', 'GET');
+    updateUIForLoggedIn(data.user);
+  } catch (err) {
+    updateUIForLoggedOut();
+  }
 }
 
-function register_btn(){
-    window.location.href="register.html";
-
+// ==================== 退出登录 ====================
+async function login_out() {
+  try {
+    await request('/logout', 'POST');
+  } catch (e) {
+    // 即使后端返回错误也清理前端状态
+  }
+  updateUIForLoggedOut();
+  showPopup('退出成功', 2000);
 }
 
+// ==================== 登录弹窗控制（仅 UI，不包含登录逻辑） ====================
+function login_btn() {
+  const modal = document.getElementById('globalLoginModal');
+  if (modal) modal.style.display = 'flex';
+}
 
-test_user=["SFYLTLHRIL", 'PIJRHGEXGK','IUQBQEZDWK', 
-    'DGIUTRQZYL', 'CIIQKBSLMV', 'MHVCWXBWST', 'SAGKKMDXIJ', 
-    'NABTDJPMJB', 'GANEKZFYNM', 'JHSUCFHWAD',"1"]
+function close_login_modal() {
+  const modal = document.getElementById('globalLoginModal');
+  if (modal) modal.style.display = 'none';
+}
 
-test_password=['OVTXQPATPI', 'DMPHJBGZGW', 'TFRERWEZYS', 'VZEYYNUSYG', 
-    'PUFBWSQGSQ', 'JDVNCUREPD', 'GAAFKAFAVH', 'EKVLKKQIUZ', 'QDLKRGXJNL', 
-    'ICVYKITDBT',"1"]
+// 登录按钮的点击事件由登录页面自行绑定，此处不实现 API 调用
+
+// ==================== 页面跳转 ====================
+function back() {
+  window.location.href = 'index.html';
+}
+
+function timetable() {
+  window.location.href = 'timetable.html';
+}
+
+function register_btn() {
+  window.location.href = 'register.html';
+}
+
+// ==================== 初始化 ====================
+window.addEventListener('DOMContentLoaded', () => {
+  checkLoginStatus();
+  // 可将全局函数暴露到 window 以便 HTML onclick 调用（可选）
+  window.login_out = login_out;
+  window.login_btn = login_btn;
+  window.close_login_modal = close_login_modal;
+  window.register_btn = register_btn;
+  window.back = back;
+  window.timetable = timetable;
+});

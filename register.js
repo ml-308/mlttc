@@ -1,8 +1,7 @@
 let username,pass,passin,password_in,yes_password;
 let t1=0,t2=0,t3=0,t4=0;
 
-const API_BASE='/api/register-keep';
-const TOKEN_COOKIE_NAME='users';
+const API_BASE = '/api/auth';
 
 async function emailValidation(){
     username="";
@@ -13,8 +12,6 @@ async function emailValidation(){
     if (t > 0 && e > 0 && t < e) {
         pass="";
         pass=await passget(username);
-        document.getElementById('passwordMsg').innerHTML=pass;
-        document.getElementById('passwordMsg').style.display = "block";
         if(pass!=""&&pass!=null&&pass!=undefined&&pass!="null"&&pass!="undefined"){
         document.getElementById("username").style.borderColor = "#1eff00";
         document.getElementById("usernameMsg").style.display = "block";
@@ -108,45 +105,41 @@ function passwordyesc(){
     }
 }
 
-function register(){
+function registerbtn(){
     if(t1==1&&t2==1&&t3==1&&t4==1){
-        handleRegister();
+        register();
     }
     else{
         alert("请先完成所有验证");
     }
 }
 
-function setCookie(name, value, days=30){
-    const expeires=new Date(Date.now()+days*864e5).toUTCString();
-    document.cookie=`${endcodeURIComponent(name)}=${encodeURIComponent(value)};expires=${expeires};path=/;SameSite=Lax`;
-} 
 
-function getcookie(name){
-    const cookies=document.cookie.split(';');
-    for(const cookie of cookies){
-        const [key,value]=cookie.split('=');
-        if(decodeURIComponent(key)==name){
-            return decodeURIComponent(value);
-        }
-    }
-    return null;
-}
-
-function erasecookie(name){
-    document.cookie=`${encodeURIComponent(name)}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-}
-
-async function request(path, method = 'GET', body = null, needAuth = false) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (needAuth) {
-    const token = getCookie(TOKEN_COOKIE_NAME);
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+async function register() {
+  const email = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  try {
+    const data = await request('/register', 'POST', { email, password });
+    showMessage(data.message || '注册成功，请登录');
+  } catch (err) {
+    showMessage(err.message, true);
   }
+}
 
-  const options = { method, headers };
+function showMessage(msg, isError = false) {
+  const box = document.getElementById('ErrorRegister');
+  if (box) {
+    box.textContent = msg;
+    box.style.color = isError ? 'red' : 'green';
+  }
+}
+
+async function request(path, method = 'GET', body = null) {
+  const options = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',   // 关键：让浏览器自动发送 Cookie
+  };
   if (body) options.body = JSON.stringify(body);
 
   const res = await fetch(API_BASE + path, options);
@@ -156,15 +149,4 @@ async function request(path, method = 'GET', body = null, needAuth = false) {
     throw new Error(data.error || `请求失败 (${res.status})`);
   }
   return data;
-}
-
-async function handleRegister() {
-  const username = document.getElementById('username').value;
-  const password = document.getElementById('password').value;
-  try {
-    const data = await request('/register', 'POST', { username, password });
-    showMessage(data.message || '注册成功，请登录');
-  } catch (err) {
-    showMessage(err.message, true);
-  }
 }
