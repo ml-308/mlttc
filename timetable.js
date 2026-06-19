@@ -246,7 +246,8 @@ function bcchange(){
 
 function time1change(){
     document.getElementById('time1').style.borderColor = '#ffd20a';
-    document.getElementById('cl1').style.display = 'block';
+    document.getElementById('time1b').style.display = 'flex';
+    document.getElementById('cl1').style.display='flex';
     time1 = document.getElementById('time1').value;
     time1in=time1;
     timetest(time1);
@@ -262,7 +263,7 @@ function time1change(){
         document.getElementById('time1').style.borderColor = '#1eff01';
         document.getElementById('time1test').innerHTML = ' 这是一个合法时刻表';
         document.getElementById('time1test').style.color = '#1eff01';
-        document.getElementById('back1').style.display = 'block';
+        document.getElementById('back1').style.display = 'flex';
     }
     else{
         t5=0;
@@ -299,8 +300,8 @@ function backone(){
 
 function time2change(){
     document.getElementById('time2').style.borderColor = '#ffd20a';
-    document.getElementById('cl2').style.display = 'block';
-
+    document.getElementById('time2b').style.display = 'flex';
+    document.getElementById('cl2').style.display='flex';
     time2 = document.getElementById('time2').value;
     timetest(time2);
     errorout='';
@@ -316,7 +317,7 @@ function time2change(){
         document.getElementById('time2').style.borderColor = '#1eff01';
         document.getElementById('time2test').innerHTML = ' 这是一个合法时刻表';
         document.getElementById('time2test').style.color = '#1eff01';
-        document.getElementById('back2').style.display = 'block';
+        document.getElementById('back2').style.display = 'flex';
     }
     else{
         t6=0;
