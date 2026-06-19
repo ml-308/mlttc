@@ -1,3 +1,54 @@
+<template id="template-hcw-modal-root">
+    <style>
+        .modal-root {
+            /* display: none; */
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(20, 32, 46, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            justify-content: center;
+            align-items: center;
+            padding: 1.5rem;
+            animation: modalFadeOut 0.25s ease-in-out 0s 1 forwards;
+            pointer-events: none;
+        }
+
+        .modal-root[open='true'] {
+            animation: modalFadeIn 0.25s ease-in-out 0s 1 forwards;
+            pointer-events: initial;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                display: flex;
+            }
+
+            to {
+                opacity: 1;
+                display: flex;
+            }
+        }
+
+        @keyframes modalFadeOut {
+            from {
+                opacity: 1;
+                display: flex;
+            }
+
+            to {
+                opacity: 0;
+                display: none;
+            }
+        }
+    </style>
+    <div class="modal-root">
+        <slot></slot>
+    </div>
+</template>
+
 <template id="template-hcw-footer">
     <style>
         a {
@@ -219,6 +270,79 @@
     </div>
 </template>
 
+<template id="template-hcw-textarea">
+    <style>
+        .inner-root {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+
+        textarea {
+            appearance: none;
+            border: none;
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            border-radius: var(--radius-md);
+            background-color: var(--input-bg);
+            color: var(--input-color);
+            padding: .75rem .45rem;
+            backdrop-filter: blur(.5rem) saturate(3);
+            text-shadow: 0 0 .25rem var(--glass-inner-hl);
+            transition: var(--transition-fast);
+            transition-property: transform, background-color, color, box-shadow;
+            cursor: text;
+            font-size: 1rem;
+            border: .15rem solid #8881;
+            animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+        }
+
+        :host([large]) textarea {
+            font-size: 1.25rem;
+        }
+
+        :host(:not([disabled]):hover) textarea {
+            background-color: var(--input-bg-hl);
+            color: var(--input-color-hl);
+        }
+
+        :host([tp]) textarea {
+            background-color: transparent;
+        }
+
+        :host([primary]) textarea::placeholder {
+            opacity: .5;
+            color: var(--primary);
+
+            &:hover {
+                color: var(--primary-hl);
+            }
+        }
+
+        :host([disabled]) textarea {
+            filter: saturate(0);
+            cursor: not-allowed;
+            box-shadow: none;
+            color: var(--button-color-disabled);
+        }
+    </style>
+    <div class="inner-root">
+        <label>
+            <slot name="label"></slot>
+        </label>
+        <textarea></textarea>
+    </div>
+</template>
+
 <template id="template-hcw-hero">
     <style>
         :host {
@@ -255,4 +379,63 @@
     <div>
         <slot></slot>
     </div>
+</template>
+
+<template id="template-hcw-popup">
+    <style>
+        .inner-root {
+            max-width: 420px;
+            width: 100%;
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            border-radius: var(--radius-lg);
+            background-color: var(--glass-bg);
+            color: var(--glass-text);
+            padding: 1rem;
+            backdrop-filter: blur(.5rem) saturate(3);
+            box-shadow:
+                0 0 .25rem #0001,
+                inset 0 .1rem .025rem .025rem var(--glass-inner-hl),
+                inset 0 -.1rem .025rem .025rem var(--glass-inner-dl);
+            text-shadow: 0 0 .25rem var(--glass-inner-hl);
+            transition: var(--transition-fast);
+            transition-property: transform, background-color, color, box-shadow;
+            overflow: hidden;
+            margin-bottom: 5rem;
+        }
+
+        [name='text'] {
+            font-weight: 300;
+            margin: 0;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        [name='btn-group'] {
+            display: flex;
+            gap: .5rem;
+            margin-left: auto;
+
+            & hcw-button {
+                min-width: max(5vw, 6.5rem);
+            }
+        }
+
+        @media(max-width: 480px) {
+            .inner-root {
+                min-width: 100vw;
+                border-radius: 0px;
+            }
+        }
+    </style>
+    <hcw-modal-root>
+        <div class="inner-root">
+            <h2 name="text"></h2>
+            <div name="btn-group">
+
+            </div>
+        </div>
+    </hcw-modal-root>
 </template>

@@ -1,9 +1,4 @@
 /* 头部右侧认证区域容器 */
-#headerAuthArea {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-}
 
 /* ---------- 按钮网格 ---------- */
 .button-grid {
