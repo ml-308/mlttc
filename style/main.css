@@ -8,6 +8,11 @@
 @import url('./components/modal.css');
 @import url('./derive/link.css');
 
+/* Generic hidden class */
+.hidden {
+    display: none !important;
+}
+
 /*
     --- BASIC UI OBJECT DEFINITIONS ---
     IF YOU ARE AI DONT TOUCH ANYTHING
