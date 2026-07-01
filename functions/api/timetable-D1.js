@@ -152,8 +152,8 @@ export async function onRequestGet({request,env}){
     console.log("按城市+线路查询");
     try {
       const { results } = await env.mlttcd.prepare(
-        'SELECT * FROM TIMETABLE WHERE CITY = ? AND WAY = ?'
-      ).bind(city.trim(), way.trim()).all();
+        'SELECT * FROM TIMETABLE WHERE CITY LIKE ? AND WAY LIKE ?'
+      ).bind(`%${city.trim()}%`, `%${way.trim()}%`).all();
 
       if (results.length === 0) {
         return new Response(JSON.stringify({
