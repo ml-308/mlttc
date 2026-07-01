@@ -714,6 +714,10 @@ async function writeD1(city, way, start, end, time1, time2, bc, etime, writetime
     }
 }
 
+// ─── 搜索防抖与流量控制 ─────────────────────────────────────
+let searchAbortController = null; // 用于取消上一次未完成的请求
+let isSearching = false;          // 防止并发搜索
+
 //search
 //btn
 const searchbtn=document.getElementById("submitSearchBtn");
@@ -744,7 +748,25 @@ function searchcleanClick(){
     searchid.value="";
 }
 
+function setSearchLoading(loading) {
+  isSearching = loading;
+  searchbtn.disabled = loading;
+  searchbtn.textContent = loading ? '查询中...' : '查询时刻表';
+}
+
 function searchbtnClick(){
+    // 防重复提交：如果正在搜索则忽略本次点击
+    if (isSearching) {
+        console.log("已有搜索进行中，忽略本次点击");
+        return;
+    }
+
+    // 取消上一次未完成的请求（如果有）
+    if (searchAbortController) {
+        searchAbortController.abort();
+    }
+    searchAbortController = new AbortController();
+
     console.log("search btn");
     const city=searchcity.value;
     const way=searchway.value;
@@ -768,8 +790,11 @@ async function searchById() {
         return;
     }
 
+    setSearchLoading(true);
     try {
-        const res = await fetch(`/api/timetable-D1?id=${encodeURIComponent(id)}`);
+        const res = await fetch(`/api/timetable-D1?id=${encodeURIComponent(id)}`, {
+            signal: searchAbortController.signal
+        });
 
         if (!res.ok) {
             const errData = await res.json().catch(() => ({ message: '请求失败' }));
@@ -809,8 +834,15 @@ async function searchById() {
         });
 
     } catch (e) {
+        if (e.name === 'AbortError') {
+            console.log("搜索请求已被取消");
+            return; // 静默处理取消
+        }
         console.error("请求异常:", e);
         showMessage("服务器错误", true);
+    } finally {
+        setSearchLoading(false);
+        searchAbortController = null;
     }
 }
 
@@ -821,8 +853,11 @@ async function searchByCityWay() {
     const way = Complete(searchway.value, "路");
     console.log("city:", city, "way:", way);
 
+    setSearchLoading(true);
     try {
-        const res = await fetch(`/api/timetable-D1?city=${encodeURIComponent(city)}&way=${encodeURIComponent(way)}`);
+        const res = await fetch(`/api/timetable-D1?city=${encodeURIComponent(city)}&way=${encodeURIComponent(way)}`, {
+            signal: searchAbortController.signal
+        });
         if (!res.ok) {
             const errData = await res.json().catch(() => ({ message: '请求失败' }));
             showMessage(errData.message || errData.error || '请求失败', true);
@@ -860,7 +895,14 @@ async function searchByCityWay() {
         });
 
     } catch (e) {
+        if (e.name === 'AbortError') {
+            console.log("搜索请求已被取消");
+            return; // 静默处理取消
+        }
         console.error("请求异常:", e);
         showMessage("服务器错误", true);
+    } finally {
+        setSearchLoading(false);
+        searchAbortController = null;
     }
 }

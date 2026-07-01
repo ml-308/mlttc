@@ -116,18 +116,86 @@ export async function onRequestPost({ request, env }) {
     }
 }
 
+// ─── 频率限制辅助 ─────────────────────────────────────────────
+// 基于 KV 的简单 IP 频率限制，防止异常流量
+async function checkRateLimit(request, env) {
+  const MAX_REQUESTS = 30;          // 最大请求次数
+  const WINDOW_SECONDS = 60;        // 时间窗口（秒）
+
+  const ip = request.headers.get('CF-Connecting-IP')
+    || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+    || 'unknown';
+
+  const now = Math.floor(Date.now() / 1000);
+  const key = `ratelimit:search:${ip}`;
+
+  // 读取当前记录
+  let record;
+  try {
+    record = await env.mlttckv.get(key, { type: 'json' });
+  } catch {
+    record = null;
+  }
+
+  if (record && record.window === now) {
+    // 同一秒内
+    record.count += 1;
+  } else if (record && now - record.window < WINDOW_SECONDS) {
+    // 仍在时间窗口内
+    record.count += 1;
+    record.window = record.window; // 保持窗口起始时间
+  } else {
+    // 新窗口
+    record = { window: now, count: 1 };
+  }
+
+  // 写回 KV（不 await，不阻塞响应）
+  env.mlttckv.put(key, JSON.stringify(record), { expirationTtl: WINDOW_SECONDS * 2 }).catch(() => {});
+
+  // 超过阈值则拒绝
+  if (record.count > MAX_REQUESTS) {
+    return new Response(JSON.stringify({
+      success: false,
+      message: '请求过于频繁，请稍后再试'
+    }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  return null; // 通过
+}
+
+// ─── 参数校验辅助 ─────────────────────────────────────────────
+function validateSearchParam(value, maxLen) {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > maxLen) return null;
+  return trimmed;
+}
+
 //Get
 export async function onRequestGet({request,env}){
+    // 1. 频率限制检查
+    const rateLimitResponse = await checkRateLimit(request, env);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const url=new URL(request.url);
     const city=url.searchParams.get("city");
     const way=url.searchParams.get("way");
     const id=url.searchParams.get("id");
   if (id && id !== '0') {
+    // ID 查询（精确匹配，受控参数）
+    const cleanId = validateSearchParam(id, 20);
+    if (!cleanId) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'ID 格式无效'
+      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+
     console.log("按 ID 查询");
     try {
       const { results } = await env.mlttcd.prepare(
         'SELECT * FROM TIMETABLE WHERE ID = ?'
-      ).bind(id.trim()).all();
+      ).bind(cleanId).all();
 
       if (results.length === 0) {
         return new Response(JSON.stringify({
@@ -141,6 +209,7 @@ export async function onRequestGet({request,env}){
         data: results[0]          
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (err) {
+      console.error('ID 查询错误:', err);
       return new Response(JSON.stringify({ error: '服务器内部错误' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -149,11 +218,21 @@ export async function onRequestGet({request,env}){
   }
 
   if (city && city !== '0' && way && way !== '0') {
-    console.log("按城市+线路查询");
+    // 模糊搜索——参数长度校验（防止超长输入导致数据库压力）
+    const cleanCity = validateSearchParam(city, 20);
+    const cleanWay = validateSearchParam(way, 50);
+    if (!cleanCity || !cleanWay) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: '参数格式无效（城市不超过20字，线路不超过50字）'
+      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    console.log("按城市+线路模糊查询");
     try {
       const { results } = await env.mlttcd.prepare(
-        'SELECT * FROM TIMETABLE WHERE CITY LIKE ? AND WAY LIKE ?'
-      ).bind(`%${city.trim()}%`, `%${way.trim()}%`).all();
+        'SELECT * FROM TIMETABLE WHERE CITY LIKE ? AND WAY LIKE ? LIMIT 50'
+      ).bind(`%${cleanCity}%`, `%${cleanWay}%`).all();
 
       if (results.length === 0) {
         return new Response(JSON.stringify({
@@ -167,6 +246,7 @@ export async function onRequestGet({request,env}){
         data: results      
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (err) {
+      console.error('模糊查询错误:', err);
       return new Response(JSON.stringify({ error: '服务器内部错误' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
