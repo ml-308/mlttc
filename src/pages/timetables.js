@@ -361,7 +361,7 @@ function cityinput(){
     }
     else{
         judge.city=1;
-        msgout(city_input,citytest,'"'+city+'"'+" 是合法城市",1);
+        msgout(city_input,citytest,'"'+city+'"'+" 符合格式规范",1);
     }
     console.log(judge.city);
 }
@@ -377,7 +377,7 @@ function wayinput(){
     }
     else{
         judge.way=1;
-        msgout(way_input,waytest,'"'+way+'"'+" 是合法线路",1);
+        msgout(way_input,waytest,'"'+way+'"'+" 符合格式规范",1);
     }
 }
 
@@ -392,7 +392,7 @@ function startinput(){
     }
     else{
         judge.start=1;
-        msgout(start_input,starttest,'"'+start+'"'+" 是合法起点",1);
+        msgout(start_input,starttest,'"'+start+'"'+" 符合格式规范",1);
     }
 }
 function endinput(){
@@ -406,13 +406,18 @@ function endinput(){
     }
     else{
         judge.end=1;
-        msgout(end_input,endtest,'"'+end+'"'+" 是合法终点",1);
+        msgout(end_input,endtest,'"'+end+'"'+" 符合格式规范",1);
     }
 }
 
 function time1input(){
     console.log("time1 write")
     const input=time1_input.value;
+    if(input==2500){
+        msgout(time1_input,time1test,"unknown",1);
+        judge.time1=1;
+        return;
+    }
     time1in=input;
     let time=time1_input.value;
     let err="";
@@ -435,7 +440,7 @@ function time1input(){
     if(err.length>0&&err!=" "){
         judge.time1=0;
         time1c.style.display="flex";
-        msgout(time1_input,time1test,"以下时间不合法："+err,0)
+        msgout(time1_input,time1test,"以下时间不符合格式规范："+err,0)
     }
     else if(timec.length==0||time==""||time==" "){
         judge.time1=0;
@@ -445,13 +450,18 @@ function time1input(){
         judge.time1=1;
         time1c.style.display="flex";
         //time1b.style.display="flex";
-        msgout(time1_input,time1test,"时刻表合法",1);
+        msgout(time1_input,time1test,"时刻表符合格式规范",1);
     }
 }
 
 function time2input(){     // 将函数名 time1input 改为 time2input
     console.log("time2 write");   // 将 "time1 write" 改为 "time2 write"
     const input=time2_input.value; // 将 time1_input 改为 time2_input
+    if(input==2500){
+        msgout(time2_input,time2test,"unknown",1);
+        judge.time2=1;
+        return;
+    }
     time2in=input;       // 将 time1in 改为 time2in
     let time=time2_input.value;  // 将 time1_input 改为 time2_input
     let err="";
@@ -473,7 +483,7 @@ function time2input(){     // 将函数名 time1input 改为 time2input
     if(err.length>0&&err!=" "){
         judge.time2=0;
         time2c.style.display="flex";
-        msgout(time2_input,time2test,"以下时间不合法："+err,0); // 将 time1_input 和 time1test 改为 time2_input 和 time2test
+        msgout(time2_input,time2test,"以下时间不符合格式规范："+err,0); // 将 time1_input 和 time1test 改为 time2_input 和 time2test
     }
     else if(timec.length==0||time==""||time==" "){
         judge.time2=0;
@@ -483,7 +493,7 @@ function time2input(){     // 将函数名 time1input 改为 time2input
         judge.time2=1;
         time2c.style.display="flex";
         //time2b.style.display="flex";
-        msgout(time2_input,time2test,"时刻表合法",1); // 将 time1_input 和 time1test 改为 time2_input 和 time2test
+        msgout(time2_input,time2test,"时刻表符合格式规范",1); // 将 time1_input 和 time1test 改为 time2_input 和 time2test
     }
 
 }
@@ -515,11 +525,11 @@ function e_timeinput(){
     e_time=ex_timejudege(e_time);
     if(e_time!=false){
         judge.e_time=1;
-        msgout(e_time_input,e_timetest,e_time+" 是合法时间",1);
+        msgout(e_time_input,e_timetest,e_time+" 是符合格式规范时间",1);
     }
     else{
         judge.e_time=0;
-        msgout(e_time_input,e_timetest,input+" 不是合法时间",0);
+        msgout(e_time_input,e_timetest,input+" 不是符合格式规范时间",0);
     }
 }
 
@@ -631,8 +641,18 @@ function write(choose,name){
     const way=Complete(way_input.value,"路");
     const start=Complete(start_input.value,"站");
     const end=Complete(end_input.value,"站");
-    const time1=timeformat(time1_input.value);
-    const time2=timeformat(time2_input.value);
+    if(time1_input.value==2500){
+        const time1="unknown";
+    }
+    else{
+        const time1=timeformat(time1_input.value);
+    }
+    if(time2_input.value==2500){
+        const time2="unknown";
+    }
+    else{
+        const time2=timeformat(time2_input.value);
+    }
     const bc=bc_input.value;
     const e_time=ex_timejudege(e_time_input.value);
     const now = new Date();
