@@ -641,17 +641,18 @@ function write(choose,name){
     const way=Complete(way_input.value,"路");
     const start=Complete(start_input.value,"站");
     const end=Complete(end_input.value,"站");
+    let time1, time2;
     if(time1_input.value==2500){
-        const time1="unknown";
+        time1="unknown";
     }
     else{
-        const time1=timeformat(time1_input.value);
+        time1=timeformat(time1_input.value);
     }
     if(time2_input.value==2500){
-        const time2="unknown";
+        time2="unknown";
     }
     else{
-        const time2=timeformat(time2_input.value);
+        time2=timeformat(time2_input.value);
     }
     const bc=bc_input.value;
     const e_time=ex_timejudege(e_time_input.value);
