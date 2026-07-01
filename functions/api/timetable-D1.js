@@ -55,8 +55,8 @@ export async function onRequestPost({ request, env }) {
 
     // ----- 城市+线路查重 -----
     const existingRoute = await env.mlttcd.prepare(
-        'SELECT id FROM TIMETABLE WHERE CITY = ?1 AND WAY = ?2'
-    ).bind(city.trim(), way.trim()).first();
+        'SELECT id FROM TIMETABLE WHERE CITY = ?1 AND WAY = ?2 AND START = ?3 AND END = ?4 AND TIMEONE = ?5 AND TIMETWO = ?6'
+    ).bind(city.trim(), way.trim(), start.trim(), end.trim(), time1.trim(), time2.trim()).first();
 
     if (existingRoute) {
         return new Response(JSON.stringify({
