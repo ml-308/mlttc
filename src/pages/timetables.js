@@ -311,9 +311,9 @@ console.log("SUCCSSS")
 
 //special
 city1.addEventListener("click", com);
-sc.addEventListener("click", sc);
+sc.addEventListener("click", scf);
 
-async function sc(){
+async function scf(){
     try {
         const res = await fetch('/api/timetable-D1?list=all', { credentials: 'include' });
         if (!res.ok) {
