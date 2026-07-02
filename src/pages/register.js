@@ -102,11 +102,21 @@ let input={
     key:'',
 };
 
+// 邮箱输入防抖计时器
+let emailDebounceTimer = null;
+const EMAIL_DEBOUNCE_DELAY = 300; // 300ms 防抖间隔
+
 
 //function
 function emailinput(){
     const emailin=email.value;
     const back=validateEmail(emailin);
+
+    // 清除之前的防抖计时器
+    if (emailDebounceTimer) {
+        clearTimeout(emailDebounceTimer);
+    }
+
     if(back!='邮箱格式正确'){
         judge.email=0;
         msgout(email,emailmsg,0,emailin+back);
@@ -114,7 +124,10 @@ function emailinput(){
     else{
         judge.email=1;
         msgout(email,emailmsg,1,emailin+back);
-        emailp(emailin,back);
+        // 设置防抖：用户停止输入后才发送请求
+        emailDebounceTimer = setTimeout(() => {
+            emailp(emailin,back);
+        }, EMAIL_DEBOUNCE_DELAY);
     }
 
 }
