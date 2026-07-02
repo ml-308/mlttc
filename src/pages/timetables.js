@@ -257,6 +257,7 @@ const time1Div=document.getElementById("time1b");
 const time2Div=document.getElementById("time2b");
 
 const city1=document.getElementById("sp");
+const sc=document.getElementById("sc");
 
 //提示框
 const citytest=document.getElementById("citytest");
@@ -310,6 +311,40 @@ console.log("SUCCSSS")
 
 //special
 city1.addEventListener("click", com);
+sc.addEventListener("click", sc);
+
+async function sc(){
+    try {
+        const res = await fetch('/api/timetable-D1?list=all', { credentials: 'include' });
+        if (!res.ok) {
+            showMessage('获取线路列表失败', true);
+            return;
+        }
+
+        const json = await res.json();
+        if (!json.success || !json.data || json.data.length === 0) {
+            showMessage('暂无已添加的线路', true);
+            return;
+        }
+
+        // 格式化输出：一行一个 "城市  xxx    线路  xxx"
+        const lines = json.data.map((item, i) =>
+            `${String(i + 1).padStart(3)}\u3000城市: ${item.CITY}\u3000\u3000线路: ${item.WAY}`
+        );
+        const msg = lines.join('\n');
+
+        await showPrompt({
+            text: '已添加线路',
+            buttons: ['确认', '取消'],
+            button_style: ['variant=success', ''],
+            input_is_area: true,
+            input_attrs: { readonly: true, value: msg }
+        });
+    } catch (e) {
+        console.error('sc 请求异常:', e);
+        showMessage('服务器错误', true);
+    }
+}
 
 function com(){
     city_input.value="无锡市";

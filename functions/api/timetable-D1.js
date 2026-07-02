@@ -254,6 +254,28 @@ export async function onRequestGet({request,env}){
     }
   }
 
+  // ─── 列出所有已添加的线路（city + way）─────────────────────
+  const list = url.searchParams.get('list');
+  if (list === 'all') {
+    console.log("列出所有线路");
+    try {
+      const { results } = await env.mlttcd.prepare(
+        'SELECT DISTINCT CITY, WAY FROM TIMETABLE ORDER BY CITY, WAY'
+      ).all();
+
+      return new Response(JSON.stringify({
+        success: true,
+        data: results
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    } catch (err) {
+      console.error('列出线路错误:', err);
+      return new Response(JSON.stringify({ error: '服务器内部错误' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
   return new Response(JSON.stringify({
     success: false,
     message: '请提供 id 或 city+way 参数'
