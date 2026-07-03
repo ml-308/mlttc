@@ -821,7 +821,12 @@ function parseKeyword(keyword) {
             city = Complete(word, '市');
         } else if (/路$/.test(word) || /^\d{1,3}$/.test(word) || /^[A-Za-z]/.test(word) || /\d/.test(word) || /线/.test(word) || /区间/.test(word) || /微巴/.test(word)) {
             // 以"路"结尾 / 纯数字(1-3位) / 字母开头 / 含数字 / 含"线"/"专线"/"支线" / 含"区间" / 含"微巴" → 视为线路
-            way = Complete(word, '路');
+            if(!isNaN(word)){
+                way = Complete(word, '路');
+            }
+            else{
+                way=way;
+            }
         } else {
             // 默认作为城市名（即使不带"市"也能匹配）
             city = Complete(word, '市');
