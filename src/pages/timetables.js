@@ -391,7 +391,9 @@ function wayinput(){
     console.log("way write")
     const input=way_input.value;
     let way=way_input.value;
-    way=Complete(way,"");
+    if(!isNaN(way)){
+        way=Complete(way,"");
+    }
     if(way==null){
         judge.way=0;
         msgout(way_input,waytest,"请输入线路",0,input);
