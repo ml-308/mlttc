@@ -150,32 +150,31 @@ function ex_timejudege(etime){
 //提示框 - 使用CSS类替代内联样式
 function msgout(input,test,msg,judge){
     console.log("mag:"+msg);
-    // 移除所有验证状态类
-    input.classList.remove('input-valid', 'input-invalid', 'input-warning-state', 'input-default');
-    test.classList.remove('lp-valid', 'lp-invalid', 'lp-warning', 'lp-hide');
-    
     if(judge==1){
         console.log("msgout--1");
-        input.classList.add('input-valid');
-        test.classList.add('lp-valid');
+        input.style.borderColor='#1eff01';
+        test.style.color='#1eff01';
         test.innerHTML=msg;
+        test.style.display="block";
     }
     if(judge==0){
         console.log("msg--0");
-        input.classList.add('input-invalid');
-        test.classList.add('lp-invalid');
+        input.style.borderColor='#ff0000';
+        test.style.color='#ff0000';
         test.innerHTML=msg;
+        test.style.display="block";
     }
     if(judge==2){
         console.log("msg--2");
-        input.classList.add('input-default');
-        test.classList.add('lp-hide');
+        input.style.borderColor='#8881';
+        test.style.color='#000000';
         test.innerHTML=msg;
+        test.style.display="none";
     }
     if(judge==3){
         console.log("msg--3");
-        input.classList.add('input-warning-state');
-        test.classList.add('lp-warning');
+        input.style.borderColor='#f3f30e';
+        test.style.color='#f3f30e';
         test.innerHTML=msg;
     }
 }
