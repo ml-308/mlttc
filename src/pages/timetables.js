@@ -294,7 +294,6 @@ time2c.disabled=false;
 console.log("SUCCSSS")
 
 //special
-city1.addEventListener("click", com);
 sc.addEventListener("click", scf);
 
 async function scf(){
@@ -330,12 +329,7 @@ async function scf(){
     }
 }
 
-function com(){
-    city_input.value="无锡市";
-    showMessage("线路已自动补全为 无锡市", false);
-    cityinput();
-    return;
-}
+
 
 function back(){
     window.location.href="/index.html";
@@ -373,10 +367,6 @@ function cityinput(){
     if(city==null){
         judge.city=0;
         msgout(city_input,citytest,"请输入城市",0,input);
-    }
-    else if(city!="无锡市"){
-        judge.city=0;
-        msgout(city_input,citytest,"当前仅支持写入无锡地区数据   点击填充",3,input);
     }
     else{
         judge.city=1;
