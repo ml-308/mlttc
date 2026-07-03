@@ -660,8 +660,9 @@ async function confirmAdd() {
 
 function write(choose,name){
     const city=Complete(city_input.value,"市");
+    let way=way_input.value;
     if(!isNaN(way)){
-    let way=Complete(way_input.value,"路");
+        way=Complete(way,"路");
     }
     const start=Complete(start_input.value,"站");
     const end=Complete(end_input.value,"站");
