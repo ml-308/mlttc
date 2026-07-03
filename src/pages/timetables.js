@@ -778,6 +778,7 @@ function searchcleanClick() {
     console.log("search clean");
     searchKeyword.value = "";
     searchid.value = "";
+    sessionStorage.removeItem('timetable_search_state');
     closeResults();
 }
 
@@ -785,6 +786,7 @@ function closeResults() {
     searchResult.classList.add("hidden");
     searchResultsData = [];
     currentPage = 0;
+    sessionStorage.removeItem('timetable_search_state');
 }
 
 function setSearchLoading(loading) {
@@ -840,6 +842,9 @@ function searchbtnClick() {
         searchAbortController.abort();
     }
     searchAbortController = new AbortController();
+
+    // 新搜索清除之前保存的状态
+    sessionStorage.removeItem('timetable_search_state');
 
     console.log("search btn");
     const keyword = searchKeyword.value;
@@ -1060,6 +1065,12 @@ function formatTimeDisplay(timeStr) {
 }
 
 async function showDetail(item) {
+    // 跳转前保存搜索状态到 sessionStorage
+    sessionStorage.setItem('timetable_search_state', JSON.stringify({
+        keyword: searchKeyword.value,
+        results: searchResultsData,
+        page: currentPage
+    }));
     // 跳转到新的详情页面
     const id = item.ID;
     window.location.href = `/timetable-detail.html?id=${encodeURIComponent(id)}`;
@@ -1079,6 +1090,45 @@ function showAddResult(success, message) {
         resultDiv.classList.add('hidden');
     }, 5000);
 }
+
+// ─── 从详情页返回时恢复搜索状态 ─────────────────────
+function restoreSearchState() {
+    const saved = sessionStorage.getItem('timetable_search_state');
+    if (!saved) return;
+
+    try {
+        const state = JSON.parse(saved);
+        if (!state.results || state.results.length === 0) {
+            sessionStorage.removeItem('timetable_search_state');
+            return;
+        }
+
+        // 清除已保存的状态，避免重复恢复
+        sessionStorage.removeItem('timetable_search_state');
+
+        // 填充关键词并切换到搜索面板
+        if (state.keyword) {
+            searchKeyword.value = state.keyword;
+        }
+        searchForm();
+
+        // 恢复搜索结果
+        searchResultsData = state.results;
+        currentPage = state.page || 0;
+        searchResult.classList.remove("hidden");
+        resultCount.textContent = `共 ${searchResultsData.length} 条结果`;
+        renderPage();
+
+        showMessage(`已恢复搜索结果，共 ${searchResultsData.length} 条`, false);
+    } catch (e) {
+        console.error('恢复搜索状态失败:', e);
+        sessionStorage.removeItem('timetable_search_state');
+    }
+}
+
+// 页面加载时自动恢复
+restoreSearchState();
+
 /*
 // ─── 删除功能 ─────────────────────────────────────
 const deleteBtn = document.getElementById('submitDeleteBtn');
