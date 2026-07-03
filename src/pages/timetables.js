@@ -439,6 +439,11 @@ function time1input(){
         judge.time1=1;
         return;
     }
+    else if(input==2501){
+        msgout(time1_input,time1test,"Remove",1);
+        judge.time1=1;
+        return;
+    }
     time1in=input;
     let time=time1_input.value;
     let err="";
@@ -479,6 +484,11 @@ function time2input(){     // 将函数名 time1input 改为 time2input
     const input=time2_input.value; // 将 time1_input 改为 time2_input
     if(input==2500){
         msgout(time2_input,time2test,"unknown",1);
+        judge.time2=1;
+        return;
+    }
+    else if(input==2501){
+        msgout(time2_input,time2test,"Remove",1);
         judge.time2=1;
         return;
     }
@@ -670,11 +680,17 @@ function write(choose,name){
     if(time1_input.value==2500){
         time1="unknown";
     }
+    else if(time1_input.value==2501){
+        time1="Remove"
+    }
     else{
         time1=timeformat(time1_input.value);
     }
     if(time2_input.value==2500){
         time2="unknown";
+    }
+    else if(time2_input.value==2501){
+        time2="Remove"
     }
     else{
         time2=timeformat(time2_input.value);

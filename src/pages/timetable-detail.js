@@ -123,7 +123,11 @@ function renderDetail(item) {
       chip.textContent = t;
       detailTime1.appendChild(chip);
     });
-  } else {
+  } 
+  else if(item.TIMEONE==="Remove"){
+    detailTime1.innerHTML = '<span class="detail-time-chip">线路已撤销</span>';
+  }
+  else {
     detailTime1.innerHTML = '<span class="detail-time-chip">未填写或无发车班次</span>';
   }
 
@@ -137,8 +141,12 @@ function renderDetail(item) {
       chip.textContent = t;
       detailTime2.appendChild(chip);
     });
-  } else {
-    detailTime2.innerHTML = '<span class="detail-time-chip">未填写</span>';
+  } 
+  else if(item.TIMETWO==="Remove"){
+    detailTime2.innerHTML = '<span class="detail-time-chip">线路已撤销</span>';
+  }
+  else {
+    detailTime2.innerHTML = '<span class="detail-time-chip">未填写或无发车班次</span>';
   }
 
   // 元信息
