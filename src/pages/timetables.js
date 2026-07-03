@@ -950,6 +950,28 @@ async function searchByKeyword() {
 
 // ─── 结果渲染与分页 ─────────────────────────────────
 function renderResults(data) {
+    // 对结果按线路号排序：数字开头按数值升序，非数字开头按首字拼音/字母排在最后
+    data.sort((a, b) => {
+        const wayA = a.WAY || '';
+        const wayB = b.WAY || '';
+        const numA = parseInt(wayA.match(/^(\d+)/)?.[1], 10);
+        const numB = parseInt(wayB.match(/^(\d+)/)?.[1], 10);
+        const isNumA = !isNaN(numA);
+        const isNumB = !isNaN(numB);
+
+        if (isNumA && isNumB) {
+            return numA - numB;
+        }
+        if (isNumA && !isNumB) {
+            return -1;
+        }
+        if (!isNumA && isNumB) {
+            return 1;
+        }
+        // 都非数字开头，按首字 localeCompare 排序
+        return wayA.localeCompare(wayB, 'zh-CN');
+    });
+
     searchResultsData = data;
     currentPage = 0;
     
