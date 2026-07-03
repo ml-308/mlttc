@@ -825,7 +825,7 @@ function parseKeyword(keyword) {
                 way = Complete(word, '路');
             }
             else{
-                way=way;
+                way=word;
             }
         } else {
             // 默认作为城市名（即使不带"市"也能匹配）
