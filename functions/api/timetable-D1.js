@@ -217,22 +217,39 @@ export async function onRequestGet({request,env}){
     }
   }
 
-  if (city && city !== '0' && way && way !== '0') {
-    // 模糊搜索——参数长度校验（防止超长输入导致数据库压力）
-    const cleanCity = validateSearchParam(city, 20);
-    const cleanWay = validateSearchParam(way, 50);
-    if (!cleanCity || !cleanWay) {
+  if (city || way) {
+    // 支持单独按城市、线路或两者组合搜索
+    let query = 'SELECT * FROM TIMETABLE WHERE';
+    const params = [];
+    const conditions = [];
+
+    if (city) {
+      const cleanCity = validateSearchParam(city, 20);
+      if (cleanCity) {
+        conditions.push('CITY LIKE ?');
+        params.push(`%${cleanCity}%`);
+      }
+    }
+    if (way) {
+      const cleanWay = validateSearchParam(way, 50);
+      if (cleanWay) {
+        conditions.push('WAY LIKE ?');
+        params.push(`%${cleanWay}%`);
+      }
+    }
+
+    if (conditions.length === 0) {
       return new Response(JSON.stringify({
         success: false,
-        message: '参数格式无效（城市不超过20字，线路不超过50字）'
+        message: '参数格式无效'
       }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    console.log("按城市+线路模糊查询");
+    query += ' ' + conditions.join(' AND ') + ' LIMIT 50';
+
+    console.log("组合查询:", query, params);
     try {
-      const { results } = await env.mlttcd.prepare(
-        'SELECT * FROM TIMETABLE WHERE CITY LIKE ? AND WAY LIKE ? LIMIT 50'
-      ).bind(`%${cleanCity}%`, `%${cleanWay}%`).all();
+      const { results } = await env.mlttcd.prepare(query).bind(...params).all();
 
       if (results.length === 0) {
         return new Response(JSON.stringify({

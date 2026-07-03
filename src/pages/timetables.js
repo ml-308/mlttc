@@ -147,85 +147,71 @@ function ex_timejudege(etime){
     return etime;
 }
 
-//提示框
+//提示框 - 使用CSS类替代内联样式
 function msgout(input,test,msg,judge){
     console.log("mag:"+msg);
+    // 移除所有验证状态类
+    input.classList.remove('input-valid', 'input-invalid', 'input-warning-state', 'input-default');
+    test.classList.remove('lp-valid', 'lp-invalid', 'lp-warning', 'lp-hide');
+    
     if(judge==1){
         console.log("msgout--1");
-        input.style.borderColor='#1eff01';
-        test.style.color='#1eff01';
+        input.classList.add('input-valid');
+        test.classList.add('lp-valid');
         test.innerHTML=msg;
-        test.style.display="block";
     }
     if(judge==0){
         console.log("msg--0");
-        input.style.borderColor='#ff0000';
-        test.style.color='#ff0000';
+        input.classList.add('input-invalid');
+        test.classList.add('lp-invalid');
         test.innerHTML=msg;
-        test.style.display="block";
     }
     if(judge==2){
         console.log("msg--2");
-        input.style.borderColor='#8881';
-        test.style.color='#000000';
+        input.classList.add('input-default');
+        test.classList.add('lp-hide');
         test.innerHTML=msg;
-        test.style.display="none";
     }
     if(judge==3){
         console.log("msg--3");
-        input.style.borderColor='#f3f30e';
-        test.style.color='#f3f30e';
+        input.classList.add('input-warning-state');
+        test.classList.add('lp-warning');
         test.innerHTML=msg;
     }
 }
 
-//clean
+//clean - 使用CSS类
 function cleaninput(input,inputtest,btn){
     console.log("clean input"+input);
-    inputtest.style.display="none";
-    input.style.borderColor="#8881";
+    input.classList.remove('input-valid', 'input-invalid', 'input-warning-state');
+    input.classList.add('input-default');
+    inputtest.classList.remove('lp-valid', 'lp-invalid', 'lp-warning');
+    inputtest.classList.add('lp-hide');
     input.value="";
     if(btn!=0){
-        btn.style.display="none";
+        btn.classList.add('hidden');
     }
-
 }
 
 //show
 function show(input){
-    input.style.display="flex";
+    input.classList.remove('hidden');
     input.value="";
 }
 
-//showmsg
+//showmsg - 使用设计系统样式
 function showMessage(msg, isError) {
   const box = document.getElementById('errormsg');
   if (box) {
     box.textContent = msg;
     box.style.display = 'block';
-    box.style.color = isError ? 'red' : 'green';
+    box.style.color = isError ? 'var(--danger)' : 'var(--success)';
   }
   const popup = document.createElement('div');
   popup.textContent = msg;
-  popup.style = 'position:fixed; top:20px; left:50%; padding:10px 20px; border-radius:5px; z-index:9999; color:#fff; font-size:0.85rem; animation: fadeInOut 2s ease forwards;';
-  popup.style.backgroundColor = isError ? '#f44336' : '#4CAF50';
+  popup.className = 'notification-popup' + (isError ? ' notification-error' : ' notification-success');
   document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 2000);
-  
-  // 注入动画关键帧（仅一次）
-  if (!document.getElementById('showMsgAnimStyles')) {
-    const styleSheet = document.createElement('style');
-    styleSheet.id = 'showMsgAnimStyles';
-    styleSheet.textContent = `
-      @keyframes fadeInOut {
-        0%   { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-        15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        85%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-      }
-    `;
-    document.head.appendChild(styleSheet);
-  }
+  setTimeout(() => popup.remove(), 2500);
 }
 
 
@@ -458,7 +444,7 @@ function time1input(){
     let err="";
     time=time.replace(/\s+/g, ' ').trim();
     let timec=time.split(' ');
-    time1Div.style.display="flex";
+    time1Div.classList.remove('hidden');
     for(let i=0;i<timec.length;i++){
         if(timejudge(timec[i])){
             console.log("time1judge--1");
@@ -474,7 +460,7 @@ function time1input(){
     }
     if(err.length>0&&err!=" "){
         judge.time1=0;
-        time1c.style.display="flex";
+        time1c.classList.remove('hidden');
         msgout(time1_input,time1test,"以下时间不符合格式规范："+err,0)
     }
     else if(timec.length==0||time==""||time==" "){
@@ -483,8 +469,7 @@ function time1input(){
     }
     else{
         judge.time1=1;
-        time1c.style.display="flex";
-        //time1b.style.display="flex";
+        time1c.classList.remove('hidden');
         msgout(time1_input,time1test,"时刻表符合格式规范",1);
     }
 }
@@ -502,33 +487,32 @@ function time2input(){     // 将函数名 time1input 改为 time2input
     let err="";
     time=time.replace(/\s+/g, ' ').trim();
     let timec=time.split(' ');
-    time2Div.style.display="flex";
+    time2Div.classList.remove('hidden');
     for(let i=0;i<timec.length;i++){
         if(timejudge(timec[i])){
-            console.log("time2judge--1"); // 将 "time1judge--1" 改为 "time2judge--1"
+            console.log("time2judge--1");
         }
         else if(timec[i]==" "){
             continue;
         }
         else{
-            console.log("time2judge--0"); // 将 "time1judge--0" 改为 "time2judge--0"
+            console.log("time2judge--0");
             err+=timec[i]+" ";          
         }
     }
     if(err.length>0&&err!=" "){
         judge.time2=0;
-        time2c.style.display="flex";
-        msgout(time2_input,time2test,"以下时间不符合格式规范："+err,0); // 将 time1_input 和 time1test 改为 time2_input 和 time2test
+        time2c.classList.remove('hidden');
+        msgout(time2_input,time2test,"以下时间不符合格式规范："+err,0);
     }
     else if(timec.length==0||time==""||time==" "){
         judge.time2=0;
-        msgout(time2_input,time2test,"请输入时刻表",0); // 将 time1_input 和 time1test 改为 time2_input 和 time2test
+        msgout(time2_input,time2test,"请输入时刻表",0);
     }
     else{
         judge.time2=1;
-        time2c.style.display="flex";
-        //time2b.style.display="flex";
-        msgout(time2_input,time2test,"时刻表符合格式规范",1); // 将 time1_input 和 time1test 改为 time2_input 和 time2test
+        time2c.classList.remove('hidden');
+        msgout(time2_input,time2test,"时刻表符合格式规范",1);
     }
 
 }
@@ -624,11 +608,13 @@ async function confirmAdd() {
         if(values[i]==0){
             console.log("judgeall--0"+values[i]);
             addconfirm.innerHTML="输入有误请修改";
-            addconfirm.style.backgroundColor="#ff0000";
+            addconfirm.setAttribute('variant', 'danger');
             return;
         }
     }
     console.log("judgeall--1");
+    addconfirm.removeAttribute('variant');
+    addconfirm.innerHTML="添加上传";
     addconfirm.removeEventListener("click",confirmAdd);
     time1c.removeEventListener("click", time1cl);
     time2c.removeEventListener("click", time2cl);
@@ -663,6 +649,7 @@ async function confirmAdd() {
     }
     console.log("pass");
     showMessage("添加成功", false);
+    showAddResult(true, '时刻表已成功添加至数据库');
     write(2,name);
     cleanall();
     addDiv.classList.add("hidden");
@@ -754,77 +741,123 @@ async function writeD1(city, way, start, end, time1, time2, bc, etime, writetime
 let searchAbortController = null; // 用于取消上一次未完成的请求
 let isSearching = false;          // 防止并发搜索
 
-//search
+// ─── 搜索 ─────────────────────────────────────────────
 //btn
-const searchbtn=document.getElementById("submitSearchBtn");
-const searchclean=document.getElementById("clearSearchBtn");
+const searchbtn = document.getElementById("submitSearchBtn");
+const searchclean = document.getElementById("clearSearchBtn");
 
 //input
-const searchcity=document.getElementById("search-city");
-const searchway=document.getElementById("search-way");
-const searchid=document.getElementById("search-id");
+const searchKeyword = document.getElementById("search-keyword");
+const searchid = document.getElementById("search-id");
 
-/*
-const searchDiv=document.getElementById("search-form");
-const searchDiv2=document.getElementById("search-form2");
-*/
-/*
-searchcity.addEventListener("input", searchcityinput);
-searchway.addEventListener("input", searchwayinput);
-searchid.addEventListener("input", searchidinput);
-*/
+// 结果区域元素
+const searchResult = document.getElementById("search-result");
+const resultCount = document.getElementById("result-count");
+const resultList = document.getElementById("result-list");
+const resultPageInfo = document.getElementById("result-page-info");
+const resultPrevBtn = document.getElementById("result-prev-btn");
+const resultNextBtn = document.getElementById("result-next-btn");
+const resultCloseBtn = document.getElementById("result-close-btn");
+
+// 搜索结果分页状态
+let searchResultsData = [];
+let currentPage = 0;
+const PAGE_SIZE = 2;
+
 //btn k
 searchbtn.addEventListener("click", searchbtnClick);
 searchclean.addEventListener("click", searchcleanClick);
+resultPrevBtn.addEventListener("click", () => changePage(-1));
+resultNextBtn.addEventListener("click", () => changePage(1));
+resultCloseBtn.addEventListener("click", closeResults);
 
-function searchcleanClick(){
+function searchcleanClick() {
     console.log("search clean");
-    searchcity.value="";
-    searchway.value="";
-    searchid.value="";
+    searchKeyword.value = "";
+    searchid.value = "";
+    closeResults();
+}
+
+function closeResults() {
+    searchResult.classList.add("hidden");
+    searchResultsData = [];
+    currentPage = 0;
 }
 
 function setSearchLoading(loading) {
-  isSearching = loading;
-  searchbtn.disabled = loading;
-  searchbtn.textContent = loading ? '查询中...' : '查询时刻表';
+    isSearching = loading;
+    searchbtn.disabled = loading;
+    searchbtn.textContent = loading ? '查询中...' : '查询时刻表';
 }
 
-function searchbtnClick(){
-    // 防重复提交：如果正在搜索则忽略本次点击
+function parseKeyword(keyword) {
+    // 从关键词中智能提取城市和线路
+    let city = '';
+    let way = '';
+    const trimmed = keyword.replace(/\s+/g, ' ').trim();
+    
+    if (!trimmed) return { city: '', way: '' };
+
+    // 城市指示后缀
+    const citySuffixes = ['市', '省', '区', '县'];
+    const hasCitySuffix = (s) => citySuffixes.some(suf => s.includes(suf));
+
+    const parts = trimmed.split(' ');
+
+    if (parts.length >= 2) {
+        // 多段输入：第一段优先作为城市，其余作为线路
+        city = Complete(parts[0], '市');
+        way = Complete(parts.slice(1).join(' '), '路');
+    } else {
+        // 单段输入
+        const word = parts[0];
+        if (hasCitySuffix(word)) {
+            // 明确含城市后缀 → 城市
+            city = Complete(word, '市');
+        } else if (/路$/.test(word) || /^\d{1,3}$/.test(word) || /^[A-Za-z]/.test(word)) {
+            // 以"路"结尾 / 纯数字(1-3位) / 字母开头 → 视为线路
+            way = Complete(word, '路');
+        } else {
+            // 默认作为城市名（即使不带"市"也能匹配）
+            city = Complete(word, '市');
+        }
+    }
+
+    return { city, way };
+}
+
+function searchbtnClick() {
     if (isSearching) {
         console.log("已有搜索进行中，忽略本次点击");
+        showMessage("已有搜索进行中，请稍候", true);
         return;
     }
 
-    // 取消上一次未完成的请求（如果有）
     if (searchAbortController) {
         searchAbortController.abort();
     }
     searchAbortController = new AbortController();
 
     console.log("search btn");
-    const city=searchcity.value;
-    const way=searchway.value;
-    const id=searchid.value;
-    if(id){
-        searchById();
-    }
-    else if(city&&way){
-        searchByCityWay();
-    }
-    else{
-        showMessage("请输入搜索条件", true);
+    const keyword = searchKeyword.value;
+    const id = searchid.value.trim();
+
+    if (id) {
+        if (id.length === 12) {
+            searchById();
+        } else {
+            showMessage("ID格式错误，需为12位数字", true);
+        }
+    } else if (keyword) {
+        searchByKeyword();
+    } else {
+        showMessage("请输入搜索关键词或ID", true);
     }
 }
 
 async function searchById() {
     console.log("search by id");
     const id = searchid.value.trim();
-    if (id.length !== 12) {
-        showMessage("ID错误", true);
-        return;
-    }
 
     setSearchLoading(true);
     try {
@@ -839,40 +872,20 @@ async function searchById() {
         }
 
         const data = await res.json();
-
         if (!data.success || !data.data) {
             showMessage(data.message || '找不到数据', true);
             return;
         }
 
-        const item = data.data; 
-
-        const msg = `城市：${item.CITY}\n` +
-                    `线路：${item.WAY}\n` +
-                    `起点：${item.START}\n` +
-                    `终点：${item.END}\n` +
-                    `备注：${item.SPECIAL || '无'}\n` +
-                    `主站→副站：${item.TIMEONE}\n` +
-                    `副站→主站：${item.TIMETWO}\n` +
-                    `执行时间：${item.STARTTIME}\n` +
-                    `写入时间：${item.WRITETIME}\n` +
-                    `作者：${item.WRITER}`;
-
-        console.log("查询成功:", msg);
+        const item = data.data;
         showMessage("搜索成功", false);
-
-        await showPrompt({
-            text: "查询数据",
-            buttons: ["关闭"],
-            button_style: ['variant=success'],
-            input_is_area: true,
-            input_attrs: { readonly: true, value: msg }
-        });
+        // ID查询结果作为单条结果展示
+        renderResults([item]);
 
     } catch (e) {
         if (e.name === 'AbortError') {
             console.log("搜索请求已被取消");
-            return; // 静默处理取消
+            return;
         }
         console.error("请求异常:", e);
         showMessage("服务器错误", true);
@@ -882,19 +895,32 @@ async function searchById() {
     }
 }
 
+async function searchByKeyword() {
+    const { city, way } = parseKeyword(searchKeyword.value);
+    console.log("关键词解析:", { city, way });
 
-async function searchByCityWay() {
-    console.log("search by city way");
-    const city = Complete(searchcity.value, "市");
-    const way = Complete(searchway.value, "路");
-    console.log("city:", city, "way:", way);
+    if (!city && !way) {
+        showMessage("请输入有效的搜索关键词", true);
+        return;
+    }
+
+    // 构建查询参数
+    let params = [];
+    if (city) params.push(`city=${encodeURIComponent(city)}`);
+    if (way) params.push(`way=${encodeURIComponent(way)}`);
+    const queryString = params.join('&');
 
     setSearchLoading(true);
     try {
-        const res = await fetch(`/api/timetable-D1?city=${encodeURIComponent(city)}&way=${encodeURIComponent(way)}`, {
+        const res = await fetch(`/api/timetable-D1?${queryString}`, {
             signal: searchAbortController.signal
         });
+
         if (!res.ok) {
+            if (res.status === 404) {
+                showMessage("未找到符合条件的时刻表", true);
+                return;
+            }
             const errData = await res.json().catch(() => ({ message: '请求失败' }));
             showMessage(errData.message || errData.error || '请求失败', true);
             return;
@@ -906,34 +932,13 @@ async function searchByCityWay() {
             return;
         }
 
-        const item = json.data[0];   
-
-        const msg = `城市：${item.CITY}\n` +
-                    `线路：${item.WAY}\n` +
-                    `起点：${item.START}\n` +
-                    `终点：${item.END}\n` +
-                    `备注：${item.SPECIAL || '无'}\n` +
-                    `主站→副站：${item.TIMEONE}\n` +
-                    `副站→主站：${item.TIMETWO}\n` +
-                    `执行时间：${item.STARTTIME}\n` +
-                    `写入时间：${item.WRITETIME}\n` +
-                    `作者：${item.WRITER}`;
-
-        console.log("查询成功:", msg);
-        showMessage("搜索成功", false);
-
-        await showPrompt({
-            text: "查询数据",
-            buttons: ["关闭"],
-            button_style: ['variant=success'],
-            input_is_area: true,
-            input_attrs: { readonly: true, value: msg }
-        });
+        showMessage(`找到 ${json.data.length} 条结果`, false);
+        renderResults(json.data);
 
     } catch (e) {
         if (e.name === 'AbortError') {
             console.log("搜索请求已被取消");
-            return; // 静默处理取消
+            return;
         }
         console.error("请求异常:", e);
         showMessage("服务器错误", true);
@@ -942,3 +947,197 @@ async function searchByCityWay() {
         searchAbortController = null;
     }
 }
+
+// ─── 结果渲染与分页 ─────────────────────────────────
+function renderResults(data) {
+    searchResultsData = data;
+    currentPage = 0;
+    
+    if (data.length === 0) {
+        searchResult.classList.add("hidden");
+        return;
+    }
+
+    searchResult.classList.remove("hidden");
+    resultCount.textContent = `共 ${data.length} 条结果`;
+    renderPage();
+}
+
+function renderPage() {
+    const start = currentPage * PAGE_SIZE;
+    const end = Math.min(start + PAGE_SIZE, searchResultsData.length);
+    const pageData = searchResultsData.slice(start, end);
+    const totalPages = Math.ceil(searchResultsData.length / PAGE_SIZE);
+
+    // 更新分页信息
+    resultPageInfo.textContent = `${currentPage + 1}/${totalPages}`;
+    resultPrevBtn.disabled = currentPage === 0;
+    resultNextBtn.disabled = currentPage >= totalPages - 1;
+
+    // 渲染当前页
+    resultList.innerHTML = '';
+    pageData.forEach((item, idx) => {
+        const card = document.createElement('div');
+        card.className = 'result-item';
+        card.style.animationDelay = `${idx * 0.05}s`;
+        
+        // 格式化时间显示
+        const time1Display = formatTimeDisplay(item.TIMEONE);
+        const time2Display = formatTimeDisplay(item.TIMETWO);
+
+        card.innerHTML = `
+            <div class="result-item-header">
+                <span class="result-item-id">#${item.ID}</span>
+                <span class="result-item-route">${item.CITY} · ${item.WAY}</span>
+            </div>
+            <div class="result-item-body">
+                <div class="result-item-stations">
+                    <span class="station-label">起点</span>
+                    <span class="station-name">${item.START}</span>
+                    <span class="station-arrow">→</span>
+                    <span class="station-label">终点</span>
+                    <span class="station-name">${item.END}</span>
+                </div>
+                ${item.SPECIAL && item.SPECIAL !== '无' ? `<div class="result-item-note">${item.SPECIAL}</div>` : ''}
+                <div class="result-item-meta">
+                    <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
+                    <span>作者: ${item.WRITER || '未知'}</span>
+                </div>
+            </div>
+            <div class="result-item-actions">
+                <hcw-button class="view-detail-btn" data-index="${start + idx}" flat style="min-width:3.6rem;font-size:0.72rem;padding:4px 10px;">查看详情</hcw-button>
+            </div>
+        `;
+
+        // 详情按钮事件
+        const detailBtn = card.querySelector('.view-detail-btn');
+        detailBtn.addEventListener('click', () => showDetail(item));
+
+        resultList.appendChild(card);
+    });
+
+    // 滚动到结果区域
+    searchResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function changePage(delta) {
+    const totalPages = Math.ceil(searchResultsData.length / PAGE_SIZE);
+    const newPage = currentPage + delta;
+    if (newPage < 0 || newPage >= totalPages) return;
+    currentPage = newPage;
+    renderPage();
+}
+
+function formatTimeDisplay(timeStr) {
+    if (!timeStr || timeStr === 'unknown') return '未知';
+    // 时间格式通常是 "06:00 06:30 07:00" 带制表符
+    const parts = timeStr.split(/[\t\n\r]+/).filter(t => t.trim());
+    if (parts.length <= 6) {
+        return parts.join(' ');
+    }
+    return parts.slice(0, 6).join(' ') + ` ... (+${parts.length - 6}个)`;
+}
+
+async function showDetail(item) {
+    // 跳转到新的详情页面
+    const id = item.ID;
+    window.location.href = `/timetable-detail.html?id=${encodeURIComponent(id)}`;
+}
+
+// ─── 添加结果展示 ─────────────────────────────────
+function showAddResult(success, message) {
+    const resultDiv = document.getElementById('add-result');
+    if (!resultDiv) return;
+    
+    resultDiv.classList.remove('hidden', 'success', 'error');
+    resultDiv.classList.add(success ? 'success' : 'error');
+    resultDiv.textContent = message;
+    
+    // 3秒后自动隐藏
+    setTimeout(() => {
+        resultDiv.classList.add('hidden');
+    }, 5000);
+}
+/*
+// ─── 删除功能 ─────────────────────────────────────
+const deleteBtn = document.getElementById('submitDeleteBtn');
+const deleteIdInput = document.getElementById('delete-id');
+const deleteResultDiv = document.getElementById('delete-result');
+let deleteConfirmPending = false;
+
+if (deleteBtn) {
+    deleteBtn.addEventListener('click', handleDelete);
+}
+
+async function handleDelete() {
+    const id = deleteIdInput.value.trim();
+    
+    if (!id) {
+        showDeleteResult(false, '请输入时刻表ID');
+        return;
+    }
+    
+    if (id.length !== 12) {
+        showDeleteResult(false, 'ID格式错误，需为12位字符');
+        return;
+    }
+    
+    // 二次确认
+    if (!deleteConfirmPending) {
+        deleteConfirmPending = true;
+        deleteBtn.innerHTML = '确认删除？';
+        deleteBtn.setAttribute('variant', 'danger');
+        deleteBtn.setAttribute('confirming', '');
+        setTimeout(() => {
+            deleteConfirmPending = false;
+            deleteBtn.innerHTML = '永久删除';
+            deleteBtn.removeAttribute('confirming');
+        }, 3000);
+        return;
+    }
+    
+    // 执行删除
+    deleteConfirmPending = false;
+    deleteBtn.innerHTML = '删除中...';
+    deleteBtn.disabled = true;
+    
+    try {
+        const res = await fetch('/api/timetable-D1', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        
+        const data = await res.json().catch(() => ({}));
+        
+        if (res.ok) {
+            showDeleteResult(true, `时刻表 ${id} 已成功删除`);
+            deleteIdInput.value = '';
+            showMessage('删除成功', false);
+        } else {
+            showDeleteResult(false, data.message || data.error || '删除失败');
+            showMessage(data.message || '删除失败', true);
+        }
+    } catch (e) {
+        console.error(e);
+        showDeleteResult(false, '网络错误，请稍后重试');
+        showMessage('网络错误', true);
+    } finally {
+        deleteBtn.innerHTML = '永久删除';
+        deleteBtn.disabled = false;
+        deleteBtn.removeAttribute('confirming');
+    }
+}
+
+function showDeleteResult(success, message) {
+    if (!deleteResultDiv) return;
+    
+    deleteResultDiv.classList.remove('hidden', 'success', 'error');
+    deleteResultDiv.classList.add(success ? 'success' : 'error');
+    deleteResultDiv.innerHTML = `<p><strong>${success ? '✓' : '✗'} ${message}</strong></p>`;
+    
+    setTimeout(() => {
+        deleteResultDiv.classList.add('hidden');
+    }, 6000);
+}
+    */

@@ -1,0 +1,253 @@
+/* ============================================
+   时刻表详情页样式
+   ============================================ */
+
+/* 加载状态 */
+.detail-loading {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+
+.detail-loading.hidden,
+.detail-error.hidden,
+.detail-content.hidden {
+    display: none !important;
+}
+
+.detail-error {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--danger);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.detail-error p {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* 详情内容容器 */
+.detail-content {
+    animation: detailFadeIn 0.35s ease forwards;
+}
+
+@keyframes detailFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 详情头部 */
+.detail-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.detail-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.detail-id {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: rgba(0,0,0,0.04);
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+/* 详情卡片 */
+.detail-card {
+    background: rgba(21, 23, 24, 0.6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1.5rem;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: var(--shadow-xs);
+    margin-bottom: 1rem;
+    animation: cardEnter 0.3s ease forwards;
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.detail-card:nth-child(2) { animation-delay: 0.05s; }
+.detail-card:nth-child(3) { animation-delay: 0.1s; }
+.detail-card:nth-child(4) { animation-delay: 0.15s; }
+.detail-card:nth-child(5) { animation-delay: 0.2s; }
+
+@keyframes cardEnter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 信息网格 */
+.detail-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.detail-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.detail-info-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.detail-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.detail-value {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+/* 时间网格 */
+.detail-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.detail-time-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.detail-time-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 14px;
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.detail-time-chip:hover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+/* 元信息卡片 */
+.detail-meta-card {
+    background: rgba(29, 29, 29, 0.5);
+}
+
+.detail-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    gap: 1rem;
+}
+
+.detail-meta-row + .detail-meta-row {
+    border-top: 1px dashed var(--border-light);
+}
+
+.detail-meta-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.detail-meta-value {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-align: right;
+}
+
+/* 详情页按钮组 */
+.detail-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .detail-title {
+        font-size: 1.25rem;
+    }
+
+    .detail-info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .detail-card {
+        padding: 1rem 1.15rem;
+    }
+
+    .detail-time-chip {
+        padding: 5px 10px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .detail-title {
+        font-size: 1.1rem;
+    }
+
+    .detail-meta-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+}

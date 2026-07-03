@@ -111,9 +111,9 @@
 					</div>
 				</div>
 				<div class="btn-group">
-					<hcw-button primary flat style="min-width: 8rem;" id="submitAddBtn"
+					<hcw-button primary flat style="min-width: 6rem;" id="submitAddBtn"
 						>添加上传</hcw-button>
-					<hcw-button style="min-width: 8rem;" id="resetAddBtn" >清空表单</hcw-button>
+					<hcw-button style="min-width: 5rem;" id="resetAddBtn" >清空表单</hcw-button>
 				</div>
 				<div id="add-result" class="result-card hidden"></div>
 			</div>
@@ -121,26 +121,35 @@
 			<!-- 查询模块 -->
 			<div hcw-card id="search-form" class="form-card hidden">
 				<div class="grid-2col">
-					<div class="form-group">
-						<label>城市 <span style="color:#e07c4c;">*</span></label>
-						<input hcw-input type="text" id="search-city" placeholder="城市名" >
-						<p id="search-citytest" class="lp"></p>
-					</div>
-					<div class="form-group">
-						<label>线路 <span style="color:#e07c4c;">*</span></label>
-						<input hcw-input type="text" id="search-way" placeholder="例: 52路" >
-						<p id="search-waytest" class="lp"></p>
+					<div class="form-group full-width">
+						<label>关键词搜索 <span style="color:#e07c4c;">*</span></label>
+						<input hcw-input type="text" id="search-keyword" placeholder="输入城市或线路名称，如：无锡市 52路" >
+						<p id="search-keywordtest" class="lp"></p>
 					</div>
 					<div class="form-group full-width">
-						<label>时刻表ID (选填)</label>
-						<input hcw-input type="text" id="search-id" placeholder="直接输入ID将优先精确查找">
+						<label>时刻表ID (精确查找)</label>
+						<input hcw-input type="text" id="search-id" placeholder="输入12位ID直接精确查找">
 					</div>
 				</div>
 				<div class="btn-group">
-					<hcw-button primary flat style="min-width: 8rem" id="submitSearchBtn">查询时刻表</hcw-button>
-					<hcw-button style="min-width: 5rem" id="clearSearchBtn" >清除</hcw-button>
+					<hcw-button primary flat style="min-width: 6rem" id="submitSearchBtn">查询时刻表</hcw-button>
+					<hcw-button style="min-width: 4rem" id="clearSearchBtn" >清除</hcw-button>
 				</div>
-				<div id="search-result" class="result-card hidden"></div>
+				<!-- 搜索结果区域 -->
+				<div id="search-result" class="result-area hidden">
+					<div class="result-header">
+						<span id="result-count">共 0 条结果</span>
+						<div class="result-header-actions">
+							<hcw-button id="result-prev-btn" tp icon style="height:1.8rem;width:1.8rem;">&#9664;</hcw-button>
+							<span id="result-page-info">1/1</span>
+							<hcw-button id="result-next-btn" tp icon style="height:1.8rem;width:1.8rem;">&#9654;</hcw-button>
+						</div>
+					</div>
+					<div id="result-list" class="result-list"></div>
+					<div class="result-footer">
+						<hcw-button id="result-close-btn" flat style="min-width:6rem;">关闭结果</hcw-button>
+					</div>
+				</div>
 			</div>
 
 			<!-- 删除模块 -->
@@ -150,7 +159,7 @@
 					<input hcw-input type="text" id="delete-id" placeholder="例如: T10001" autocomplete="off">
 				</div>
 				<div class="btn-group">
-					<hcw-button variant="danger" style="min-width: 8rem" id="submitDeleteBtn">永久删除</hcw-button>
+					<hcw-button variant="danger" style="min-width: 6rem" id="submitDeleteBtn">永久删除</hcw-button>
 				</div>
 				<div id="delete-result" class="result-card hidden"></div>
 			</div>
