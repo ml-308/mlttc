@@ -1029,14 +1029,10 @@ function renderPage() {
                     <span>作者: ${item.WRITER || '未知'}</span>
                 </div>
             </div>
-            <div class="result-item-actions">
-                <hcw-button class="view-detail-btn" data-index="${start + idx}" flat style="min-width:3.6rem;font-size:0.72rem;padding:4px 10px;">查看详情</hcw-button>
-            </div>
         `;
 
-        // 详情按钮事件
-        const detailBtn = card.querySelector('.view-detail-btn');
-        detailBtn.addEventListener('click', () => showDetail(item));
+        // 点击整张卡片跳转详情
+        card.addEventListener('click', () => showDetail(item));
 
         resultList.appendChild(card);
     });

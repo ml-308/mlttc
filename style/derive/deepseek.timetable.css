@@ -349,6 +349,7 @@ footer::before {
     animation: cardEnter 0.3s ease forwards;
     opacity: 0;
     transform: translateY(8px);
+    cursor: pointer;
 }
 
 .result-item:hover {
@@ -762,6 +763,7 @@ footer::before {
     max-width: 100%;
     box-sizing: border-box;
     overflow: hidden;
+    cursor: pointer;
 }
 
 @keyframes resultItemIn {
