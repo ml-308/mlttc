@@ -909,18 +909,20 @@ async function searchById() {
 }
 
 async function searchByKeyword() {
-    const { city, way } = parseKeyword(searchKeyword.value);
-    console.log("关键词解析:", { city, way });
+    const rawKeyword = searchKeyword.value;
+    const { city, way } = parseKeyword(rawKeyword);
+    console.log("关键词解析:", { raw: rawKeyword, city, way });
 
     if (!city && !way) {
         showMessage("请输入有效的搜索关键词", true);
         return;
     }
 
-    // 构建查询参数
+    // 构建查询参数：同时传入原始关键词 q 实现跨字段模糊匹配
     let params = [];
     if (city) params.push(`city=${encodeURIComponent(city)}`);
     if (way) params.push(`way=${encodeURIComponent(way)}`);
+    if (rawKeyword.trim()) params.push(`q=${encodeURIComponent(rawKeyword.trim())}`);
     const queryString = params.join('&');
 
     setSearchLoading(true);

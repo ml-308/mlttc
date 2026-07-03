@@ -217,11 +217,13 @@ export async function onRequestGet({request,env}){
     }
   }
 
-  if (city || way) {
-    // 支持单独按城市、线路或两者组合搜索
+  const q = url.searchParams.get('q');
+  if (city || way || q) {
+    // 支持按城市、线路或通用关键词搜索
     let query = 'SELECT * FROM TIMETABLE WHERE';
     const params = [];
     const conditions = [];
+    const orGroups = []; // 用于 OR 分组
 
     if (city) {
       const cleanCity = validateSearchParam(city, 20);
@@ -238,14 +240,36 @@ export async function onRequestGet({request,env}){
       }
     }
 
-    if (conditions.length === 0) {
+    // 通用关键词 q：跨 CITY、WAY、START、END 多字段模糊搜索
+    const cleanQ = validateSearchParam(q, 50);
+    if (cleanQ) {
+      const qConditions = [
+        'CITY LIKE ?',
+        'WAY LIKE ?',
+        'START LIKE ?',
+        'END LIKE ?'
+      ];
+      orGroups.push('(' + qConditions.join(' OR ') + ')');
+      params.push(`%${cleanQ}%`, `%${cleanQ}%`, `%${cleanQ}%`, `%${cleanQ}%`);
+    }
+
+    if (conditions.length > 0) {
+      if (orGroups.length > 0) {
+        // 精确匹配 OR 通用搜索 → 输入较少也能找到结果
+        query += ' (' + conditions.join(' AND ') + ') OR ' + orGroups.join(' OR ');
+      } else {
+        query += ' ' + conditions.join(' AND ');
+      }
+    } else if (orGroups.length > 0) {
+      query += ' ' + orGroups.join(' OR ');
+    } else {
       return new Response(JSON.stringify({
         success: false,
         message: '参数格式无效'
       }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    query += ' ' + conditions.join(' AND ') + ' LIMIT 50';
+    query += ' LIMIT 50';
 
     console.log("组合查询:", query, params);
     try {
