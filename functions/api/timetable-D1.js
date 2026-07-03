@@ -269,7 +269,7 @@ export async function onRequestGet({request,env}){
       }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    query += ' LIMIT 50';
+    query += ' LIMIT 1000000';
 
     console.log("组合查询:", query, params);
     try {
