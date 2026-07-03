@@ -182,19 +182,18 @@ function msgout(input,test,msg,judge){
 //clean - 使用CSS类
 function cleaninput(input,inputtest,btn){
     console.log("clean input"+input);
-    input.classList.remove('input-valid', 'input-invalid', 'input-warning-state');
-    input.classList.add('input-default');
-    inputtest.classList.remove('lp-valid', 'lp-invalid', 'lp-warning');
-    inputtest.classList.add('lp-hide');
+    inputtest.style.display="none";
+    input.style.borderColor="#8881";
     input.value="";
     if(btn!=0){
-        btn.classList.add('hidden');
+        btn.style.display="none";
     }
+
 }
 
 //show
 function show(input){
-    input.classList.remove('hidden');
+    input.style.display="flex";
     input.value="";
 }
 
@@ -391,7 +390,7 @@ function wayinput(){
     const input=way_input.value;
     let way=way_input.value;
     if(!isNaN(way)){
-        way=Complete(way,"");
+        way=Complete(way,"路");
     }
     if(way==null){
         judge.way=0;
@@ -661,7 +660,9 @@ async function confirmAdd() {
 
 function write(choose,name){
     const city=Complete(city_input.value,"市");
+    if(!isNaN(way)){
     const way=Complete(way_input.value,"路");
+    }
     const start=Complete(start_input.value,"站");
     const end=Complete(end_input.value,"站");
     let time1, time2;
