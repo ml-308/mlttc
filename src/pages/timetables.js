@@ -661,7 +661,7 @@ async function confirmAdd() {
 function write(choose,name){
     const city=Complete(city_input.value,"市");
     if(!isNaN(way)){
-    const way=Complete(way_input.value,"路");
+    let way=Complete(way_input.value,"路");
     }
     const start=Complete(start_input.value,"站");
     const end=Complete(end_input.value,"站");
