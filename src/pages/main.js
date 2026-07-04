@@ -167,7 +167,7 @@ async function updateUIAfterLogin() {
     const userInfoDiv = document.getElementById('globalUserInfo');
     const displayName = document.getElementById('globalDisplayName');
 
-    if (displayName) displayName.textContent = user.email || '用户';
+    if (displayName) displayName.textContent = user.name || user.email || '用户';
     if (loginBtn) loginBtn.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
     if (userInfoDiv) userInfoDiv.style.display = 'block';
