@@ -6,10 +6,18 @@ function getCookie(name) {
   return match ? decodeURIComponent(match[2]) : null;
 }
 
-// 从 cookie 判断登录状态，无需请求后端 /api/profile
+// 检查登录状态：先用 cookie 快速显示，再异步请求接口获取数据库中的真实昵称
 function checkAuth() {
   const name = getCookie('user_name');
   if (name) {
+    // 异步请求数据库中的昵称，覆盖 cookie 值（cookie 可能为邮箱）
+    fetch('/api/profile', { credentials: 'include' }).then(r => r.json()).then(data => {
+      const user = data.user || data;
+      const displayName = document.getElementById('globalDisplayName');
+      if (displayName && user.name) {
+        displayName.textContent = user.name;
+      }
+    }).catch(() => {});
     return { loggedIn: true, displayName: name };
   }
   return { loggedIn: false };
