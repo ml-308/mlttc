@@ -63,11 +63,9 @@ async function loadProfile() {
     if (user.registertime) {
       document.getElementById('profileRegDate').textContent = user.registertime;
     }
-    // 更新 cookie 中的昵称
-    if (user.NAME) {
-      document.cookie = `user_name=${encodeURIComponent(user.NAME)}; Path=/; Max-Age=3600; SameSite=Lax`;
-      document.getElementById('nameInput').placeholder = user.NAME;
-    }
+    // 更新 cookie 中的昵称（无论是否有值，都写入以便 header 判断登录状态）
+    document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=3600; SameSite=Lax`;
+    if (user.NAME) document.getElementById('nameInput').placeholder = user.NAME;
     if (user.city) document.getElementById('cityInput').placeholder = user.city;
   } catch (e) {
     console.error('加载用户信息失败:', e);
@@ -125,7 +123,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (nameInput && nameMsg) {
     nameInput.addEventListener('input', () => {
       const v = nameInput.value;
-      if (v.length > 6) {
+      if (v.includes('@')) {
+        msgout(nameInput, nameMsg, '昵称不能包含@字符', 0);
+      } else if (v.length > 6) {
         msgout(nameInput, nameMsg, '昵称不能超过6个字符', 0);
       } else if (v.length > 0) {
         msgout(nameInput, nameMsg, '✓ 昵称格式正确', 1);
@@ -157,6 +157,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const city = cityInput?.value.trim() || null;
 
     // 提交前再次校验
+    if (name && name.includes('@')) {
+      showMessage('昵称不能包含@字符', true);
+      return;
+    }
     if (name && name.length > 6) {
       showMessage('昵称不能超过6个字符', true);
       return;

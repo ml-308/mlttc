@@ -51,7 +51,7 @@ export async function onRequestPost({ request, env }) {
     // 若输入包含 @ 则按邮箱匹配，否则按昵称匹配
     const input = email.trim();
     let user;
-    if (input.includes('@')&& !input.includes('.')) {
+    if (input.includes('@')) {
       user = await env.mlttcd.prepare(
         'SELECT id, email, NAME, password FROM USER WHERE email = ?'
       ).bind(input.toLowerCase()).first();

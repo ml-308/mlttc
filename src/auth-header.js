@@ -9,8 +9,8 @@ function getCookie(name) {
 // 检查登录状态（仅读取 cookie，不查询数据库）
 function checkAuth() {
   const name = getCookie('user_name');
-  if (name) {
-    return { loggedIn: true, displayName: name };
+  if (name !== null) {
+    return { loggedIn: true, displayName: name || '未设置昵称' };
   }
   return { loggedIn: false };
 }

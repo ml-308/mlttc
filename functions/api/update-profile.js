@@ -16,7 +16,8 @@ export async function onRequestPost({ request, env }) {
       return response;
     }
 
-    const { name, city } = await request.json();
+    let { name, NAME, city } = await request.json();
+    name = name || NAME; // 兼容前端传入的 name 或 NAME
     const userId = payload.userId;
 
     // 如果要修改昵称
@@ -24,6 +25,9 @@ export async function onRequestPost({ request, env }) {
       const trimmedName = name.trim();
       if (!trimmedName) {
         return new Response(JSON.stringify({ error: '昵称不能为空' }), { status: 400 });
+      }
+      if (trimmedName.includes('@')) {
+        return new Response(JSON.stringify({ error: '昵称不能包含@字符' }), { status: 400 });
       }
       if (trimmedName.length > 6) {
         return new Response(JSON.stringify({ error: '昵称不能超过6个字符' }), { status: 400 });
