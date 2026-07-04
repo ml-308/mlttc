@@ -79,6 +79,59 @@
 
 [data-theme="dark"] .detail-id {
     background: rgba(255,255,255,0.08);
+    color: #ccc;
+}
+
+/* ── 详情页深色模式 ── */
+[data-theme="dark"] .detail-card {
+    background: #111;
+    border-color: rgba(255,255,255,0.08);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
+[data-theme="dark"] .detail-card .detail-value {
+    color: #f0f0f0;
+}
+
+[data-theme="dark"] .detail-card .detail-label {
+    color: #bbb;
+}
+
+[data-theme="dark"] .detail-section-title {
+    color: #5bc0eb;
+    border-bottom-color: rgba(255,255,255,0.08);
+}
+
+[data-theme="dark"] .detail-time-chip {
+    background: #1a1a1a;
+    border-color: rgba(255,255,255,0.08);
+    color: #e0e0e0;
+}
+
+[data-theme="dark"] .detail-time-chip:hover {
+    border-color: var(--primary);
+    background: #0d2b4a;
+    color: #6bc8ff;
+}
+
+[data-theme="dark"] .detail-meta-card {
+    background: #111;
+}
+
+[data-theme="dark"] .detail-meta-row + .detail-meta-row {
+    border-top-color: rgba(255,255,255,0.06);
+}
+
+[data-theme="dark"] .detail-meta-label {
+    color: #bbb;
+}
+
+[data-theme="dark"] .detail-header {
+    border-bottom-color: rgba(255,255,255,0.08);
+}
+
+[data-theme="dark"] .detail-title {
+    color: #fff;
 }
 
 /* 详情卡片 */
