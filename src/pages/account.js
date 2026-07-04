@@ -151,6 +151,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ─── 加载我的时刻表 ─────────────────────────────
+  loadMyTimetables();
+
   // 保存按钮
   document.getElementById('saveBtn')?.addEventListener('click', async () => {
     const name = nameInput?.value.trim() || null;
@@ -192,4 +195,193 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // ─── 我的时刻表 - 分页与渲染 ─────────────────────
+  const PAGE_SIZE = 2;
+  let myTimetables = [];
+  let myCurrentPage = 0;
+
+  const ttList = document.getElementById('timetable-list');
+  const ttLoading = document.getElementById('timetable-loading');
+  const ttEmpty = document.getElementById('timetable-empty');
+  const ttError = document.getElementById('timetable-error');
+  const ttPagination = document.getElementById('timetable-pagination');
+  const ttPageInfo = document.getElementById('tt-page-info');
+  const ttPrevBtn = document.getElementById('tt-prev-btn');
+  const ttNextBtn = document.getElementById('tt-next-btn');
+
+  async function loadMyTimetables() {
+    // 先获取用户邮箱
+    let email = '';
+    try {
+      const res = await fetch('/api/profile', { credentials: 'include' });
+      if (!res.ok) {
+        ttLoading.classList.add('hidden');
+        ttError.classList.remove('hidden');
+        ttError.textContent = '请先登录';
+        return;
+      }
+      const data = await res.json();
+      const user = data.user || data;
+      email = user.email || '';
+      if (!email) {
+        ttLoading.classList.add('hidden');
+        ttError.classList.remove('hidden');
+        ttError.textContent = '无法获取用户信息';
+        return;
+      }
+    } catch (e) {
+      ttLoading.classList.add('hidden');
+      ttError.classList.remove('hidden');
+      ttError.textContent = '获取用户信息失败';
+      return;
+    }
+
+    // 尝试从 sessionStorage 读取缓存
+    const CACHE_KEY = 'account_tt_cache';
+    let cached = null;
+    try {
+      const raw = sessionStorage.getItem(CACHE_KEY);
+      if (raw) cached = JSON.parse(raw);
+    } catch { /* ignore */ }
+
+    if (cached && cached.email === email && Array.isArray(cached.data)) {
+      // 缓存命中，直接使用
+      myTimetables = cached.data;
+      myCurrentPage = 0;
+      ttLoading.classList.add('hidden');
+
+      if (myTimetables.length === 0) {
+        ttEmpty.classList.remove('hidden');
+        ttPagination.classList.add('hidden');
+      } else {
+        ttEmpty.classList.add('hidden');
+        renderMyPage();
+      }
+      return;
+    }
+
+    // 缓存未命中，从 D1 查询
+    try {
+      const res = await fetch(`/api/timetable-D1?writer=${encodeURIComponent(email)}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) {
+        ttLoading.classList.add('hidden');
+        ttError.classList.remove('hidden');
+        ttError.textContent = '获取时刻表失败';
+        return;
+      }
+      const json = await res.json();
+      if (!json.success) {
+        ttLoading.classList.add('hidden');
+        ttEmpty.classList.remove('hidden');
+        return;
+      }
+
+      myTimetables = json.data || [];
+      myCurrentPage = 0;
+
+      // 写入缓存
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ email, data: myTimetables }));
+      } catch { /* ignore */ }
+
+      ttLoading.classList.add('hidden');
+
+      if (myTimetables.length === 0) {
+        ttEmpty.classList.remove('hidden');
+        ttPagination.classList.add('hidden');
+        return;
+      }
+
+      ttEmpty.classList.add('hidden');
+      renderMyPage();
+    } catch (e) {
+      ttLoading.classList.add('hidden');
+      ttError.classList.remove('hidden');
+      ttError.textContent = '网络错误';
+    }
+  }
+
+  function renderMyPage() {
+    const start = myCurrentPage * PAGE_SIZE;
+    const end = Math.min(start + PAGE_SIZE, myTimetables.length);
+    const pageData = myTimetables.slice(start, end);
+    const totalPages = Math.ceil(myTimetables.length / PAGE_SIZE);
+
+    ttPageInfo.textContent = `${myCurrentPage + 1}/${totalPages}`;
+    ttPrevBtn.disabled = myCurrentPage === 0;
+    ttNextBtn.disabled = myCurrentPage >= totalPages - 1;
+    ttPagination.classList.remove('hidden');
+
+    ttList.innerHTML = '';
+    pageData.forEach((item, idx) => {
+      const card = document.createElement('div');
+      card.className = 'result-item';
+      card.style.animationDelay = `${idx * 0.05}s`;
+
+      const time1Display = formatTimeDisplay(item.TIMEONE);
+      const time2Display = formatTimeDisplay(item.TIMETWO);
+
+      card.innerHTML = `
+        <div class="result-item-header">
+          <span class="result-item-id">#${item.ID}</span>
+          <span class="result-item-route">${item.CITY} · ${item.WAY}</span>
+        </div>
+        <div class="result-item-body">
+          <div class="result-item-stations">
+            <span class="station-label">起点</span>
+            <span class="station-name">${item.START}</span>
+            <span class="station-arrow">→</span>
+            <span class="station-label">终点</span>
+            <span class="station-name">${item.END}</span>
+          </div>
+          ${item.SPECIAL && item.SPECIAL !== '无' ? `<div class="result-item-note">${item.SPECIAL}</div>` : ''}
+          <div class="result-item-meta">
+            <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
+            <span>写入: ${item.WRITETIME || '未知'}</span>
+          </div>
+        </div>
+        <div class="result-item-actions">
+          <hcw-button class="detail-btn" flat style="min-width:5rem; font-size:0.82rem;">查看详情</hcw-button>
+          <hcw-button class="edit-btn" flat style="min-width:5rem; font-size:0.82rem;">修改时刻表</hcw-button>
+        </div>
+      `;
+
+      // 查看详情按钮
+      card.querySelector('.detail-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
+      });
+
+      // 修改时刻表按钮
+      card.querySelector('.edit-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
+      });
+
+      ttList.appendChild(card);
+    });
+  }
+
+  function changeMyPage(delta) {
+    const totalPages = Math.ceil(myTimetables.length / PAGE_SIZE);
+    const newPage = myCurrentPage + delta;
+    if (newPage < 0 || newPage >= totalPages) return;
+    myCurrentPage = newPage;
+    renderMyPage();
+  }
+
+  ttPrevBtn.addEventListener('click', () => changeMyPage(-1));
+  ttNextBtn.addEventListener('click', () => changeMyPage(1));
+
+  function formatTimeDisplay(timeStr) {
+    if (!timeStr || timeStr === 'unknown') return '未知';
+    const parts = timeStr.split(/[\t\n\r]+/).filter(t => t.trim());
+    if (parts.length <= 6) {
+      return parts.join(' ');
+    }
+    return parts.slice(0, 6).join(' ') + ` ... (+${parts.length - 6}个)`;
+  }
 });

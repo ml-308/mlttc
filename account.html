@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <link rel="stylesheet" href="style/index.css">
+    <link rel="stylesheet" href="style/timetable.css">
     <script src="main.js"></script>
     <script src="login.js"></script>
     <script src="/src/auth-header.js" type="module"></script>
@@ -79,6 +80,22 @@
                     <p id="cityMsg" class='LP' style="display: none; font-size: 0.72rem;"></p>
                 </div>
                 <hcw-button id="saveBtn" primary flat style="align-self: flex-end; min-width: 5rem; font-size: 0.82rem;">保存</hcw-button>
+            </div>
+        </hcw-card>
+
+        <!-- 我的时刻表 -->
+        <hcw-card style="margin-top: 1rem;">
+            <hcw-card-title style="font-size: 1.1rem;">我的时刻表</hcw-card-title>
+            <div id="myTimetableArea">
+                <div id="timetable-loading" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">加载中...</div>
+                <div id="timetable-empty" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">暂未写入时刻表</div>
+                <div id="timetable-error" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--danger);"></div>
+                <div id="timetable-list" class="result-area result-list" style="margin-top: 0.5rem;"></div>
+                <div id="timetable-pagination" class="hidden" style="display:flex; align-items:center; justify-content:center; gap:0.75rem; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--border-light);">
+                    <hcw-button id="tt-prev-btn" tp icon style="height:1.8rem;width:1.8rem;">&#9664;</hcw-button>
+                    <span id="tt-page-info" style="font-size:0.82rem; color:var(--text-muted); min-width:3rem; text-align:center;">1/1</span>
+                    <hcw-button id="tt-next-btn" tp icon style="height:1.8rem;width:1.8rem;">&#9654;</hcw-button>
+                </div>
             </div>
         </hcw-card>
     </hcw-article>

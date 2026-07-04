@@ -18,9 +18,100 @@ export async function onRequestPost({ request, env }) {
         });
     }
 
-    // 解构需要的字段（id 不再需要）
-    let { city, way, start, end, special, time1, time2, etime, writetime, writer } = body;
+    let { id, city, way, start, end, special, time1, time2, etime, writetime, writer } = body;
 
+    // ─── 更新模式（id 存在时）─────────────────────────
+    if (id) {
+        if (!writer || typeof writer !== 'string' || writer.trim().length === 0) {
+            return new Response(JSON.stringify({ error: '作者不能为空' }), { status: 400 });
+        }
+        if (!writetime || typeof writetime !== 'string' || writetime.trim().length === 0) {
+            return new Response(JSON.stringify({ error: '写入时间不能为空' }), { status: 400 });
+        }
+
+        // 验证记录存在且作者匹配
+        const existing = await env.mlttcd.prepare(
+            'SELECT * FROM TIMETABLE WHERE ID = ?'
+        ).bind(id).first();
+
+        if (!existing) {
+            return new Response(JSON.stringify({ error: '记录不存在' }), {
+                status: 404, headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (existing.WRITER !== writer.trim()) {
+            return new Response(JSON.stringify({ error: '无权修改此记录' }), {
+                status: 403, headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 动态构建 UPDATE SET 子句
+        const sets = [];
+        const params = [];
+
+        if (city !== undefined && city !== null && typeof city === 'string' && city.trim().length > 0) {
+            sets.push('CITY = ?');
+            params.push(city.trim());
+        }
+        if (way !== undefined && way !== null && typeof way === 'string' && way.trim().length > 0) {
+            sets.push('WAY = ?');
+            params.push(way.trim());
+        }
+        if (start !== undefined && start !== null && typeof start === 'string' && start.trim().length > 0) {
+            sets.push('START = ?');
+            params.push(start.trim());
+        }
+        if (end !== undefined && end !== null && typeof end === 'string' && end.trim().length > 0) {
+            sets.push('END = ?');
+            params.push(end.trim());
+        }
+        if (special !== undefined && special !== null && typeof special === 'string') {
+            sets.push('SPECIAL = ?');
+            params.push(special.trim().length > 0 ? special.trim() : '无');
+        }
+        if (time1 !== undefined && time1 !== null && typeof time1 === 'string' && time1.trim().length > 0) {
+            sets.push('TIMEONE = ?');
+            params.push(time1.trim());
+        }
+        if (time2 !== undefined && time2 !== null && typeof time2 === 'string' && time2.trim().length > 0) {
+            sets.push('TIMETWO = ?');
+            params.push(time2.trim());
+        }
+        if (etime !== undefined && etime !== null && typeof etime === 'string' && etime.trim().length > 0) {
+            sets.push('STARTTIME = ?');
+            params.push(etime.trim());
+        }
+
+        if (sets.length === 0) {
+            return new Response(JSON.stringify({ error: '没有提供需要更新的字段' }), {
+                status: 400, headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 始终更新写入时间
+        sets.push('WRITETIME = ?');
+        params.push(writetime.trim());
+        params.push(id);
+
+        try {
+            await env.mlttcd.prepare(
+                `UPDATE TIMETABLE SET ${sets.join(', ')} WHERE ID = ?`
+            ).bind(...params).run();
+
+            return new Response(JSON.stringify({
+                success: true,
+                id: id,
+                message: '更新成功'
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        } catch (err) {
+            console.error('更新错误:', err);
+            return new Response(JSON.stringify({ error: '数据库更新失败' }), {
+                status: 500, headers: { 'Content-Type': 'application/json' }
+            });
+        }
+    }
+
+    // ─── 新增模式（无 id）─────────────────────────
     // ----- 参数校验 -----
     if (!city || typeof city !== 'string' || city.trim().length === 0) {
         return new Response(JSON.stringify({ error: '城市不能为空' }), { status: 400 });
@@ -69,13 +160,13 @@ export async function onRequestPost({ request, env }) {
     }
 
     // ----- 生成唯一 ID（循环查重）-----
-    let id;
+    let newId;
     let idExists = true;
     while (idExists) {
-        id = generate12DigitString();
+        newId = generate12DigitString();
         const existingId = await env.mlttcd.prepare(
             'SELECT id FROM TIMETABLE WHERE id = ?1'
-        ).bind(id).first();
+        ).bind(newId).first();
         idExists = !!existingId;
     }
 
@@ -85,7 +176,7 @@ export async function onRequestPost({ request, env }) {
             INSERT INTO TIMETABLE (ID, CITY, WAY, START, END, SPECIAL, TIMEONE, TIMETWO, STARTTIME, WRITER, WRITETIME, PASSER)
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
         `).bind(
-            id,
+            newId,
             city.trim(),
             way.trim(),
             start.trim(),
@@ -101,7 +192,7 @@ export async function onRequestPost({ request, env }) {
 
         return new Response(JSON.stringify({
             success: true,
-            id: id,
+            id: newId,
             message: '添加成功'
         }), {
             status: 201,
@@ -214,6 +305,33 @@ export async function onRequestGet({request,env}){
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
+    }
+  }
+
+  // ─── 按作者(邮箱)查询 ──────────────────────────
+  const writer = url.searchParams.get('writer');
+  if (writer) {
+    const cleanWriter = validateSearchParam(writer, 100);
+    if (cleanWriter) {
+      console.log("按作者查询:", cleanWriter);
+      try {
+        const { results } = await env.mlttcd.prepare(
+          `SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME 
+           FROM TIMETABLE t WHERE t.WRITER = ? ORDER BY t.WRITETIME DESC`
+        ).bind(cleanWriter).all();
+
+        return new Response(JSON.stringify({
+          success: true,
+          data: results,
+          count: results.length
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      } catch (err) {
+        console.error('作者查询错误:', err);
+        return new Response(JSON.stringify({ error: '服务器内部错误' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
     }
   }
 

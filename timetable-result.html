@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<title>修改时刻表</title>
+	<link rel="stylesheet" href="style/timetable.css">
+	<script src="src/pages/main.js"></script>
+	<script src="/lib/ui/init.mjs" type="module"></script>
+	<script src="/src/auth-header.js" type="module"></script>
+	<script src="/lib/ui/popup.mjs" type="module"></script>
+</head>
+
+<body>
+	<hcw-body-header>
+		<hcw-button flat fill style="min-width: 5rem;" id="back-btn">
+			返回个人主页
+		</hcw-button>
+		<div class="logo-area">
+			<div class="logo-text">
+				MLTTC - 修改时刻表
+			</div>
+		</div>
+		<p hidden-on-mobile style="margin-left: auto; color: var(--text-muted)">Beta测试版，功能仍在完善中</p>
+		<div id="headerAuthArea">
+			<hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
+			<hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem">登录</hcw-button>
+			<div id="globalUserInfo" style="display: none;">
+				<span>欢迎，<strong id="globalDisplayName">用户</strong></span>
+				<hcw-button id="globalLogoutBtn" tp flat inline style="min-width: 5rem">退出</hcw-button>
+			</div>
+		</div>
+	</hcw-body-header>
+
+	<hcw-article>
+		<div id="edit-loading" class="detail-loading">
+			<p>加载时刻表数据...</p>
+		</div>
+		<div id="edit-error" class="detail-error hidden">
+			<p>无法加载时刻表数据</p>
+			<hcw-button id="edit-retry-btn" primary flat style="min-width: 6rem;">重试</hcw-button>
+		</div>
+
+		<div hcw-card id="edit-form" class="form-card hidden">
+			<div class="form-group">
+				<label style="color:green">修改时刻表信息后重新提交</label>
+			</div>
+			<div class="grid-2col">
+				<div class="form-group">
+					<label>城市</label>
+					<input hcw-input type="text" id="city" name="city" placeholder="例: 北京市" autocomplete="off" required>
+					<p id="citytest" class="lp"></p>
+				</div>
+				<div class="form-group">
+					<label>线路</label>
+					<input hcw-input primary type="text" id="way" name="way" placeholder="例: 快速直达专线1路 / 52路" required>
+					<p id="waytest" class="lp"></p>
+				</div>
+				<div class="form-group">
+					<label>起点站</label>
+					<input hcw-input type="text" id="start" name="start" placeholder="主站名称" required>
+					<p id="starttest" class="lp"></p>
+				</div>
+				<div class="form-group">
+					<label>终点站</label>
+					<input hcw-input type="text" id="end" name="end" placeholder="副站名称" required>
+					<p id="endtest" class="lp"></p>
+				</div>
+				<div class="form-group full-width">
+					<label>备注 <span class="optional">(单日/双日/工作日/节假日等)</span></label>
+					<input hcw-input type="text" id="bc" name="bc" placeholder="例如：工作日运行，周末除外，若无则留空">
+					<p id="bctest" class="lp"></p>
+				</div>
+				<div class="form-group full-width">
+					<label>主站→副站时刻表[外环] <span style="color:var(--warning); font-size:0.78rem; font-weight:400;">（目前不支持时刻表还原）</span></label>
+					<textarea hcw-input type="text" id="time1" name="time1" placeholder="请重新输入时刻表（空格或换行隔开，2500表示未知,2501表示线路撤销）" required></textarea>
+					<p id="time1test" class="lp"></p>
+					<div class="btn-group" id="time1b" style="display:none;">
+						<hcw-button variant="danger" id="cl1">清空该时刻表</hcw-button>
+					</div>
+				</div>
+				<div class="form-group full-width">
+					<label>副站→主站时刻表[内环] <span style="color:var(--warning); font-size:0.78rem; font-weight:400;">（目前不支持时刻表还原）</span></label>
+					<textarea hcw-input type="text" id="time2" name="time2" placeholder="请重新输入时刻表（空格或换行隔开，2500表示未知，2501表示线路撤销）" required></textarea>
+					<p id="time2test" class="lp"></p>
+					<div class="btn-group" id="time2b" style="display:none;">
+						<hcw-button variant="danger" id="cl2">清空该时刻表</hcw-button>
+					</div>
+				</div>
+				<div class="form-group full-width">
+					<label>执行时间</label>
+					<input hcw-input type="text" id="exec-time" name="exec-time" placeholder="例: 2025.1.1（或25.1.1，默认2025，1000.1.1表示未知）" required>
+					<p id="exec-timetest" class="lp"></p>
+				</div>
+			</div>
+			<div class="btn-group">
+				<hcw-button primary flat style="min-width: 6rem;" id="submitEditBtn">提交修改</hcw-button>
+				<hcw-button style="min-width: 5rem;" id="resetEditBtn">清空表单</hcw-button>
+			</div>
+			<div id="edit-result" class="result-card hidden"></div>
+		</div>
+	</hcw-article>
+
+	<hcw-body-footer></hcw-body-footer>
+
+	<!-- 登录模态框 -->
+	<div id="globalLoginModal" class="modal" style="align-items: center; display: none;">
+		<div hcw-modal>
+			<div hcw-modal-title>
+				<h3>登录系统</h3>
+				<hcw-button tp icon id="closeModalBtn">&times;</hcw-button>
+			</div>
+			<div hcw-modal-body>
+				<hcw-input primary label="用户名" type="text" id="username" placeholder="邮箱/昵称" autocomplete="off" required></hcw-input>
+				<hcw-input label="密码" type="password" id="password" placeholder="请输入密码" required></hcw-input>
+				<div id="ErrorLogin" class="error-msg">
+					<p>用户名或密码错误，请重新输入</p>
+				</div>
+				<hcw-button primary large id="login-btn" type="submit">登 录</hcw-button>
+				<hcw-button id='RegisterBtn' large href="register.html">注册账户</hcw-button>
+				<p style="color: var(--text-muted)">注册功能将在后续版本开放</p>
+			</div>
+		</div>
+	</div>
+
+	<script type="module">
+		import '/src/pages/timetable-result.js';
+	</script>
+</body>
+
+</html>
