@@ -9,12 +9,13 @@
     <script src="main.js"></script>
     <script src="login.js"></script>
     <script src="/src/auth-header.js" type="module"></script>
+    <script src="/src/pages/account.js" type="module"></script>
     <script src="lib/ui/init.mjs" type="module"></script>
 </head>
 
 <body>
     <hcw-body-header>
-        <hcw-button flat fill style="min-width: 5rem;" onclick="back()">
+        <hcw-button flat fill style="min-width: 5rem;" id="backBtn">
             返回
         </hcw-button>
         <div class="logo-area">
@@ -27,32 +28,64 @@
             <!-- 主题切换按钮 -->
             <hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
             <!-- 动态显示登录按钮或用户信息 -->
-            <hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem" onclick=login_btn()>登录</hcw-button>
+            <hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem">登录</hcw-button>
             <div id="globalUserInfo" style="display: none;">
                 <span><strong id="globalDisplayName">用户</strong></span>
-                <hcw-button id="globalLogoutBtn" tp flat inline style="min-width: 5rem"
-                    onclick="login_out()">退出</hcw-button>
+                <hcw-button id="globalLogoutBtn" tp flat inline style="min-width: 5rem">退出</hcw-button>
             </div>
         </div>
     </hcw-body-header>
 
-    <hcw-article>
-        <skeleton><img style="width: 8rem; height: 8rem" src="./asset/bg-main.jpg" alt="UI-avatar"></skeleton>
-        <skeleton style="display: flex">
-            <h1>UI-username</h1>
-            <badge>UI-accountType</badge>
-        </skeleton>
-        <skeleton>
-            <p>UI-description</p>
-        </skeleton>
-        <skeleton>
-            <p>UI-city</p>
-        </skeleton>
+    <hcw-article style="max-width: 36rem; margin: 0 auto;">
+        <!-- 个人信息卡片 -->
+        <hcw-card>
+            <hcw-card-title style="font-size: 1.1rem;">
+                <span id="profileDisplayName">用户昵称</span>
+                <span id="profileAccountType"
+                    style="font-size: 0.65rem; background: var(--primary); color: var(--on-primary); padding: 1px 8px; border-radius: var(--radius-full); margin-left: 0.4rem;">普通用户</span>
+            </hcw-card-title>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.25rem;">
+                <div style="display: flex; gap: 0.4rem; align-items: baseline;">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); min-width: 3.5rem;">邮箱</span>
+                    <span id="profileEmail" style="font-size: 0.82rem; color: var(--text-secondary);">—</span>
+                </div>
+                <div style="display: flex; gap: 0.4rem; align-items: baseline;">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); min-width: 3.5rem;">个人简介</span>
+                    <span id="profileDesc" style="font-size: 0.82rem; color: var(--text-secondary);">这个人很懒，什么都没写…</span>
+                </div>
+                <div style="display: flex; gap: 0.4rem; align-items: baseline;">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); min-width: 3.5rem;">所在地</span>
+                    <span id="profileCity" style="font-size: 0.82rem; color: var(--text-secondary);">—</span>
+                </div>
+                <div style="display: flex; gap: 0.4rem; align-items: baseline;">
+                    <span style="font-size: 0.72rem; color: var(--text-muted); min-width: 3.5rem;">注册时间</span>
+                    <span id="profileRegDate" style="font-size: 0.82rem; color: var(--text-secondary);">—</span>
+                </div>
+            </div>
+        </hcw-card>
+
+        <!-- 设置卡片 -->
+        <hcw-card style="margin-top: 1rem;">
+            <hcw-card-title style="font-size: 1.1rem;">个人设置</hcw-card-title>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.25rem;">
+                <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                    <label for="nameInput" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">修改昵称</label>
+                    <input hcw-input id="nameInput" type="text" placeholder="输入新昵称" style="font-size: 0.85rem; padding: 0.5rem 0.4rem;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                    <label for="cityInput" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">修改城市</label>
+                    <input hcw-input id="cityInput" type="text" placeholder="输入所在城市" style="font-size: 0.85rem; padding: 0.5rem 0.4rem;">
+                </div>
+                <hcw-button id="saveBtn" primary flat style="align-self: flex-end; min-width: 5rem; font-size: 0.82rem;">保存</hcw-button>
+            </div>
+        </hcw-card>
     </hcw-article>
 
     <hcw-body-footer>
 
     </hcw-body-footer>
+
+
 </body>
 
 </html>

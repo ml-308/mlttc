@@ -28,29 +28,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 目标时间：2028年6月7日 00:00:00（月份从0开始，5代表6月）
 const targetDate = new Date(2028, 5, 7, 8, 0, 0);
-const timer=document.getElementById('time');
+const timer = document.getElementById('time');
 // 倒计时更新函数
 function updateCountdown() {
+  if (!timer) return;
   const now = new Date();
-  const diff = targetDate - now; // 毫秒差
+  const diff = targetDate - now;
 
   if (diff <= 0) {
-    // 倒计时结束，显示提示并停止定时器（可选）
     timer.textContent = '🎉 高考已开始！';
     return;
   }
 
-  // 计算天、时、分、秒
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-  // 格式化输出（补零）
   const display = `${days}天 ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   timer.textContent ="距离高考还有："+ display;
-  console.log(display);
 }
 
 // 立即执行一次，避免首屏空白
@@ -103,22 +100,18 @@ function loginshow() {
   const modal = document.getElementById('globalLoginModal');
   const loginBtn = document.getElementById('globalLoginBtn');
   const logoutBtn = document.getElementById('globalLogoutBtn');
-  const closeBtn = document.getElementById('close_login_btn');
   if (modal) modal.style.display = 'flex';
   if (loginBtn) loginBtn.style.display = 'none';
   if (logoutBtn) logoutBtn.style.display = 'none';
-  if (closeBtn) closeBtn.style.display = 'flex';
 }
 
 function closeLogin() {
   const modal = document.getElementById('globalLoginModal');
   const loginBtn = document.getElementById('globalLoginBtn');
   const logoutBtn = document.getElementById('globalLogoutBtn');
-  const closeBtn = document.getElementById('close_login_btn');
   if (modal) modal.style.display = 'none';
-  if (loginBtn) loginBtn.style.display = 'flex';
+  if (loginBtn) loginBtn.style.display = 'inline-block';
   if (logoutBtn) logoutBtn.style.display = 'none';
-  if (closeBtn) closeBtn.style.display = 'none';
 }
 
 // ================== 登录逻辑 ==================
@@ -161,21 +154,23 @@ async function loginread(email, password) {
 }
 
 async function updateUIAfterLogin() {
+  // 先关闭模态框，无论 fetchUserInfo 是否成功
+  const modal = document.getElementById('globalLoginModal');
+  const closeBtn = document.getElementById('closeModalBtn');
+  if (modal) modal.style.display = 'none';
+  if (closeBtn) closeBtn.style.display = 'none';
+
   const user = await fetchUserInfo();
   if (user) {
     const loginBtn = document.getElementById('globalLoginBtn');
     const logoutBtn = document.getElementById('globalLogoutBtn');
     const userInfoDiv = document.getElementById('globalUserInfo');
     const displayName = document.getElementById('globalDisplayName');
-    const modal = document.getElementById('globalLoginModal');
-    const closeBtn = document.getElementById('close_login_btn');
 
     if (displayName) displayName.textContent = user.email || '用户';
     if (loginBtn) loginBtn.style.display = 'none';
-    if (logoutBtn) logoutBtn.style.display = 'block';
+    if (logoutBtn) logoutBtn.style.display = 'inline-block';
     if (userInfoDiv) userInfoDiv.style.display = 'block';
-    if (modal) modal.style.display = 'none';
-    if (closeBtn) closeBtn.style.display = 'none';
   }
 }
 
@@ -196,7 +191,7 @@ async function fetchUserInfo() {
 
 async function logout() {
   await fetch('/api/logout-D1', { credentials: 'include' });
-  window.location.reload();
-  showMessage('已退出登录', true);
+  showMessage('已退出登录', false);
+  setTimeout(() => window.location.reload(), 1500);
 }
 

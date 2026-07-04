@@ -125,9 +125,23 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
   }
 });
 
+/**
+ * 绑定用户名点击跳转到个人主页
+ */
+function bindUsernameClick() {
+  const displayName = document.getElementById('globalDisplayName');
+  if (displayName) {
+    displayName.style.cursor = 'pointer';
+    displayName.addEventListener('click', () => {
+      window.location.href = '/account.html';
+    });
+  }
+}
+
 // 页面加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   bindThemeToggle();
+  bindUsernameClick();
   updateHeaderAuth();
 });
