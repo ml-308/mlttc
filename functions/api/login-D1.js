@@ -56,7 +56,7 @@ export async function onRequestPost({ request, env }) {
 
     if (!user) {
       user = await env.mlttcd.prepare(
-        'SELECT id, email, name, password FROM USER WHERE NAME = ?'
+        'SELECT id, email, name, password FROM USER WHERE name = ?'
       ).bind(input).first();
     }
 

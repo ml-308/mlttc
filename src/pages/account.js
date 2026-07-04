@@ -64,7 +64,7 @@ async function loadProfile() {
       document.getElementById('profileRegDate').textContent = user.registertime;
     }
     // 填入当前值作为 placeholder
-    if (cookieName || user.name) document.getElementById('nameInput').placeholder = cookieName || user.name;
+    if (user.name) document.getElementById('nameInput').placeholder = user.name;
     if (user.city) document.getElementById('cityInput').placeholder = user.city;
   } catch (e) {
     console.error('加载用户信息失败:', e);
