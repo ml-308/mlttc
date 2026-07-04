@@ -61,8 +61,8 @@ function showMessage(msg, isError) {
 
 async function loadProfile() {
   try {
-    // 优先从 cookie 读取昵称
     const cookieName = getCookie('user_name');
+    // 先用 cookie 快速显示（可能为邮箱），等接口返回后再用数据库昵称覆盖
     if (cookieName) {
       document.getElementById('profileDisplayName').textContent = cookieName;
     }
@@ -74,8 +74,8 @@ async function loadProfile() {
     }
     const data = await res.json();
     const user = data.user || data;
-    // cookie 优先，接口数据兜底
-    document.getElementById('profileDisplayName').textContent = cookieName || user.name || user.email || '用户';
+    // 昵称优先显示 user.name（D1 数据库），无昵称时显示邮箱
+    document.getElementById('profileDisplayName').textContent = user.name || user.email || '用户';
     document.getElementById('profileEmail').textContent = user.email || '—';
     document.getElementById('profileCity').textContent = user.city || '未设置';
     if (user.registertime) {
