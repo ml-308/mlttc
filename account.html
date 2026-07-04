@@ -69,12 +69,14 @@
             <hcw-card-title style="font-size: 1.1rem;">个人设置</hcw-card-title>
             <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.25rem;">
                 <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-                    <label for="nameInput" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">修改昵称</label>
+                    <label for="nameInput" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">修改昵称（最多6字）</label>
                     <input hcw-input id="nameInput" type="text" placeholder="输入新昵称" style="font-size: 0.85rem; padding: 0.5rem 0.4rem;">
+                    <p id="nameMsg" class='LP' style="display: none; font-size: 0.72rem;"></p>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-                    <label for="cityInput" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">修改城市</label>
+                    <label for="cityInput" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">修改城市（最多6字）</label>
                     <input hcw-input id="cityInput" type="text" placeholder="输入所在城市" style="font-size: 0.85rem; padding: 0.5rem 0.4rem;">
+                    <p id="cityMsg" class='LP' style="display: none; font-size: 0.72rem;"></p>
                 </div>
                 <hcw-button id="saveBtn" primary flat style="align-self: flex-end; min-width: 5rem; font-size: 0.82rem;">保存</hcw-button>
             </div>

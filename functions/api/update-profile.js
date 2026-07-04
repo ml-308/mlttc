@@ -19,11 +19,14 @@ export async function onRequestPost({ request, env }) {
     const { name, city } = await request.json();
     const userId = payload.userId;
 
-    // 如果要修改昵称，检查是否与其他用户重复
+    // 如果要修改昵称
     if (name !== undefined && name !== null) {
       const trimmedName = name.trim();
       if (!trimmedName) {
         return new Response(JSON.stringify({ error: '昵称不能为空' }), { status: 400 });
+      }
+      if (trimmedName.length > 6) {
+        return new Response(JSON.stringify({ error: '昵称不能超过6个字符' }), { status: 400 });
       }
 
       const existing = await env.mlttcd.prepare(
@@ -39,10 +42,15 @@ export async function onRequestPost({ request, env }) {
       ).bind(trimmedName, userId).run();
     }
 
+    // 如果要修改城市
     if (city !== undefined && city !== null) {
+      const trimmedCity = city.trim();
+      if (trimmedCity.length > 6) {
+        return new Response(JSON.stringify({ error: '城市名不能超过6个字符' }), { status: 400 });
+      }
       await env.mlttcd.prepare(
         'UPDATE USER SET CITY = ? WHERE id = ?'
-      ).bind(city.trim(), userId).run();
+      ).bind(trimmedCity, userId).run();
     }
 
     return new Response(JSON.stringify({ success: true }), {

@@ -1,5 +1,30 @@
 // ─── 个人信息页面逻辑 ────────────────────────────────
 
+// 验证提示（参考 timetables.js 的 msgout）
+function msgout(input, test, msg, judge) {
+  if (judge === 1) {
+    input.style.borderColor = '#1eff01';
+    test.style.color = '#1eff01';
+    test.textContent = msg;
+    test.style.display = 'block';
+  } else if (judge === 0) {
+    input.style.borderColor = '#ff0000';
+    test.style.color = '#ff0000';
+    test.textContent = msg;
+    test.style.display = 'block';
+  } else if (judge === 2) {
+    input.style.borderColor = '#8881';
+    test.style.color = 'var(--text-secondary)';
+    test.textContent = msg;
+    test.style.display = 'none';
+  } else if (judge === 3) {
+    input.style.borderColor = '#f3f30e';
+    test.style.color = '#f3f30e';
+    test.textContent = msg;
+    test.style.display = 'block';
+  }
+}
+
 function showMessage(msg, isError) {
   const popup = document.createElement('div');
   popup.textContent = msg;
@@ -91,13 +116,52 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = '/login.html';
   });
 
+  // 实时验证：昵称（最多6字）
+  const nameInput = document.getElementById('nameInput');
+  const nameMsg = document.getElementById('nameMsg');
+  if (nameInput && nameMsg) {
+    nameInput.addEventListener('input', () => {
+      const v = nameInput.value;
+      if (v.length > 6) {
+        msgout(nameInput, nameMsg, '昵称不能超过6个字符', 0);
+      } else if (v.length > 0) {
+        msgout(nameInput, nameMsg, '✓ 昵称格式正确', 1);
+      } else {
+        msgout(nameInput, nameMsg, '', 2);
+      }
+    });
+  }
+
+  // 实时验证：城市（最多6字）
+  const cityInput = document.getElementById('cityInput');
+  const cityMsg = document.getElementById('cityMsg');
+  if (cityInput && cityMsg) {
+    cityInput.addEventListener('input', () => {
+      const v = cityInput.value;
+      if (v.length > 6) {
+        msgout(cityInput, cityMsg, '城市名不能超过6个字符', 0);
+      } else if (v.length > 0) {
+        msgout(cityInput, cityMsg, '✓ 城市名格式正确', 1);
+      } else {
+        msgout(cityInput, cityMsg, '', 2);
+      }
+    });
+  }
+
   // 保存按钮
   document.getElementById('saveBtn')?.addEventListener('click', async () => {
-    const nameInput = document.getElementById('nameInput');
-    const cityInput = document.getElementById('cityInput');
     const name = nameInput?.value.trim() || null;
     const city = cityInput?.value.trim() || null;
 
+    // 提交前再次校验
+    if (name && name.length > 6) {
+      showMessage('昵称不能超过6个字符', true);
+      return;
+    }
+    if (city && city.length > 6) {
+      showMessage('城市名不能超过6个字符', true);
+      return;
+    }
     if (!name && !city) {
       showMessage('请至少填写一项', true);
       return;
@@ -106,16 +170,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const ok = await saveProfile(name, city);
     if (ok) {
       showMessage('✅ 保存成功', false);
-      // 刷新显示
       if (name) {
         document.getElementById('profileDisplayName').textContent = name;
         nameInput.placeholder = name;
         nameInput.value = '';
+        msgout(nameInput, nameMsg, '', 2);
       }
       if (city) {
         document.getElementById('profileCity').textContent = city;
         cityInput.placeholder = city;
         cityInput.value = '';
+        msgout(cityInput, cityMsg, '', 2);
       }
     }
   });
