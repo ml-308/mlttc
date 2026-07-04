@@ -1044,7 +1044,7 @@ function renderPage() {
                 ${item.SPECIAL && item.SPECIAL !== '无' ? `<div class="result-item-note">${item.SPECIAL}</div>` : ''}
                 <div class="result-item-meta">
                     <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
-                    <span>作者: ${item.WRITER || '未知'}</span>
+                    <span>作者: ${item.WRITER_NAME || item.WRITER || '未知'}</span>
                 </div>
             </div>
         `;

@@ -151,7 +151,7 @@ function renderDetail(item) {
 
   // 元信息
   detailStarttime.textContent = (!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '执行时间未知' : item.STARTTIME;
-  detailWriter.textContent = item.WRITER || '未知';
+  detailWriter.textContent = item.WRITER_NAME || item.WRITER || '未知';
   detailWritetime.textContent = item.WRITETIME || '未知';
 
   // 滚动到顶部

@@ -194,7 +194,7 @@ export async function onRequestGet({request,env}){
     console.log("按 ID 查询");
     try {
       const { results } = await env.mlttcd.prepare(
-        'SELECT * FROM TIMETABLE WHERE ID = ?'
+        'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE t.ID = ?'
       ).bind(cleanId).all();
 
       if (results.length === 0) {
@@ -220,7 +220,7 @@ export async function onRequestGet({request,env}){
   const q = url.searchParams.get('q');
   if (city || way || q) {
     // 支持按城市、线路或通用关键词搜索
-    let query = 'SELECT * FROM TIMETABLE WHERE';
+    let query = 'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE';
     const params = [];
     const conditions = [];
     const orGroups = []; // 用于 OR 分组
