@@ -63,8 +63,11 @@ async function loadProfile() {
     if (user.registertime) {
       document.getElementById('profileRegDate').textContent = user.registertime;
     }
-    // 填入当前值作为 placeholder
-    if (user.NAME) document.getElementById('nameInput').placeholder = user.NAME;
+    // 更新 cookie 中的昵称
+    if (user.NAME) {
+      document.cookie = `user_name=${encodeURIComponent(user.NAME)}; Path=/; Max-Age=3600; SameSite=Lax`;
+      document.getElementById('nameInput').placeholder = user.NAME;
+    }
     if (user.city) document.getElementById('cityInput').placeholder = user.city;
   } catch (e) {
     console.error('加载用户信息失败:', e);
@@ -175,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nameInput.placeholder = name;
         nameInput.value = '';
         msgout(nameInput, nameMsg, '', 2);
+        document.cookie = `user_name=${encodeURIComponent(name)}; Path=/; Max-Age=3600; SameSite=Lax`;
       }
       if (city) {
         document.getElementById('profileCity').textContent = city;

@@ -38,7 +38,7 @@ export async function onRequestPost({ request, env }) {
       }
 
       await env.mlttcd.prepare(
-        'UPDATE USER SET name = ? WHERE id = ?'
+        'UPDATE USER SET NAME = ? WHERE id = ?'
       ).bind(trimmedName, userId).run();
     }
 

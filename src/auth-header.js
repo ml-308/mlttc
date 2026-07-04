@@ -1,18 +1,18 @@
 // js/auth-header.js
 
-// 检查登录状态（调用 /api/profile 从 D1 获取用户信息）
-async function checkAuth() {
-  try {
-    const res = await fetch('/api/profile', { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
-      const user = data.user || data;
-      return { loggedIn: true, displayName: user.name || '未设置昵称', user };
-    }
-    return { loggedIn: false };
-  } catch {
-    return { loggedIn: false };
+// 从 cookie 中读取指定名称的值
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+// 检查登录状态（仅读取 cookie，不查询数据库）
+function checkAuth() {
+  const name = getCookie('user_name');
+  if (name) {
+    return { loggedIn: true, displayName: name };
   }
+  return { loggedIn: false };
 }
 
 // 退出登录
@@ -30,7 +30,7 @@ function bindLogoutButton() {
 }
 
 // 根据登录状态切换头部 UI
-async function updateHeaderAuth() {
+function updateHeaderAuth() {
   const loginBtn = document.getElementById('globalLoginBtn');
   const userInfoDiv = document.getElementById('globalUserInfo');
   const displayName = document.getElementById('globalDisplayName');
@@ -38,7 +38,7 @@ async function updateHeaderAuth() {
   // 确保元素都存在（有的页面可能没有这个头部）
   if (!loginBtn || !userInfoDiv || !displayName) return;
 
-  const { loggedIn, displayName: name } = await checkAuth();
+  const { loggedIn, displayName: name } = checkAuth();
 
   if (loggedIn) {
     // 已登录：显示用户信息，隐藏登录按钮

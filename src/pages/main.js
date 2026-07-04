@@ -162,7 +162,11 @@ async function updateUIAfterLogin() {
     const userInfoDiv = document.getElementById('globalUserInfo');
     const displayName = document.getElementById('globalDisplayName');
 
-    if (displayName) displayName.textContent = user.NAME || user.email || '用户';
+    const loggedName = user.NAME || user.email || '用户';
+    if (displayName) displayName.textContent = loggedName;
+    if (user.NAME) {
+      document.cookie = `user_name=${encodeURIComponent(user.NAME)}; Path=/; Max-Age=3600; SameSite=Lax`;
+    }
     if (loginBtn) loginBtn.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
     if (userInfoDiv) userInfoDiv.style.display = 'block';
