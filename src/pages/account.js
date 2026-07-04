@@ -57,14 +57,14 @@ async function loadProfile() {
     }
     const data = await res.json();
     const user = data.user || data;
-    document.getElementById('profileDisplayName').textContent = user.name || '未设置昵称';
+    document.getElementById('profileDisplayName').textContent = user.NAME || '未设置昵称';
     document.getElementById('profileEmail').textContent = user.email || '—';
     document.getElementById('profileCity').textContent = user.city || '未设置';
     if (user.registertime) {
       document.getElementById('profileRegDate').textContent = user.registertime;
     }
     // 填入当前值作为 placeholder
-    if (user.name) document.getElementById('nameInput').placeholder = user.name;
+    if (user.NAME) document.getElementById('nameInput').placeholder = user.NAME;
     if (user.city) document.getElementById('cityInput').placeholder = user.city;
   } catch (e) {
     console.error('加载用户信息失败:', e);
@@ -73,7 +73,7 @@ async function loadProfile() {
 
 async function saveProfile(name, city) {
   const body = {};
-  if (name !== undefined && name !== null) body.name = name;
+  if (name !== undefined && name !== null) body.NAME = name;
   if (city !== undefined && city !== null) body.city = city;
 
   const res = await fetch('/api/update-profile', {

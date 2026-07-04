@@ -30,7 +30,7 @@ export async function onRequestPost({ request, env }) {
       }
 
       const existing = await env.mlttcd.prepare(
-        'SELECT id FROM USER WHERE name = ? AND id != ?'
+        'SELECT id FROM USER WHERE NAME = ? AND id != ?'
       ).bind(trimmedName, userId).first();
 
       if (existing) {
