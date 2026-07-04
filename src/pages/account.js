@@ -1,5 +1,16 @@
 // ─── 个人信息页面逻辑 ────────────────────────────────
 
+// 从 cookie 中读取指定名称的值
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+// 设置 user_name cookie（修改昵称后同步）
+function setUserNameCookie(name) {
+  document.cookie = `user_name=${encodeURIComponent(name)}; Path=/; Max-Age=3600; SameSite=Lax`;
+}
+
 // 验证提示（参考 timetables.js 的 msgout）
 function msgout(input, test, msg, judge) {
   if (judge === 1) {
@@ -50,21 +61,28 @@ function showMessage(msg, isError) {
 
 async function loadProfile() {
   try {
+    // 优先从 cookie 读取昵称
+    const cookieName = getCookie('user_name');
+    if (cookieName) {
+      document.getElementById('profileDisplayName').textContent = cookieName;
+    }
+
     const res = await fetch('/api/profile', { credentials: 'include' });
     if (!res.ok) {
-      document.getElementById('profileDisplayName').textContent = '未登录';
+      if (!cookieName) document.getElementById('profileDisplayName').textContent = '未登录';
       return;
     }
     const data = await res.json();
     const user = data.user || data;
-    document.getElementById('profileDisplayName').textContent = user.name || user.email || '用户';
+    // cookie 优先，接口数据兜底
+    document.getElementById('profileDisplayName').textContent = cookieName || user.name || user.email || '用户';
     document.getElementById('profileEmail').textContent = user.email || '—';
     document.getElementById('profileCity').textContent = user.city || '未设置';
     if (user.registertime) {
       document.getElementById('profileRegDate').textContent = user.registertime;
     }
     // 填入当前值作为 placeholder
-    if (user.name) document.getElementById('nameInput').placeholder = user.name;
+    if (cookieName || user.name) document.getElementById('nameInput').placeholder = cookieName || user.name;
     if (user.city) document.getElementById('cityInput').placeholder = user.city;
   } catch (e) {
     console.error('加载用户信息失败:', e);
@@ -175,6 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nameInput.placeholder = name;
         nameInput.value = '';
         msgout(nameInput, nameMsg, '', 2);
+        setUserNameCookie(name); // 同步到 cookie
       }
       if (city) {
         document.getElementById('profileCity').textContent = city;

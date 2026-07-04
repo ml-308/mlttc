@@ -53,7 +53,12 @@ export async function onRequestPost({ request, env }) {
       ).bind(trimmedCity, userId).run();
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    const resData = { success: true };
+    // 如果更新了昵称，把新昵称返回给前端，让前端更新 cookie
+    if (name !== undefined && name !== null) {
+      resData.name = name.trim();
+    }
+    return new Response(JSON.stringify(resData), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });

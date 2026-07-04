@@ -1,12 +1,23 @@
 // js/auth-header.js
 
-// 检查是否已登录（调用受保护接口）
+// 从 cookie 中读取指定名称的值
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+// 检查是否已登录（优先从 cookie 取昵称，同时调用受保护接口确认身份）
 async function checkAuth() {
+  const cookieName = getCookie('user_name');
   try {
     const res = await fetch('/api/profile', { credentials: 'include' });
     if (res.ok) {
       const data = await res.json();
-      return { loggedIn: true, user: data.user || data }; // 根据你接口实际返回调整
+      const user = data.user || data;
+      // 如果 cookie 中有昵称则优先使用，否则用接口返回的
+      if (cookieName) user._displayName = cookieName;
+      else user._displayName = user.name || user.email || '用户';
+      return { loggedIn: true, user };
     }
     return { loggedIn: false };
   } catch (error) {
@@ -43,7 +54,7 @@ async function updateHeaderAuth() {
     // 已登录：显示用户信息，隐藏登录按钮
     loginBtn.style.display = 'none';
     userInfoDiv.style.display = 'block';
-    displayName.textContent = user.email || user.name || '用户'; // 根据实际字段调整
+    displayName.textContent = user._displayName || user.email || user.name || '用户';
     bindLogoutButton();
   } else {
     // 未登录：显示登录按钮，隐藏用户信息
