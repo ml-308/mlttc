@@ -167,7 +167,7 @@ function msgout(input,test,msg,judge){
     if(judge==2){
         console.log("msg--2");
         input.style.borderColor='#8881';
-        test.style.color='#000000';
+        test.style.color='var(--text-secondary)';
         test.innerHTML=msg;
         test.style.display="none";
     }

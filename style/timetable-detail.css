@@ -79,7 +79,7 @@
 
 /* 详情卡片 */
 .detail-card {
-    background: rgba(21, 23, 24, 0.6);
+    background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 1.25rem 1.5rem;
@@ -144,7 +144,7 @@
 .detail-section-title {
     font-size: 1rem;
     font-weight: 600;
-    color: #1dc0ed;
+    color: var(--primary-light);
     margin-bottom: 0.75rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--border-light);
@@ -178,7 +178,7 @@
 
 /* 元信息卡片 */
 .detail-meta-card {
-    background: rgba(29, 29, 29, 0.5);
+    background: var(--bg-card);
 }
 
 .detail-meta-row {

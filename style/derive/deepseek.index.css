@@ -59,3 +59,7 @@
     font-weight: 500;
     display: none;
 }
+
+[data-theme="dark"] .error-msg {
+    background: rgba(180, 40, 40, 0.25);
+}
