@@ -78,9 +78,6 @@ export async function onRequestPost({ request, env }) {
       headers: { 'Content-Type': 'application/json' }
     });
     setAuthCookie(response, token);
-    // 写入昵称到非HttpOnly cookie，供前端直接读取
-    const displayName = user.name || user.email;
-    response.headers.append('Set-Cookie', `user_name=${encodeURIComponent(displayName)}; Path=/; Max-Age=3600; SameSite=Lax`);
     return response;
   } catch (error) {
     return new Response(JSON.stringify({ success: false, message: '服务器错误' }), {

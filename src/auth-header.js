@@ -1,26 +1,18 @@
 // js/auth-header.js
 
-// 从 cookie 中读取指定名称的值
-function getCookie(name) {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : null;
-}
-
-// 检查登录状态：先用 cookie 快速显示，再异步请求接口获取数据库中的真实昵称
-function checkAuth() {
-  const name = getCookie('user_name');
-  if (name) {
-    // 异步请求数据库中的昵称，覆盖 cookie 值（cookie 可能为邮箱）
-    fetch('/api/profile', { credentials: 'include' }).then(r => r.json()).then(data => {
+// 检查登录状态（调用 /api/profile 从 D1 获取用户信息）
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/profile', { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
       const user = data.user || data;
-      const displayName = document.getElementById('globalDisplayName');
-      if (displayName && user.name) {
-        displayName.textContent = user.name;
-      }
-    }).catch(() => {});
-    return { loggedIn: true, displayName: name };
+      return { loggedIn: true, displayName: user.name || user.email || '用户', user };
+    }
+    return { loggedIn: false };
+  } catch {
+    return { loggedIn: false };
   }
-  return { loggedIn: false };
 }
 
 // 退出登录
@@ -38,7 +30,7 @@ function bindLogoutButton() {
 }
 
 // 根据登录状态切换头部 UI
-function updateHeaderAuth() {
+async function updateHeaderAuth() {
   const loginBtn = document.getElementById('globalLoginBtn');
   const userInfoDiv = document.getElementById('globalUserInfo');
   const displayName = document.getElementById('globalDisplayName');
@@ -46,7 +38,7 @@ function updateHeaderAuth() {
   // 确保元素都存在（有的页面可能没有这个头部）
   if (!loginBtn || !userInfoDiv || !displayName) return;
 
-  const { loggedIn, displayName: name } = checkAuth();
+  const { loggedIn, displayName: name } = await checkAuth();
 
   if (loggedIn) {
     // 已登录：显示用户信息，隐藏登录按钮

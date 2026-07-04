@@ -1,16 +1,5 @@
 // ─── 个人信息页面逻辑 ────────────────────────────────
 
-// 从 cookie 中读取指定名称的值
-function getCookie(name) {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : null;
-}
-
-// 设置 user_name cookie（修改昵称后同步）
-function setUserNameCookie(name) {
-  document.cookie = `user_name=${encodeURIComponent(name)}; Path=/; Max-Age=3600; SameSite=Lax`;
-}
-
 // 验证提示（参考 timetables.js 的 msgout）
 function msgout(input, test, msg, judge) {
   if (judge === 1) {
@@ -61,20 +50,13 @@ function showMessage(msg, isError) {
 
 async function loadProfile() {
   try {
-    const cookieName = getCookie('user_name');
-    // 先用 cookie 快速显示（可能为邮箱），等接口返回后再用数据库昵称覆盖
-    if (cookieName) {
-      document.getElementById('profileDisplayName').textContent = cookieName;
-    }
-
     const res = await fetch('/api/profile', { credentials: 'include' });
     if (!res.ok) {
-      if (!cookieName) document.getElementById('profileDisplayName').textContent = '未登录';
+      document.getElementById('profileDisplayName').textContent = '未登录';
       return;
     }
     const data = await res.json();
     const user = data.user || data;
-    // 昵称优先显示 user.name（D1 数据库），无昵称时显示邮箱
     document.getElementById('profileDisplayName').textContent = user.name || user.email || '用户';
     document.getElementById('profileEmail').textContent = user.email || '—';
     document.getElementById('profileCity').textContent = user.city || '未设置';
@@ -193,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
         nameInput.placeholder = name;
         nameInput.value = '';
         msgout(nameInput, nameMsg, '', 2);
-        setUserNameCookie(name); // 同步到 cookie
       }
       if (city) {
         document.getElementById('profileCity').textContent = city;
