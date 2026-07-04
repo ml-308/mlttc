@@ -7,7 +7,7 @@ async function checkAuth() {
     if (res.ok) {
       const data = await res.json();
       const user = data.user || data;
-      return { loggedIn: true, displayName: user.name || user.email || '用户', user };
+      return { loggedIn: true, displayName: user.name || '未设置昵称', user };
     }
     return { loggedIn: false };
   } catch {

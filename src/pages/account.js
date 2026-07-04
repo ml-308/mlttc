@@ -57,7 +57,7 @@ async function loadProfile() {
     }
     const data = await res.json();
     const user = data.user || data;
-    document.getElementById('profileDisplayName').textContent = user.name || user.email || '用户';
+    document.getElementById('profileDisplayName').textContent = user.name || '未设置昵称';
     document.getElementById('profileEmail').textContent = user.email || '—';
     document.getElementById('profileCity').textContent = user.city || '未设置';
     if (user.registertime) {

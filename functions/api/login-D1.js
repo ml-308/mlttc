@@ -42,16 +42,23 @@ export async function onRequestPost({ request, env }) {
 
     const { email, password } = body;
     if (!email || !password) {
-      return new Response(JSON.stringify({ success: false, message: '邮箱和密码不能为空' }), {
+      return new Response(JSON.stringify({ success: false, message: '账号和密码不能为空' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // 查找用户
-    const user = await env.mlttcd.prepare(
+    // 查找用户：先用邮箱精确匹配，再用昵称精确匹配
+    const input = email.trim();
+    let user = await env.mlttcd.prepare(
       'SELECT id, email, name, password FROM USER WHERE email = ?'
-    ).bind(email.trim().toLowerCase()).first();
+    ).bind(input.toLowerCase()).first();
+
+    if (!user) {
+      user = await env.mlttcd.prepare(
+        'SELECT id, email, name, password FROM USER WHERE NAME = ?'
+      ).bind(input).first();
+    }
 
     if (!user) {
       return new Response(JSON.stringify({ success: false, message: '邮箱或密码错误' }), {
