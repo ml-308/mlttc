@@ -48,15 +48,16 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    // 查找用户：先用邮箱精确匹配，再用昵称精确匹配
+    // 若输入包含 @ 则按邮箱匹配，否则按昵称匹配
     const input = email.trim();
-    let user = await env.mlttcd.prepare(
-      'SELECT id, email, name, password FROM USER WHERE email = ?'
-    ).bind(input.toLowerCase()).first();
-
-    if (!user) {
+    let user;
+    if (input.includes('@')&& !input.includes('.')) {
       user = await env.mlttcd.prepare(
-        'SELECT id, email, name, password FROM USER WHERE name = ?'
+        'SELECT id, email, NAME, password FROM USER WHERE email = ?'
+      ).bind(input.toLowerCase()).first();
+    } else {
+      user = await env.mlttcd.prepare(
+        'SELECT id, email, NAME, password FROM USER WHERE NAME = ?'
       ).bind(input).first();
     }
 

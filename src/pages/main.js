@@ -121,15 +121,10 @@ function login(e) {
   const email = document.getElementById('username')?.value.trim();
   const password = document.getElementById('password')?.value;
   if (!email || !password) {
-    showMessage('请输入邮箱和密码', true);
+    showMessage('请输入账号和密码', true);
     return;
   }
-  const msg = validateEmail(email);
-  if (msg === '邮箱格式正确') {
-    loginread(email, password);
-  } else {
-    showMessage(msg, true);
-  }
+  loginread(email, password);
 }
 
 async function loginread(email, password) {
