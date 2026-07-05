@@ -346,11 +346,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
             <span>写入: ${item.WRITETIME || '未知'}</span>
             <span style="font-weight:600; ${
-              item.PASS? 'color:var(--success);' :
+              item.PASS==1? 'color:var(--success);' :
               (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? 'color:var(--danger);' :
               'color:var(--warning);'
             }">${
-              item.PASS ? '已通过' :
+              item.PASS==1 ? '已通过' :
               (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? '被驳回' :
               '待审核'
             }</span>
