@@ -80,9 +80,25 @@ function formatTimeShort(timeStr) {
   return parts.slice(0, 4).join(' ') + '...';
 }
 
+// ─── 本地数据操作 ────────────────────────────
+function removeFromState(key, itemId) {
+  const idx = pageState[key].data.findIndex(d => d.ID === itemId);
+  if (idx !== -1) return pageState[key].data.splice(idx, 1)[0];
+  return null;
+}
+
+function moveToState(key, item) {
+  pageState[key].data.unshift(item);
+}
+
+function updateSection(key, showActions) {
+  const countEl = key === 'unreviewed' ? unreviewedCount : key === 'rejected' ? rejectedCount : reviewedCount;
+  countEl.textContent = pageState[key].data.length + ' 条';
+  renderPage(key, showActions);
+}
+
 // ─── 操作 ────────────────────────────────────
 async function approveItem(item) {
-  if (!confirm(`确认通过时刻表 #${item.ID}？`)) return;
   try {
     const res = await fetch('/api/admin', {
       method: 'POST',
@@ -90,21 +106,39 @@ async function approveItem(item) {
       body: JSON.stringify({ id: item.ID, passer: adminEmail, pass: 1 })
     });
     const data = await res.json();
-    if (res.ok) { showMessage('已通过', false); loadReviewData(); }
-    else { showMessage(data.error || '操作失败', true); }
+    if (!res.ok) { showMessage(data.error || '操作失败', true); return; }
+
+    // 本地移动：从未审核/被驳回 → 已通过
+    const fromKey = removeFromState('unreviewed', item.ID) ? 'unreviewed' :
+                    removeFromState('rejected', item.ID) ? 'rejected' : null;
+    if (fromKey) {
+      const moved = { ...item, PASS: 1, PASSER: adminEmail || '管理员' };
+      moveToState('reviewed', moved);
+      updateSection(fromKey, fromKey !== 'reviewed');
+      updateSection('reviewed', false);
+    }
+    showMessage('已通过', false);
   } catch { showMessage('网络错误', true); }
 }
 
 async function rejectItem(item) {
-  if (!confirm(`确认驳回时刻表 #${item.ID}？`)) return;
   try {
     const res = await fetch('/api/admin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: item.ID, passer: adminEmail, action: 'reject' })
     });
-    if (res.ok) { showMessage('已驳回', false); loadReviewData(); }
-    else { const d = await res.json().catch(()=>({})); showMessage(d.error || '操作失败', true); }
+    if (!res.ok) { const d = await res.json().catch(()=>({})); showMessage(d.error || '操作失败', true); return; }
+
+    // 本地移动：从未审核 → 被驳回
+    const removed = removeFromState('unreviewed', item.ID);
+    if (removed) {
+      const moved = { ...removed, PASS: 0, SPECIAL: (removed.SPECIAL && removed.SPECIAL !== '无' ? removed.SPECIAL : '') + '【时刻表被驳回】', PASSER: adminEmail || '管理员' };
+      moveToState('rejected', moved);
+      updateSection('unreviewed', true);
+      updateSection('rejected', true);
+    }
+    showMessage('已驳回', false);
   } catch { showMessage('网络错误', true); }
 }
 
@@ -117,8 +151,16 @@ async function deleteItem(item) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: item.ID })
     });
-    if (res.ok) { showMessage('已删除', false); loadReviewData(); }
-    else { const d = await res.json().catch(()=>({})); showMessage(d.message || d.error || '删除失败', true); }
+    if (!res.ok) { const d = await res.json().catch(()=>({})); showMessage(d.message || d.error || '删除失败', true); return; }
+
+    // 本地删除
+    const removed = removeFromState('unreviewed', item.ID) || removeFromState('rejected', item.ID) || removeFromState('reviewed', item.ID);
+    if (removed) {
+      updateSection('unreviewed', true);
+      updateSection('rejected', true);
+      updateSection('reviewed', false);
+    }
+    showMessage('已删除', false);
   } catch { showMessage('网络错误', true); }
 }
 
