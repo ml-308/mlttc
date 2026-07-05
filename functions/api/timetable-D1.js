@@ -341,7 +341,6 @@ export async function onRequestGet({request,env}){
           `SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME 
            FROM TIMETABLE t WHERE t.WRITER = ? ORDER BY t.WRITETIME DESC`
         ).bind(cleanWriter).all();
-        const { results } = await env.mlttcd.prepare(query).bind(cleanWriter).all();
 
         return new Response(JSON.stringify({
           success: true,
