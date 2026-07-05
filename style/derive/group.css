@@ -21,23 +21,17 @@
 }
 
 /* 结果项操作按钮不溢出 */
-.result-item {
-    display: flex;
-    flex-direction: column;
-}
-
-.result-item-body {
-    flex: 1;
-}
-
 .result-item-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
-    align-items: flex-end;
+    align-items: center;
+    gap: 6px;
     margin-top: 12px;
-    padding-top: 12px;
+    padding: 10px 0 4px;
     border-top: 1px solid var(--border-light);
     max-width: 100%;
+    min-height: 2.8rem;
     overflow: visible;
 }
 
