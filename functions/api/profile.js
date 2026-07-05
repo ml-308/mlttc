@@ -20,7 +20,7 @@ export async function onRequestGet({ request, env }) {
 
     // 通过 payload.userId 进行后续操作，如获取用户资料
     const user = await env.mlttcd.prepare(
-      'SELECT id, email, NAME, city, registertime FROM USER WHERE id = ?'
+      'SELECT id, email, NAME, city, registertime, adm FROM USER WHERE id = ?'
     ).bind(payload.userId).first();
 
     if (!user) {

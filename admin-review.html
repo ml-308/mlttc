@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>管理员 - 时刻表审核</title>
+    <link rel="stylesheet" href="style/index.css">
+    <link rel="stylesheet" href="style/timetable.css">
+    <link rel="stylesheet" href="style/timetable-detail.css">
+    <script src="lib/ui/init.mjs" type="module"></script>
+</head>
+
+<body>
+    <hcw-body-header>
+        <hcw-button flat fill style="min-width: 5rem;" id="backBtn">返回</hcw-button>
+        <div class="logo-area">
+            <div class="logo-text">MLTTC - 时刻表审核</div>
+        </div>
+        <p hidden-on-mobile style="margin-left: auto; color: var(--text-muted)">管理员面板</p>
+        <div id="headerAuthArea">
+            <hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
+            <span style="font-size:0.82rem; color:var(--text-muted);" id="adminEmailDisplay"></span>
+            <hcw-button id="logoutBtn" flat style="min-width: 4rem; font-size:0.82rem;">退出</hcw-button>
+        </div>
+    </hcw-body-header>
+
+    <hcw-article>
+        <!-- 审核入口按钮 -->
+        <div class="menu-bar" id="reviewEntrance">
+            <hcw-button id="loadReviewBtn" primary flat style="min-width: 12rem; font-size:1rem;">
+                加载时刻表审核
+            </hcw-button>
+        </div>
+
+        <!-- 审核面板 -->
+        <div id="reviewPanel" class="form-panel hidden">
+
+            <!-- 未审核时刻表 -->
+            <hcw-card>
+                <hcw-card-title style="font-size: 1.1rem; display:flex; align-items:center; justify-content:space-between;">
+                    <span>⏳ 未审核时刻表</span>
+                    <span id="unreviewedCount" style="font-size:0.82rem; color:var(--text-muted);">0 条</span>
+                </hcw-card-title>
+                <div id="unreviewedLoading" style="text-align:center; padding:2rem 0; color:var(--text-muted);">加载中...</div>
+                <div id="unreviewedEmpty" class="hidden" style="text-align:center; padding:2rem 0; color:var(--text-muted);">暂无未审核时刻表</div>
+                <div id="unreviewedList" class="result-list" style="margin-top:0.5rem;"></div>
+            </hcw-card>
+
+            <!-- 已审核时刻表 -->
+            <hcw-card>
+                <hcw-card-title style="font-size: 1.1rem; display:flex; align-items:center; justify-content:space-between;">
+                    <span>✅ 已审核时刻表</span>
+                    <span id="reviewedCount" style="font-size:0.82rem; color:var(--text-muted);">0 条</span>
+                </hcw-card-title>
+                <div id="reviewedLoading" style="text-align:center; padding:2rem 0; color:var(--text-muted);">加载中...</div>
+                <div id="reviewedEmpty" class="hidden" style="text-align:center; padding:2rem 0; color:var(--text-muted);">暂无已审核时刻表</div>
+                <div id="reviewedList" class="result-list" style="margin-top:0.5rem;"></div>
+            </hcw-card>
+        </div>
+    </hcw-article>
+
+    <hcw-body-footer></hcw-body-footer>
+
+    <script>
+        // ─── 管理员审核页面 ────────────────────────────
+
+        // 检查管理员登录状态
+        (function checkAuth() {
+            if (sessionStorage.getItem('admin_logged_in') !== 'true') {
+                window.location.href = '/admin-login.html';
+                return;
+            }
+            const email = sessionStorage.getItem('admin_email');
+            if (email) {
+                document.getElementById('adminEmailDisplay').textContent = email;
+            }
+        })();
+
+        // ─── DOM ────────────────────────────────────
+        const backBtn = document.getElementById('backBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const loadBtn = document.getElementById('loadReviewBtn');
+        const reviewPanel = document.getElementById('reviewPanel');
+
+        const unreviewedList = document.getElementById('unreviewedList');
+        const reviewedList = document.getElementById('reviewedList');
+        const unreviewedLoading = document.getElementById('unreviewedLoading');
+        const reviewedLoading = document.getElementById('reviewedLoading');
+        const unreviewedEmpty = document.getElementById('unreviewedEmpty');
+        const reviewedEmpty = document.getElementById('reviewedEmpty');
+        const unreviewedCount = document.getElementById('unreviewedCount');
+        const reviewedCount = document.getElementById('reviewedCount');
+
+        const adminEmail = sessionStorage.getItem('admin_email') || '';
+
+        // ─── 工具 ────────────────────────────────────
+        function showMessage(msg, isError) {
+            const popup = document.createElement('div');
+            popup.textContent = msg;
+            popup.style.cssText = 'position:fixed; top:20px; left:50%; padding:10px 20px; border-radius:5px; z-index:9999; color:#fff; font-size:0.85rem; animation: fadeInOut 2s ease forwards; transform:translateX(-50%);';
+            popup.style.backgroundColor = isError ? '#f44336' : '#4CAF50';
+            document.body.appendChild(popup);
+            setTimeout(() => popup.remove(), 2500);
+
+            if (!document.getElementById('showMsgAnimStyles_admin')) {
+                const ss = document.createElement('style');
+                ss.id = 'showMsgAnimStyles_admin';
+                ss.textContent = `@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(-20px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}85%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-20px)}}`;
+                document.head.appendChild(ss);
+            }
+        }
+
+        function formatTimeShort(timeStr) {
+            if (!timeStr || timeStr === 'unknown') return '未知';
+            const parts = timeStr.split(/[\t\n\r]+/).filter(t => t.trim());
+            if (parts.length <= 4) return parts.join(' ');
+            return parts.slice(0, 4).join(' ') + '...';
+        }
+
+        // ─── 渲染时刻表卡片 ──────────────────────────
+        function createTimetableCard(item, isUnreviewed) {
+            const card = document.createElement('div');
+            card.className = 'result-item';
+            card.dataset.id = item.ID;
+
+            card.innerHTML = `
+                <div class="result-item-header">
+                    <span class="result-item-id">#${item.ID}</span>
+                    <span class="result-item-route">${item.CITY || '?'} · ${item.WAY || '?'}</span>
+                </div>
+                <div class="result-item-body">
+                    <div class="result-item-stations">
+                        <span class="station-label">起点</span>
+                        <span class="station-name">${item.START || '?'}</span>
+                        <span class="station-arrow">→</span>
+                        <span class="station-label">终点</span>
+                        <span class="station-name">${item.END || '?'}</span>
+                    </div>
+                    ${item.SPECIAL && item.SPECIAL !== '无' ? `<div class="result-item-note">${item.SPECIAL}</div>` : ''}
+                    <div class="result-item-times" style="display:flex; flex-direction:column; gap:2px; font-size:0.82rem;">
+                        <div class="time-row">
+                            <span class="time-label">外环:</span>
+                            <span class="time-value">${formatTimeShort(item.TIMEONE)}</span>
+                        </div>
+                        <div class="time-row">
+                            <span class="time-label">内环:</span>
+                            <span class="time-value">${formatTimeShort(item.TIMETWO)}</span>
+                        </div>
+                    </div>
+                    <div class="result-item-meta">
+                        <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知' : item.STARTTIME}</span>
+                        <span>作者: ${item.WRITER_NAME || item.WRITER || '未知'}</span>
+                        <span>写入: ${item.WRITETIME || '未知'}</span>
+                        ${item.PASS === 1 ? `<span>审核: ${item.PASSER || '管理员'}</span>` : '<span style="color:var(--warning);">待审核</span>'}
+                    </div>
+                </div>
+                <div class="result-item-actions" style="gap:6px; flex-wrap:wrap;">
+                    ${isUnreviewed ? `
+                        <hcw-button class="approve-btn" primary flat style="min-width:4rem; font-size:0.8rem;">通过</hcw-button>
+                        <hcw-button class="reject-btn" variant="danger" flat style="min-width:4rem; font-size:0.8rem;">驳回</hcw-button>
+                    ` : `
+                        <span style="font-size:0.78rem; color:var(--text-muted);">✅ 已审核</span>
+                    `}
+                    <hcw-button class="delete-btn" tp flat style="min-width:4rem; font-size:0.8rem; color:var(--danger);">删除</hcw-button>
+                    <hcw-button class="modify-btn" flat style="min-width:4rem; font-size:0.8rem;" data-id="${item.ID}">修改</hcw-button>
+                </div>
+            `;
+
+            // 通过
+            if (isUnreviewed) {
+                card.querySelector('.approve-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    approveItem(item);
+                });
+                card.querySelector('.reject-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    rejectItem(item);
+                });
+            }
+
+            // 删除
+            card.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteItem(item);
+            });
+
+            // 修改 - 跳转到修改页面
+            card.querySelector('.modify-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
+            });
+
+            return card;
+        }
+
+        // ─── 操作: 通过 ──────────────────────────────
+        async function approveItem(item) {
+            if (!confirm(`确认通过时刻表 #${item.ID}？`)) return;
+
+            try {
+                const res = await fetch('/api/timetable-D1', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: item.ID,
+                        passer: adminEmail,
+                        pass: 1
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    showMessage('✅ 已通过', false);
+                    loadReviewData();
+                } else {
+                    showMessage(data.error || '操作失败', true);
+                }
+            } catch {
+                showMessage('网络错误', true);
+            }
+        }
+
+        // ─── 操作: 驳回（删除记录） ────────────────────
+        async function rejectItem(item) {
+            if (!confirm(`确认驳回时刻表 #${item.ID}？该记录将被删除。`)) return;
+
+            try {
+                const res = await fetch('/api/timetable-D1', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: item.ID })
+                });
+
+                if (res.ok) {
+                    showMessage('已驳回并删除', false);
+                    loadReviewData();
+                } else {
+                    const data = await res.json().catch(() => ({}));
+                    showMessage(data.message || data.error || '操作失败', true);
+                }
+            } catch {
+                showMessage('网络错误', true);
+            }
+        }
+
+        // ─── 操作: 删除 ──────────────────────────────
+        async function deleteItem(item) {
+            if (!confirm(`确认永久删除时刻表 #${item.ID}？此操作不可撤销。`)) return;
+            if (!confirm(`再次确认：删除 ${item.CITY} ${item.WAY}？`)) return;
+
+            try {
+                const res = await fetch('/api/timetable-D1', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: item.ID })
+                });
+
+                if (res.ok) {
+                    showMessage('✅ 已删除', false);
+                    loadReviewData();
+                } else {
+                    const data = await res.json().catch(() => ({}));
+                    showMessage(data.message || data.error || '删除失败', true);
+                }
+            } catch {
+                showMessage('网络错误', true);
+            }
+        }
+
+        // ─── 加载审核数据 ────────────────────────────
+        async function loadReviewData() {
+            // 显示加载状态
+            unreviewedLoading.classList.remove('hidden');
+            reviewedLoading.classList.remove('hidden');
+            unreviewedList.innerHTML = '';
+            reviewedList.innerHTML = '';
+            unreviewedEmpty.classList.add('hidden');
+            reviewedEmpty.classList.add('hidden');
+
+            try {
+                // 以管理员身份获取所有时刻表（含未审核）
+                const res = await fetch('/api/timetable-D1?q=路&admin=1', { credentials: 'include' });
+                let allData = [];
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.success && json.data) allData = json.data;
+                }
+
+                // 按 PASS 字段分离未审核(0)和已审核(1)
+                const unreviewed = allData.filter(item => item.PASS === 0 || item.PASS === undefined || item.PASS === null);
+                const reviewed = allData.filter(item => item.PASS === 1);
+
+                // 渲染未审核
+                unreviewedLoading.classList.add('hidden');
+                if (unreviewed.length === 0) {
+                    unreviewedEmpty.classList.remove('hidden');
+                } else {
+                    unreviewed.forEach(item => {
+                        unreviewedList.appendChild(createTimetableCard(item, true));
+                    });
+                }
+                unreviewedCount.textContent = unreviewed.length + ' 条';
+
+                // 渲染已审核
+                reviewedLoading.classList.add('hidden');
+                if (reviewed.length === 0) {
+                    reviewedEmpty.classList.remove('hidden');
+                } else {
+                    reviewed.forEach(item => {
+                        reviewedList.appendChild(createTimetableCard(item, false));
+                    });
+                }
+                reviewedCount.textContent = reviewed.length + ' 条';
+
+            } catch (e) {
+                console.error('加载审核数据失败:', e);
+                unreviewedLoading.textContent = '加载失败，请重试';
+                reviewedLoading.textContent = '加载失败，请重试';
+                showMessage('加载数据失败', true);
+            }
+        }
+
+        // ─── 事件绑定 ────────────────────────────────
+        backBtn.addEventListener('click', () => window.location.href = '/index.html');
+
+        logoutBtn.addEventListener('click', () => {
+            sessionStorage.removeItem('admin_logged_in');
+            sessionStorage.removeItem('admin_token');
+            sessionStorage.removeItem('admin_email');
+            window.location.href = '/admin-login.html';
+        });
+
+        loadBtn.addEventListener('click', () => {
+            reviewPanel.classList.remove('hidden');
+            loadBtn.disabled = true;
+            loadBtn.textContent = '加载中...';
+            loadReviewData().finally(() => {
+                loadBtn.textContent = '刷新审核列表';
+                loadBtn.disabled = false;
+            });
+        });
+    </script>
+</body>
+
+</html>
