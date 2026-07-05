@@ -171,7 +171,7 @@ function createTimetableCard(item, isUnreviewed) {
   card.addEventListener('click', () => { window.location.href = `/admin-detail.html?id=${encodeURIComponent(item.ID)}`; });
   card.querySelector('.modify-btn').addEventListener('click', e => {
     e.stopPropagation();
-    window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
+    window.location.href = `/admin-edit.html?id=${encodeURIComponent(item.ID)}`;
   });
 
   return card;
