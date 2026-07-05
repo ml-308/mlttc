@@ -27,6 +27,24 @@ const reviewedEmpty = document.getElementById('reviewedEmpty');
 const unreviewedCount = document.getElementById('unreviewedCount');
 const reviewedCount = document.getElementById('reviewedCount');
 
+// ─── 分页 DOM ───────────────────────────────
+const unreviewedPagination = document.getElementById('unreviewedPagination');
+const reviewedPagination = document.getElementById('reviewedPagination');
+const unreviewedPrevBtn = document.getElementById('unreviewedPrevBtn');
+const unreviewedNextBtn = document.getElementById('unreviewedNextBtn');
+const reviewedPrevBtn = document.getElementById('reviewedPrevBtn');
+const reviewedNextBtn = document.getElementById('reviewedNextBtn');
+const unreviewedPageInfo = document.getElementById('unreviewedPageInfo');
+const reviewedPageInfo = document.getElementById('reviewedPageInfo');
+
+const PAGE_SIZE = 5;
+
+// ─── 分页状态 ───────────────────────────────
+const pageState = {
+  unreviewed: { data: [], page: 0 },
+  reviewed: { data: [], page: 0 }
+};
+
 const adminEmail = sessionStorage.getItem('admin_email') || '';
 
 // ─── 工具 ────────────────────────────────────
@@ -154,6 +172,42 @@ function createTimetableCard(item, isUnreviewed) {
   return card;
 }
 
+// ─── 分页渲染 ────────────────────────────────
+function renderPage(key, isUnreviewed) {
+  const state = pageState[key];
+  const list = key === 'unreviewed' ? unreviewedList : reviewedList;
+  const empty = key === 'unreviewed' ? unreviewedEmpty : reviewedEmpty;
+  const pagination = key === 'unreviewed' ? unreviewedPagination : reviewedPagination;
+  const prevBtn = key === 'unreviewed' ? unreviewedPrevBtn : reviewedPrevBtn;
+  const nextBtn = key === 'unreviewed' ? unreviewedNextBtn : reviewedNextBtn;
+  const pageInfo = key === 'unreviewed' ? unreviewedPageInfo : reviewedPageInfo;
+
+  const total = state.data.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (state.page >= totalPages) state.page = totalPages - 1;
+  if (state.page < 0) state.page = 0;
+
+  const start = state.page * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, total);
+  const pageData = state.data.slice(start, end);
+
+  list.innerHTML = '';
+
+  if (total === 0) {
+    empty.classList.remove('hidden');
+    pagination.classList.add('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+  pagination.classList.remove('hidden');
+  pageInfo.textContent = `${state.page + 1}/${totalPages}`;
+  prevBtn.disabled = state.page === 0;
+  nextBtn.disabled = state.page >= totalPages - 1;
+
+  pageData.forEach(item => list.appendChild(createTimetableCard(item, isUnreviewed)));
+}
+
 // ─── 加载数据 ────────────────────────────────
 async function loadReviewData() {
   unreviewedLoading.classList.remove('hidden');
@@ -173,25 +227,35 @@ async function loadReviewData() {
     const reviewed = allData.filter(item => item.PASS === 1);
     const rejected = allData.filter(item => item.SPECIAL && item.SPECIAL.includes(REJECT_MARK));
 
+    // 未审核 + 被驳回合并显示在未审核区
+    pageState.unreviewed.data = [...unreviewed, ...rejected];
+    pageState.unreviewed.page = 0;
+    pageState.reviewed.data = reviewed;
+    pageState.reviewed.page = 0;
+
     unreviewedLoading.classList.add('hidden');
-    if (unreviewed.length === 0) unreviewedEmpty.classList.remove('hidden');
-    else unreviewed.forEach(item => unreviewedList.appendChild(createTimetableCard(item, true)));
-    unreviewedCount.textContent = unreviewed.length + ' 条';
-
     reviewedLoading.classList.add('hidden');
-    if (reviewed.length === 0) reviewedEmpty.classList.remove('hidden');
-    else reviewed.forEach(item => reviewedList.appendChild(createTimetableCard(item, false)));
-    reviewedCount.textContent = reviewed.length + ' 条';
+    unreviewedCount.textContent = pageState.unreviewed.data.length + ' 条';
+    reviewedCount.textContent = pageState.reviewed.data.length + ' 条';
 
-    // 被驳回的显示在未审核区（管理员可重新审核）
-    rejected.forEach(item => unreviewedList.appendChild(createTimetableCard(item, true)));
-    unreviewedCount.textContent = (unreviewed.length + rejected.length) + ' 条';
+    renderPage('unreviewed', true);
+    renderPage('reviewed', false);
   } catch (e) {
     console.error('加载审核数据失败:', e);
     unreviewedLoading.textContent = '加载失败，请重试';
     reviewedLoading.textContent = '加载失败，请重试';
     showMessage('加载数据失败', true);
   }
+}
+
+// ─── 分页切换 ────────────────────────────────
+function changePage(key, delta, isUnreviewed) {
+  const state = pageState[key];
+  const totalPages = Math.max(1, Math.ceil(state.data.length / PAGE_SIZE));
+  const newPage = state.page + delta;
+  if (newPage < 0 || newPage >= totalPages) return;
+  state.page = newPage;
+  renderPage(key, isUnreviewed);
 }
 
 // ─── 事件绑定 ────────────────────────────────
@@ -213,3 +277,9 @@ loadBtn.addEventListener('click', () => {
     loadBtn.disabled = false;
   });
 });
+
+// ─── 分页按钮事件 ────────────────────────────
+unreviewedPrevBtn.addEventListener('click', () => changePage('unreviewed', -1, true));
+unreviewedNextBtn.addEventListener('click', () => changePage('unreviewed', 1, true));
+reviewedPrevBtn.addEventListener('click', () => changePage('reviewed', -1, false));
+reviewedNextBtn.addEventListener('click', () => changePage('reviewed', 1, false));
