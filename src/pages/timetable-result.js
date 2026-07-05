@@ -555,10 +555,12 @@ async function submitEdit() {
   }
 
   // 构造提交数据：id + 修改的字段
+  // 修改后需重新审核，故 PASS 重置为 0
   const postData = {
     id: originalData.ID,
     writer: name,
     writetime: writetime,
+    pass: 0,
     ...changes
   };
 

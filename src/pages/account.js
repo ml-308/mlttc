@@ -248,6 +248,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cached && cached.email === email && Array.isArray(cached.data)) {
       // 缓存命中，直接使用
       myTimetables = cached.data;
+      // 已通过优先排序
+      myTimetables.sort((a, b) => (b.PASS === 1 ? 1 : 0) - (a.PASS === 1 ? 1 : 0));
       myCurrentPage = 0;
       ttLoading.classList.add('hidden');
 
@@ -280,6 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       myTimetables = json.data || [];
+      // 已通过优先排序
+      myTimetables.sort((a, b) => (b.PASS === 1 ? 1 : 0) - (a.PASS === 1 ? 1 : 0));
       myCurrentPage = 0;
 
       // 写入缓存

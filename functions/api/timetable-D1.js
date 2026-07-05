@@ -287,7 +287,7 @@ export async function onRequestGet({request,env}){
     console.log("按 ID 查询");
     try {
       const { results } = await env.mlttcd.prepare(
-        'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE t.ID = ?'
+        'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE t.ID = ? AND t.PASS=1'
       ).bind(cleanId).all();
 
       if (results.length === 0) {
@@ -341,7 +341,7 @@ export async function onRequestGet({request,env}){
   const q = url.searchParams.get('q');
   if (city || way || q) {
     // 支持按城市、线路或通用关键词搜索
-    let query = 'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE';
+    let query = 'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE PASS=1 AND';
     const params = [];
     const conditions = [];
     const orGroups = []; // 用于 OR 分组
@@ -349,14 +349,14 @@ export async function onRequestGet({request,env}){
     if (city) {
       const cleanCity = validateSearchParam(city, 20);
       if (cleanCity) {
-        conditions.push('CITY LIKE ?');
+        conditions.push('CITY LIKE ? ');
         params.push(`%${cleanCity}%`);
       }
     }
     if (way) {
       const cleanWay = validateSearchParam(way, 50);
       if (cleanWay) {
-        conditions.push('WAY LIKE ?');
+        conditions.push('WAY LIKE ? ');
         params.push(`%${cleanWay}%`);
       }
     }
