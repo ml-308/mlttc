@@ -147,7 +147,7 @@ function createTimetableCard(item, isUnreviewed) {
         <span>作者: ${item.WRITER_NAME || item.WRITER || '未知'}</span>
         <span>写入: ${item.WRITETIME || '未知'}</span>
         ${
-          item.PASS === 1 ? `<span>审核: ${item.PASSER || '管理员'}</span>` :
+          Number(item.PASS) === 1 ? `<span>审核: ${item.PASSER || '管理员'}</span>` :
           (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? '<span style="color:var(--danger);">被驳回</span>' :
           '<span style="color:var(--warning);">待审核</span>'
         }

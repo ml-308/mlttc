@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // 缓存命中，直接使用
       myTimetables = cached.data;
       // 已通过优先排序
-      myTimetables.sort((a, b) => (b.PASS === 1 ? 1 : 0) - (a.PASS === 1 ? 1 : 0));
+      myTimetables.sort((a, b) => (Number(b.PASS) === 1 ? 1 : 0) - (Number(a.PASS) === 1 ? 1 : 0));
       myCurrentPage = 0;
       ttLoading.classList.add('hidden');
 
@@ -283,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       myTimetables = json.data || [];
       // 已通过优先排序
-      myTimetables.sort((a, b) => (b.PASS === 1 ? 1 : 0) - (a.PASS === 1 ? 1 : 0));
+      myTimetables.sort((a, b) => (Number(b.PASS) === 1 ? 1 : 0) - (Number(a.PASS) === 1 ? 1 : 0));
       myCurrentPage = 0;
 
       // 写入缓存
@@ -346,11 +346,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
             <span>写入: ${item.WRITETIME || '未知'}</span>
             <span style="font-weight:600; ${
-              item.PASS === 1 ? 'color:var(--success);' :
+              Number(item.PASS) === 1 ? 'color:var(--success);' :
               (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? 'color:var(--danger);' :
               'color:var(--warning);'
             }">${
-              item.PASS === 1 ? '已通过' :
+              Number(item.PASS) === 1 ? '已通过' :
               (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? '被驳回' :
               '待审核'
             }</span>
