@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style/index.css">
     <link rel="stylesheet" href="style/timetable.css">
     <script src="lib/ui/init.mjs" type="module"></script>
+    <script src="/src/auth-header.js" type="module"></script>
 </head>
 
 <body>
@@ -17,6 +18,9 @@
             <div class="logo-text">MLTTC - 管理员登录</div>
         </div>
         <p hidden-on-mobile style="margin-left: auto; color: var(--text-muted)">Beta测试版</p>
+        <div id="headerAuthArea">
+            <hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
+        </div>
     </hcw-body-header>
 
     <hcw-article style="max-width: 32rem; margin: 0 auto;">

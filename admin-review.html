@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="style/timetable.css">
     <link rel="stylesheet" href="style/timetable-detail.css">
     <script src="lib/ui/init.mjs" type="module"></script>
+    <script src="/src/auth-header.js" type="module"></script>
 </head>
 
 <body>
@@ -183,6 +184,11 @@
             card.querySelector('.delete-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
                 deleteItem(item);
+            });
+
+            // 单击整张卡片查看详情
+            card.addEventListener('click', () => {
+                window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
             });
 
             // 修改 - 跳转到修改页面
