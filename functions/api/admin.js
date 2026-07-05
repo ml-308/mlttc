@@ -1,17 +1,35 @@
 // ─── 管理员专用 API ─────────────────────────────
 
-// ─── GET: 获取所有时刻表（含未审核）─────────────
+// ─── GET: 获取所有时刻表（已按状态分离）─────────
 export async function onRequestGet({ request, env }) {
   try {
-    const { results } = await env.mlttcd.prepare(
-      `SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME 
-       FROM TIMETABLE t ORDER BY t.WRITETIME DESC`
-    ).all();
+    // 三个独立查询，后端直接分离数据
+    const [unreviewedResult, rejectedResult, reviewedResult] = await Promise.all([
+      env.mlttcd.prepare(
+        `SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME 
+         FROM TIMETABLE t 
+         WHERE (t.PASS IS NULL OR t.PASS = 0) 
+           AND (t.SPECIAL IS NULL OR t.SPECIAL NOT LIKE '%【时刻表被驳回】%')
+         ORDER BY t.WRITETIME DESC`
+      ).all(),
+      env.mlttcd.prepare(
+        `SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME 
+         FROM TIMETABLE t 
+         WHERE t.SPECIAL LIKE '%【时刻表被驳回】%'
+         ORDER BY t.WRITETIME DESC`
+      ).all(),
+      env.mlttcd.prepare(
+        `SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME 
+         FROM TIMETABLE t WHERE t.PASS = 1
+         ORDER BY t.WRITETIME DESC`
+      ).all()
+    ]);
 
     return new Response(JSON.stringify({
       success: true,
-      data: results,
-      count: results.length
+      unreviewed: unreviewedResult.results,
+      rejected: rejectedResult.results,
+      reviewed: reviewedResult.results
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (err) {
     console.error('管理员查询错误:', err);

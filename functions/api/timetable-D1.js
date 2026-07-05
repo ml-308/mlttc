@@ -287,7 +287,7 @@ export async function onRequestGet({request,env}){
     console.log("按 ID 查询");
     try {
       const { results } = await env.mlttcd.prepare(
-        'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE t.ID = ? AND t.PASS=1'
+        'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE t.ID = ?'
       ).bind(cleanId).all();
 
       if (results.length === 0) {

@@ -20,29 +20,38 @@ const reviewPanel = document.getElementById('reviewPanel');
 
 const unreviewedList = document.getElementById('unreviewedList');
 const reviewedList = document.getElementById('reviewedList');
+const rejectedList = document.getElementById('rejectedList');
 const unreviewedLoading = document.getElementById('unreviewedLoading');
 const reviewedLoading = document.getElementById('reviewedLoading');
+const rejectedLoading = document.getElementById('rejectedLoading');
 const unreviewedEmpty = document.getElementById('unreviewedEmpty');
 const reviewedEmpty = document.getElementById('reviewedEmpty');
+const rejectedEmpty = document.getElementById('rejectedEmpty');
 const unreviewedCount = document.getElementById('unreviewedCount');
 const reviewedCount = document.getElementById('reviewedCount');
+const rejectedCount = document.getElementById('rejectedCount');
 
 // ─── 分页 DOM ───────────────────────────────
 const unreviewedPagination = document.getElementById('unreviewedPagination');
 const reviewedPagination = document.getElementById('reviewedPagination');
+const rejectedPagination = document.getElementById('rejectedPagination');
 const unreviewedPrevBtn = document.getElementById('unreviewedPrevBtn');
 const unreviewedNextBtn = document.getElementById('unreviewedNextBtn');
 const reviewedPrevBtn = document.getElementById('reviewedPrevBtn');
 const reviewedNextBtn = document.getElementById('reviewedNextBtn');
+const rejectedPrevBtn = document.getElementById('rejectedPrevBtn');
+const rejectedNextBtn = document.getElementById('rejectedNextBtn');
 const unreviewedPageInfo = document.getElementById('unreviewedPageInfo');
 const reviewedPageInfo = document.getElementById('reviewedPageInfo');
+const rejectedPageInfo = document.getElementById('rejectedPageInfo');
 
 const PAGE_SIZE = 2;
 
 // ─── 分页状态 ───────────────────────────────
 const pageState = {
   unreviewed: { data: [], page: 0 },
-  reviewed: { data: [], page: 0 }
+  reviewed: { data: [], page: 0 },
+  rejected: { data: [], page: 0 }
 };
 
 const adminEmail = sessionStorage.getItem('admin_email') || '';
@@ -133,10 +142,6 @@ function createTimetableCard(item, isUnreviewed) {
         <span class="station-name">${item.END || '?'}</span>
       </div>
       ${item.SPECIAL && item.SPECIAL !== '无' ? `<div class="result-item-note">${item.SPECIAL}</div>` : ''}
-      <div class="result-item-times" style="display:flex; flex-direction:column; gap:2px; font-size:0.82rem;">
-        <div class="time-row"><span class="time-label">外环:</span><span class="time-value">${formatTimeShort(item.TIMEONE)}</span></div>
-        <div class="time-row"><span class="time-label">内环:</span><span class="time-value">${formatTimeShort(item.TIMETWO)}</span></div>
-      </div>
       <div class="result-item-meta">
         <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知' : item.STARTTIME}</span>
         <span>作者: ${item.WRITER_NAME || item.WRITER || '未知'}</span>
@@ -173,14 +178,27 @@ function createTimetableCard(item, isUnreviewed) {
 }
 
 // ─── 分页渲染 ────────────────────────────────
-function renderPage(key, isUnreviewed) {
+const sectionMap = {
+  unreviewed: { list: 'unreviewedList', empty: 'unreviewedEmpty', pagination: 'unreviewedPagination', prevBtn: 'unreviewedPrevBtn', nextBtn: 'unreviewedNextBtn', pageInfo: 'unreviewedPageInfo' },
+  reviewed:  { list: 'reviewedList',  empty: 'reviewedEmpty',  pagination: 'reviewedPagination',  prevBtn: 'reviewedPrevBtn',  nextBtn: 'reviewedNextBtn',  pageInfo: 'reviewedPageInfo' },
+  rejected:  { list: 'rejectedList',  empty: 'rejectedEmpty',  pagination: 'rejectedPagination',  prevBtn: 'rejectedPrevBtn',  nextBtn: 'rejectedNextBtn',  pageInfo: 'rejectedPageInfo' }
+};
+
+function resolveSection(key) {
+  const m = sectionMap[key];
+  return {
+    list: document.getElementById(m.list),
+    empty: document.getElementById(m.empty),
+    pagination: document.getElementById(m.pagination),
+    prevBtn: document.getElementById(m.prevBtn),
+    nextBtn: document.getElementById(m.nextBtn),
+    pageInfo: document.getElementById(m.pageInfo)
+  };
+}
+
+function renderPage(key, showActions) {
   const state = pageState[key];
-  const list = key === 'unreviewed' ? unreviewedList : reviewedList;
-  const empty = key === 'unreviewed' ? unreviewedEmpty : reviewedEmpty;
-  const pagination = key === 'unreviewed' ? unreviewedPagination : reviewedPagination;
-  const prevBtn = key === 'unreviewed' ? unreviewedPrevBtn : reviewedPrevBtn;
-  const nextBtn = key === 'unreviewed' ? unreviewedNextBtn : reviewedNextBtn;
-  const pageInfo = key === 'unreviewed' ? unreviewedPageInfo : reviewedPageInfo;
+  const el = resolveSection(key);
 
   const total = state.data.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -191,71 +209,81 @@ function renderPage(key, isUnreviewed) {
   const end = Math.min(start + PAGE_SIZE, total);
   const pageData = state.data.slice(start, end);
 
-  list.innerHTML = '';
+  el.list.innerHTML = '';
 
   if (total === 0) {
-    empty.classList.remove('hidden');
-    pagination.classList.add('hidden');
+    el.empty.classList.remove('hidden');
+    el.pagination.classList.add('hidden');
     return;
   }
 
-  empty.classList.add('hidden');
-  pagination.classList.remove('hidden');
-  pageInfo.textContent = `${state.page + 1}/${totalPages}`;
-  prevBtn.disabled = state.page === 0;
-  nextBtn.disabled = state.page >= totalPages - 1;
+  el.empty.classList.add('hidden');
+  el.pagination.classList.remove('hidden');
+  el.pageInfo.textContent = `${state.page + 1}/${totalPages}`;
+  el.prevBtn.disabled = state.page === 0;
+  el.nextBtn.disabled = state.page >= totalPages - 1;
 
-  pageData.forEach(item => list.appendChild(createTimetableCard(item, isUnreviewed)));
+  pageData.forEach(item => el.list.appendChild(createTimetableCard(item, showActions)));
 }
 
 // ─── 加载数据 ────────────────────────────────
 async function loadReviewData() {
+  // 重置加载提示文字（修正重试后仍显示"加载失败"的bug）
+  unreviewedLoading.textContent = '加载中...';
+  reviewedLoading.textContent = '加载中...';
+  rejectedLoading.textContent = '加载中...';
   unreviewedLoading.classList.remove('hidden');
   reviewedLoading.classList.remove('hidden');
+  rejectedLoading.classList.remove('hidden');
   unreviewedList.innerHTML = '';
   reviewedList.innerHTML = '';
+  rejectedList.innerHTML = '';
   unreviewedEmpty.classList.add('hidden');
   reviewedEmpty.classList.add('hidden');
+  rejectedEmpty.classList.add('hidden');
 
   try {
     const res = await fetch('/api/admin', { credentials: 'include' });
-    let allData = [];
-    if (res.ok) { const json = await res.json(); if (json.success && json.data) allData = json.data; }
-
-    const REJECT_MARK = '【时刻表被驳回】';
-    const unreviewed = allData.filter(item => (item.PASS === 0 || item.PASS === undefined || item.PASS === null) && !(item.SPECIAL && item.SPECIAL.includes(REJECT_MARK)));
-    const reviewed = allData.filter(item => item.PASS === 1);
-    const rejected = allData.filter(item => item.SPECIAL && item.SPECIAL.includes(REJECT_MARK));
-
-    // 未审核 + 被驳回合并显示在未审核区
-    pageState.unreviewed.data = [...unreviewed, ...rejected];
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success) {
+        // 后端已分离数据，直接使用
+        pageState.unreviewed.data = json.unreviewed || [];
+        pageState.reviewed.data = json.reviewed || [];
+        pageState.rejected.data = json.rejected || [];
+      }
+    }
     pageState.unreviewed.page = 0;
-    pageState.reviewed.data = reviewed;
     pageState.reviewed.page = 0;
+    pageState.rejected.page = 0;
 
     unreviewedLoading.classList.add('hidden');
     reviewedLoading.classList.add('hidden');
+    rejectedLoading.classList.add('hidden');
     unreviewedCount.textContent = pageState.unreviewed.data.length + ' 条';
     reviewedCount.textContent = pageState.reviewed.data.length + ' 条';
+    rejectedCount.textContent = pageState.rejected.data.length + ' 条';
 
     renderPage('unreviewed', true);
     renderPage('reviewed', false);
+    renderPage('rejected', true);
   } catch (e) {
     console.error('加载审核数据失败:', e);
     unreviewedLoading.textContent = '加载失败，请重试';
     reviewedLoading.textContent = '加载失败，请重试';
+    rejectedLoading.textContent = '加载失败，请重试';
     showMessage('加载数据失败', true);
   }
 }
 
 // ─── 分页切换 ────────────────────────────────
-function changePage(key, delta, isUnreviewed) {
+function changePage(key, delta) {
   const state = pageState[key];
   const totalPages = Math.max(1, Math.ceil(state.data.length / PAGE_SIZE));
-  const newPage = state.page + delta;
-  if (newPage < 0 || newPage >= totalPages) return;
-  state.page = newPage;
-  renderPage(key, isUnreviewed);
+  const target = state.page + delta;
+  if (target < 0 || target >= totalPages) return;
+  state.page = target;
+  renderPage(key, key !== 'reviewed');
 }
 
 // ─── 事件绑定 ────────────────────────────────
@@ -279,7 +307,9 @@ loadBtn.addEventListener('click', () => {
 });
 
 // ─── 分页按钮事件 ────────────────────────────
-unreviewedPrevBtn.addEventListener('click', () => changePage('unreviewed', -1, true));
-unreviewedNextBtn.addEventListener('click', () => changePage('unreviewed', 1, true));
-reviewedPrevBtn.addEventListener('click', () => changePage('reviewed', -1, false));
-reviewedNextBtn.addEventListener('click', () => changePage('reviewed', 1, false));
+unreviewedPrevBtn.addEventListener('click', () => changePage('unreviewed', -1));
+unreviewedNextBtn.addEventListener('click', () => changePage('unreviewed', 1));
+reviewedPrevBtn.addEventListener('click', () => changePage('reviewed', -1));
+reviewedNextBtn.addEventListener('click', () => changePage('reviewed', 1));
+rejectedPrevBtn.addEventListener('click', () => changePage('rejected', -1));
+rejectedNextBtn.addEventListener('click', () => changePage('rejected', 1));
