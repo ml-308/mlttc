@@ -18,7 +18,7 @@ export async function onRequestPost({ request, env }) {
         });
     }
 
-    let { id, city, way, start, end, special, time1, time2, etime, writetime, writer } = body;
+    let { id, city, way, start, end, special, time1, time2, etime, writetime, writer, pass } = body;
 
     // ─── 更新模式（id 存在时）─────────────────────────
     if (id) {
@@ -80,6 +80,13 @@ export async function onRequestPost({ request, env }) {
         if (etime !== undefined && etime !== null && typeof etime === 'string' && etime.trim().length > 0) {
             sets.push('STARTTIME = ?');
             params.push(etime.trim());
+        }
+        if (pass !== undefined && pass !== null) {
+            const passVal = Number(pass);
+            if (passVal === 0 || passVal === 1) {
+                sets.push('PASS = ?');
+                params.push(passVal);
+            }
         }
 
         if (sets.length === 0) {

@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ─── 我的时刻表 - 分页与渲染 ─────────────────────
-  const PAGE_SIZE = 2;
+  const PAGE_SIZE = 5;
   let myTimetables = [];
   let myCurrentPage = 0;
 

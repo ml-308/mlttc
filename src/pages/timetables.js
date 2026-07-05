@@ -773,7 +773,7 @@ const resultCloseBtn = document.getElementById("result-close-btn");
 // 搜索结果分页状态
 let searchResultsData = [];
 let currentPage = 0;
-const PAGE_SIZE = 2;
+const PAGE_SIZE = 5;
 
 //btn k
 searchbtn.addEventListener("click", searchbtnClick);
