@@ -117,7 +117,7 @@ function renderDetail(item) {
   detailWritetime.textContent = item.WRITETIME || '未知';
 
   const isRejected = item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】');
-  if (Number(item.PASS) === 1) {
+  if (item.PASS == true) {
     detailPassStatus.textContent = '已审核';
     detailPassStatus.style.color = 'var(--success)';
     detailPasser.textContent = item.PASSER || '管理员';
