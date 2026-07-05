@@ -84,7 +84,7 @@ function applyTheme(theme) {
 function updateToggleButtonIcon(theme) {
   const btn = document.getElementById('themeToggleBtn');
   if (!btn) return;
-  btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  btn.textContent = theme === 'dark' ? '浅色' : '深色';
   btn.setAttribute('aria-label', theme === 'dark' ? '切换到浅色模式' : '切换到深色模式');
 }
 

@@ -577,7 +577,7 @@ async function submitEdit() {
       return;
     }
 
-    showMessage('✅ 修改成功', false);
+    showMessage('修改成功', false);
     // 清除个人主页缓存，确保下次加载最新数据
     sessionStorage.removeItem('account_tt_cache');
     setTimeout(() => {

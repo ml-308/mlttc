@@ -18,11 +18,18 @@ export async function onRequestPost({ request, env }) {
         });
     }
 
-    let { id, city, way, start, end, special, time1, time2, etime, writetime, writer, passer, pass } = body;
+    let { id, city, way, start, end, special, time1, time2, etime, writetime, writer } = body;
 
     // ─── 更新模式（id 存在时）─────────────────────────
     if (id) {
-        // 验证记录存在
+        if (!writer || typeof writer !== 'string' || writer.trim().length === 0) {
+            return new Response(JSON.stringify({ error: '作者不能为空' }), { status: 400 });
+        }
+        if (!writetime || typeof writetime !== 'string' || writetime.trim().length === 0) {
+            return new Response(JSON.stringify({ error: '写入时间不能为空' }), { status: 400 });
+        }
+
+        // 验证记录存在且作者匹配
         const existing = await env.mlttcd.prepare(
             'SELECT * FROM TIMETABLE WHERE ID = ?'
         ).bind(id).first();
@@ -32,18 +39,10 @@ export async function onRequestPost({ request, env }) {
                 status: 404, headers: { 'Content-Type': 'application/json' }
             });
         }
-
-        // 权限校验：设置 passer 视为管理员操作，跳过作者匹配；否则必须作者本人
-        const isAdminAction = passer !== undefined && passer !== null;
-        if (!isAdminAction) {
-            if (!writer || typeof writer !== 'string' || writer.trim().length === 0) {
-                return new Response(JSON.stringify({ error: '作者不能为空' }), { status: 400 });
-            }
-            if (existing.WRITER !== writer.trim()) {
-                return new Response(JSON.stringify({ error: '无权修改此记录' }), {
-                    status: 403, headers: { 'Content-Type': 'application/json' }
-                });
-            }
+        if (existing.WRITER !== writer.trim()) {
+            return new Response(JSON.stringify({ error: '无权修改此记录' }), {
+                status: 403, headers: { 'Content-Type': 'application/json' }
+            });
         }
 
         // 动态构建 UPDATE SET 子句
@@ -82,26 +81,6 @@ export async function onRequestPost({ request, env }) {
             sets.push('STARTTIME = ?');
             params.push(etime.trim());
         }
-        if (passer !== undefined && passer !== null && typeof passer === 'string' && passer.trim().length > 0) {
-            sets.push('PASSER = ?');
-            params.push(passer.trim());
-        }
-        if (pass !== undefined && pass !== null) {
-            const passVal = Number(pass);
-            if (passVal === 0 || passVal === 1) {
-                sets.push('PASS = ?');
-                params.push(passVal);
-            }
-        }
-
-        // 非管理员操作时更新写入时间
-        if (!isAdminAction) {
-            if (!writetime || typeof writetime !== 'string' || writetime.trim().length === 0) {
-                return new Response(JSON.stringify({ error: '写入时间不能为空' }), { status: 400 });
-            }
-            sets.push('WRITETIME = ?');
-            params.push(writetime.trim());
-        }
 
         if (sets.length === 0) {
             return new Response(JSON.stringify({ error: '没有提供需要更新的字段' }), {
@@ -109,6 +88,9 @@ export async function onRequestPost({ request, env }) {
             });
         }
 
+        // 始终更新写入时间
+        sets.push('WRITETIME = ?');
+        params.push(writetime.trim());
         params.push(id);
 
         try {
@@ -291,7 +273,6 @@ export async function onRequestGet({request,env}){
     const city=url.searchParams.get("city");
     const way=url.searchParams.get("way");
     const id=url.searchParams.get("id");
-    const isAdmin = url.searchParams.get('admin') === '1';
 
   if (id && id !== '0') {
     // ID 查询（精确匹配，受控参数）
@@ -305,9 +286,9 @@ export async function onRequestGet({request,env}){
 
     console.log("按 ID 查询");
     try {
-      let query = 'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE t.ID = ?';
-      if (!isAdmin) query += ' AND t.PASS = 1';
-      const { results } = await env.mlttcd.prepare(query).bind(cleanId).all();
+      const { results } = await env.mlttcd.prepare(
+        'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE t.ID = ?'
+      ).bind(cleanId).all();
 
       if (results.length === 0) {
         return new Response(JSON.stringify({
@@ -404,10 +385,7 @@ export async function onRequestGet({request,env}){
       } else if (orGroups.length > 0) {
         whereClauses.push(orGroups.join(' OR '));
       }
-      // 非管理员只能看到已审核的时刻表
-      if (!isAdmin) {
-        whereClauses.push('t.PASS = 1');
-      }
+      whereClauses.push('t.PASS = 1');
       query += ' ' + whereClauses.join(' AND ');
     } else {
       return new Response(JSON.stringify({
@@ -447,9 +425,7 @@ export async function onRequestGet({request,env}){
   if (list === 'all') {
     console.log("列出所有线路");
     try {
-      let listQuery = 'SELECT DISTINCT CITY, WAY FROM TIMETABLE';
-      if (!isAdmin) listQuery += ' WHERE PASS = 1';
-      listQuery += ' ORDER BY CITY, WAY';
+      const listQuery = 'SELECT DISTINCT CITY, WAY FROM TIMETABLE WHERE PASS = 1 ORDER BY CITY, WAY';
       const { results } = await env.mlttcd.prepare(listQuery).all();
 
       return new Response(JSON.stringify({

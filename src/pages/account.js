@@ -88,9 +88,9 @@ async function saveProfile(name, city) {
 
   if (!res.ok) {
     if (res.status === 409) {
-      showMessage('❌ ' + (data.error || '该昵称已被使用'), true);
+      showMessage((data.error || '该昵称已被使用'), true);
     } else {
-      showMessage('❌ ' + (data.error || '保存失败'), true);
+      showMessage((data.error || '保存失败'), true);
     }
     return false;
   }
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ok = await saveProfile(name, city);
     if (ok) {
-      showMessage('✅ 保存成功', false);
+      showMessage('保存成功', false);
       if (name) {
         document.getElementById('profileDisplayName').textContent = name;
         nameInput.placeholder = name;
@@ -341,6 +341,15 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="result-item-meta">
             <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
             <span>写入: ${item.WRITETIME || '未知'}</span>
+            <span style="font-weight:600; ${
+              item.PASS === 1 ? 'color:var(--success);' :
+              (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? 'color:var(--danger);' :
+              'color:var(--warning);'
+            }">${
+              item.PASS === 1 ? '已通过' :
+              (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? '被驳回' :
+              '待审核'
+            }</span>
           </div>
         </div>
         <div class="result-item-actions">
@@ -349,17 +358,37 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
+      const isRejected = item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】');
+
       // 查看详情按钮
       card.querySelector('.detail-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
+        // 被驳回的时刻表：查看后删除
+        if (isRejected) {
+          if (confirm('该时刻表已被管理员驳回，查看后将自动删除。确定查看？')) {
+            fetch('/api/admin', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: item.ID })
+            }).catch(() => {});
+            window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
+          }
+        } else {
+          window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
+        }
       });
 
-      // 修改时刻表按钮
-      card.querySelector('.edit-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
-      });
+      // 修改时刻表按钮（被驳回的不可修改）
+      if (isRejected) {
+        card.querySelector('.edit-btn').disabled = true;
+        card.querySelector('.edit-btn').style.opacity = '0.4';
+        card.querySelector('.edit-btn').textContent = '已驳回';
+      } else {
+        card.querySelector('.edit-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
+        });
+      }
 
       ttList.appendChild(card);
     });
