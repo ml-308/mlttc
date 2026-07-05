@@ -1,3 +1,4 @@
+import { showConfirm, showPrompt } from '/lib/ui/popup.mjs';
 // 等待 DOM 完全加载，确保所有元素存在
 document.addEventListener('DOMContentLoaded', () => {
   // 获取元素，如果不存在则跳过（避免报错）
@@ -192,3 +193,37 @@ async function logout() {
   setTimeout(() => window.location.reload(), 1500);
 }
 
+
+
+//BUG反馈
+const bugback=document.getElementById("BUG");
+
+bugback.addEventListener("click",bugbackf);
+
+async function bugbackf(){
+  const inputvalue=await showPrompt({
+    text:"请输入BUG反馈内容",
+    buttons:['确定','取消'],
+    button_style:['primary','secondary'],
+    input_is_area:true,
+    input_placeholder:"请输入BUG反馈内容",
+    input_value:""
+  })
+  if(inputvalue){
+    try {
+      const res = await fetch('/api/bugback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bugback: inputvalue })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showMessage(data.message || '反馈已提交，感谢您的支持', false);
+      } else {
+        showMessage(data.error || '提交失败', true);
+      }
+    } catch {
+      showMessage('网络错误，请稍后重试', true);
+    }
+  }
+}
