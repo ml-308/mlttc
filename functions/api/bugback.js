@@ -23,18 +23,6 @@ export async function onRequestPost({ request, env }) {
       return response;
     }
 
-    // 获取用户邮箱
-    const user = await env.mlttcd.prepare(
-      'SELECT EMAIL FROM USER WHERE id = ?'
-    ).bind(payload.userId).first();
-
-    if (!user || !user.EMAIL) {
-      return new Response(JSON.stringify({ error: '用户不存在' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
     // 解析请求体
     const body = await request.json().catch(() => null);
     if (!body) {
@@ -58,11 +46,25 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
+    // 直接从 JWT payload 获取邮箱，无需再次查询 USER 表
+    if (!payload.email) {
+      // 兜底：payload 中没有 email 时才查库
+      const user = await env.mlttcd.prepare(
+        'SELECT EMAIL FROM USER WHERE id = ?'
+      ).bind(payload.userId).first();
+      if (!user || !user.EMAIL) {
+        return new Response(JSON.stringify({ error: '用户不存在' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      payload.email = user.EMAIL;
+    }
+
     // 插入 BUG 表
-    const now = new Date().toISOString();
     await env.mlttcd.prepare(
       'INSERT INTO BUG (EMAIL, BUGBACK) VALUES (?1, ?2)'
-    ).bind(user.EMAIL, bugback.trim()).run();
+    ).bind(payload.email, bugback.trim()).run();
 
     return new Response(JSON.stringify({
       success: true,

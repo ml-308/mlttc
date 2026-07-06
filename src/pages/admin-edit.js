@@ -2,12 +2,30 @@
 
 import { showPrompt } from '/lib/ui/popup.mjs';
 
+// ─── JWT 解析辅助 ─────────────────────────────
+function parseJwtPayload(token) {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(atob(payload));
+  } catch { return null; }
+}
+
+// ─── 管理员 JWT 验证 ──────────────────────────
 (function checkAuth() {
-  if (sessionStorage.getItem('admin_logged_in') !== 'true') {
+  const token = sessionStorage.getItem('admin_token');
+  if (!token) {
     window.location.href = '/admin-login.html';
     return;
   }
-  const email = sessionStorage.getItem('admin_email');
+  const payload = parseJwtPayload(token);
+  if (!payload || payload.role !== 'admin' || Date.now() / 1000 > payload.exp) {
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_email');
+    sessionStorage.removeItem('admin_logged_in');
+    window.location.href = '/admin-login.html';
+    return;
+  }
+  const email = payload.email || sessionStorage.getItem('admin_email');
   if (email) {
     const el = document.getElementById('adminEmailDisplay');
     if (el) el.textContent = email;

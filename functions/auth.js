@@ -28,11 +28,11 @@ function base64UrlToArrayBuffer(base64url) {
 }
 
 // 签发 JWT
-export async function signToken(payload, secret, expiresIn = '1h') {
+export async function signToken(payload, secret, expiresIn = 2592000) {
   const encoder = new TextEncoder();
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
-  const exp = now + (expiresIn === '1h' ? 3600 : expiresIn); // 默认1小时
+  const exp = now + expiresIn;
 
   const payloadWithClaims = { ...payload, iat: now, exp };
 
@@ -93,9 +93,9 @@ export function getCookie(request, name) {
   return cookies[name] || null;
 }
 
-// 设置 httpOnly Cookie
+// 设置 httpOnly Cookie（30天过期）
 export function setAuthCookie(response, token) {
-  response.headers.set('Set-Cookie', `auth_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=3600`);
+  response.headers.set('Set-Cookie', `auth_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
 }
 
 // 清除认证 Cookie

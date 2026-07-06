@@ -29,22 +29,6 @@ export async function onRequestPost({ request, env }) {
             return new Response(JSON.stringify({ error: '写入时间不能为空' }), { status: 400 });
         }
 
-        // 验证记录存在且作者匹配
-        const existing = await env.mlttcd.prepare(
-            'SELECT * FROM TIMETABLE WHERE ID = ?'
-        ).bind(id).first();
-
-        if (!existing) {
-            return new Response(JSON.stringify({ error: '记录不存在' }), {
-                status: 404, headers: { 'Content-Type': 'application/json' }
-            });
-        }
-        if (existing.WRITER !== writer.trim()) {
-            return new Response(JSON.stringify({ error: '无权修改此记录' }), {
-                status: 403, headers: { 'Content-Type': 'application/json' }
-            });
-        }
-
         // 动态构建 UPDATE SET 子句
         const sets = [];
         const params = [];
@@ -99,11 +83,30 @@ export async function onRequestPost({ request, env }) {
         sets.push('WRITETIME = ?');
         params.push(writetime.trim());
         params.push(id);
+        params.push(writer.trim());
 
         try {
-            await env.mlttcd.prepare(
-                `UPDATE TIMETABLE SET ${sets.join(', ')} WHERE ID = ?`
+            // 使用条件 UPDATE + 作者验证，一次查询代替 SELECT + UPDATE 两次
+            const result = await env.mlttcd.prepare(
+                `UPDATE TIMETABLE SET ${sets.join(', ')} WHERE ID = ? AND WRITER = ?`
             ).bind(...params).run();
+
+            // D1 的 result.meta.changes > 0 表示有行被更新
+            if (!result.meta || result.meta.changes === 0) {
+                // 检查记录是否存在（区分"不存在"和"无权限"）
+                const existing = await env.mlttcd.prepare(
+                    'SELECT ID FROM TIMETABLE WHERE ID = ?'
+                ).bind(id).first();
+
+                if (!existing) {
+                    return new Response(JSON.stringify({ error: '记录不存在' }), {
+                        status: 404, headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+                return new Response(JSON.stringify({ error: '无权修改此记录' }), {
+                    status: 403, headers: { 'Content-Type': 'application/json' }
+                });
+            }
 
             return new Response(JSON.stringify({
                 success: true,
@@ -293,11 +296,14 @@ export async function onRequestGet({request,env}){
 
     console.log("按 ID 查询");
     try {
-      const { results } = await env.mlttcd.prepare(
-        'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE t.ID = ?'
-      ).bind(cleanId).all();
+      const row = await env.mlttcd.prepare(
+        `SELECT t.*, u.NAME as WRITER_NAME
+         FROM TIMETABLE t
+         LEFT JOIN USER u ON u.EMAIL = t.WRITER
+         WHERE t.ID = ?`
+      ).bind(cleanId).first();
 
-      if (results.length === 0) {
+      if (!row) {
         return new Response(JSON.stringify({
           success: false,
           message: '未找到该记录'
@@ -306,7 +312,7 @@ export async function onRequestGet({request,env}){
 
       return new Response(JSON.stringify({
         success: true,
-        data: results[0]          
+        data: row
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (err) {
       console.error('ID 查询错误:', err);
@@ -326,8 +332,10 @@ export async function onRequestGet({request,env}){
       console.log("按作者查询:", cleanWriter);
       try {
         const { results } = await env.mlttcd.prepare(
-          `SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME 
-           FROM TIMETABLE t WHERE t.WRITER = ? ORDER BY t.WRITETIME DESC`
+          `SELECT t.*, u.NAME as WRITER_NAME
+           FROM TIMETABLE t
+           LEFT JOIN USER u ON u.EMAIL = t.WRITER
+           WHERE t.WRITER = ? ORDER BY t.WRITETIME DESC`
         ).bind(cleanWriter).all();
 
         return new Response(JSON.stringify({
@@ -348,7 +356,7 @@ export async function onRequestGet({request,env}){
   const q = url.searchParams.get('q');
   if (city || way || q) {
     // 支持按城市、线路或通用关键词搜索
-    let query = 'SELECT t.*, (SELECT NAME FROM USER WHERE EMAIL = t.WRITER) as WRITER_NAME FROM TIMETABLE t WHERE PASS=1 AND';
+    let query = 'SELECT t.*, u.NAME as WRITER_NAME FROM TIMETABLE t LEFT JOIN USER u ON u.EMAIL = t.WRITER WHERE t.PASS=1 AND';
     const params = [];
     const conditions = [];
     const orGroups = []; // 用于 OR 分组
@@ -401,7 +409,7 @@ export async function onRequestGet({request,env}){
       }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    query += ' LIMIT 1000000';
+    query += ' LIMIT 200';
 
     console.log("组合查询:", query, params);
     try {

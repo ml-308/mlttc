@@ -75,11 +75,11 @@ export async function onRequestGet({ request, env }) {
   }
 
   try {
-    const { results } = await env.mlttcd.prepare(
-      'SELECT * FROM USER WHERE email = ?'
-    ).bind(email.trim().toLowerCase()).all();
+    const existing = await env.mlttcd.prepare(
+      'SELECT id FROM USER WHERE email = ?'
+    ).bind(email.trim().toLowerCase()).first();
 
-    if (results.length > 0) {
+    if (existing) {
       return new Response(JSON.stringify({ success: false, message: '邮箱已存在' }), {
         status: 409,
         headers: { 'Content-Type': 'application/json' }
@@ -127,10 +127,10 @@ export async function onRequestPost({ request, env }) {
     }
 
     // 检查邮箱是否已存在
-    const { results } = await env.mlttcd.prepare(
+    const existingEmail = await env.mlttcd.prepare(
       'SELECT id FROM USER WHERE email = ?'
-    ).bind(email.trim().toLowerCase()).all();
-    if (results.length > 0) {
+    ).bind(email.trim().toLowerCase()).first();
+    if (existingEmail) {
       return new Response(JSON.stringify({ success: false, message: '该邮箱已注册' }), {
         status: 409,
         headers: { 'Content-Type': 'application/json' }
