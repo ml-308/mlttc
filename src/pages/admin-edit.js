@@ -12,8 +12,11 @@ function parseJwtPayload(token) {
 
 // ─── 管理员 JWT 验证 ──────────────────────────
 (function checkAuth() {
+  // 清除可能残留的旧 sessionStorage 数据，防止与旧登录页形成重定向循环
   const token = sessionStorage.getItem('admin_token');
   if (!token) {
+    sessionStorage.removeItem('admin_logged_in');
+    sessionStorage.removeItem('admin_email');
     window.location.href = '/admin-login.html';
     return;
   }

@@ -1,5 +1,32 @@
 // ─── 管理员时刻表详情页 ─────────────────────────
 
+// ─── JWT 解析辅助 ─────────────────────────────
+function parseJwtPayload(token) {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(atob(payload));
+  } catch { return null; }
+}
+
+// ─── 管理员 JWT 验证 ──────────────────────────
+(function checkAuth() {
+  const token = sessionStorage.getItem('admin_token');
+  if (!token) {
+    sessionStorage.removeItem('admin_logged_in');
+    sessionStorage.removeItem('admin_email');
+    window.location.href = '/admin-login.html';
+    return;
+  }
+  const payload = parseJwtPayload(token);
+  if (!payload || payload.role !== 'admin' || Date.now() / 1000 > payload.exp) {
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_email');
+    sessionStorage.removeItem('admin_logged_in');
+    window.location.href = '/admin-login.html';
+    return;
+  }
+})();
+
 const backBtn = document.getElementById('back-btn');
 const detailBackBtn = document.getElementById('detail-back-btn');
 const detailLoading = document.getElementById('detail-loading');

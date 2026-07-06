@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── 我的时刻表 - 分页与渲染 ─────────────────────
   // 卡片含2个操作按钮，每页3条可完整显示
-  const PAGE_SIZE = 3;
+  const PAGE_SIZE = 2;
   let myTimetables = [];
   let myCurrentPage = 0;
 
