@@ -22,11 +22,19 @@ function safeGetCookie(request, name) {
   return cookies[name] || null;
 }
 
+// 统一设置 CORS 凭据头
+function setCorsHeaders(response) {
+  response.headers.set('Access-Control-Allow-Origin', 'https://mlttc.bond');
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  return response;
+}
+
 export async function onRequestGet({ request, env }) {
   try {
     const token = safeGetCookie(request, 'auth_token');
     if (!token) {
-      return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
+      const response = new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
+      return setCorsHeaders(response);
     }
 
     let payload;
@@ -35,7 +43,7 @@ export async function onRequestGet({ request, env }) {
     } catch (e) {
       const response = new Response(JSON.stringify({ error: '登录已过期' }), { status: 401 });
       clearAuthCookie(response);
-      return response;
+      return setCorsHeaders(response);
     }
 
     const user = await env.mlttcd.prepare(
@@ -43,19 +51,22 @@ export async function onRequestGet({ request, env }) {
     ).bind(payload.userId).first();
 
     if (!user) {
-      return new Response(JSON.stringify({ error: '用户不存在' }), { status: 404 });
+      const response = new Response(JSON.stringify({ error: '用户不存在' }), { status: 404 });
+      return setCorsHeaders(response);
     }
 
-    return new Response(JSON.stringify({ user }), {
+    const response = new Response(JSON.stringify({ user }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
+    return setCorsHeaders(response);
   } catch (err) {
     // 调试用：返回详细错误，定位问题后请移除 debug 字段
-    return new Response(JSON.stringify({
+    const response = new Response(JSON.stringify({
       error: '服务器错误',
       debug: err.stack,
       message: err.message
     }), { status: 500 });
+    return setCorsHeaders(response);
   }
 }

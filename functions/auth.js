@@ -84,21 +84,39 @@ export async function verifyToken(token, secret) {
   return payload; // 包含 userId 等
 }
 
-// 从请求的 Cookie 中提取指定名称的 cookie 值
+// 从请求的 Cookie 中提取指定名称的 cookie 值（兼容各种格式）
 export function getCookie(request, name) {
-  const cookieHeader = request.headers.get('Cookie') || '';
-  const cookies = Object.fromEntries(
-    cookieHeader.split('; ').map(c => c.split('=').map(decodeURIComponent))
-  );
+  const cookieHeader = request.headers.get('Cookie');
+  if (!cookieHeader) return null;
+
+  const cookies = {};
+  cookieHeader.split(';').forEach(c => {
+    const parts = c.trim().split('=');
+    if (parts.length >= 2) {
+      try {
+        const key = decodeURIComponent(parts[0]);
+        const value = decodeURIComponent(parts.slice(1).join('='));
+        cookies[key] = value;
+      } catch (e) {
+        // 忽略解码失败的 cookie
+      }
+    }
+  });
   return cookies[name] || null;
 }
 
-// 设置 httpOnly Cookie（30天过期）
+// 设置 httpOnly Cookie（30天过期，兼容 Safari）
 export function setAuthCookie(response, token) {
-  response.headers.set('Set-Cookie', `auth_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
+  response.headers.set(
+    'Set-Cookie',
+    `auth_token=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=2592000`
+  );
 }
 
 // 清除认证 Cookie
 export function clearAuthCookie(response) {
-  response.headers.set('Set-Cookie', `auth_token=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+  response.headers.set(
+    'Set-Cookie',
+    `auth_token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0`
+  );
 }
