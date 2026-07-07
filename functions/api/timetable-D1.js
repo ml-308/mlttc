@@ -276,6 +276,7 @@ function validateSearchParam(value, maxLen) {
 //Get
 export async function onRequestGet({request,env}){
     // 1. 频率限制检查
+    try{
     const rateLimitResponse = await checkRateLimit(request, env);
     if (rateLimitResponse) return rateLimitResponse;
 
@@ -460,4 +461,12 @@ export async function onRequestGet({request,env}){
     success: false,
     message: '请提供 id 或 city+way 参数'
   }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+}
+catch (err) {
+    return new Response(JSON.stringify({
+      error: '服务器内部错误',
+      debug: err.stack,        // 关键！会显示出错文件和行号
+      message: err.message
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
 }

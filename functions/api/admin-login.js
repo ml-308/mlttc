@@ -50,10 +50,18 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    // 查询用户（仅支持邮箱登录）
-    const user = await env.mlttcd.prepare(
-      'SELECT id, email, NAME, password, adm FROM USER WHERE email = ?'
-    ).bind(email.trim().toLowerCase()).first();
+    // 支持邮箱或昵称登录
+    const input = email.trim();
+    let user;
+    if (input.includes('@')) {
+      user = await env.mlttcd.prepare(
+        'SELECT id, email, NAME, password, adm FROM USER WHERE email = ?'
+      ).bind(input.toLowerCase()).first();
+    } else {
+      user = await env.mlttcd.prepare(
+        'SELECT id, email, NAME, password, adm FROM USER WHERE NAME = ?'
+      ).bind(input).first();
+    }
 
     if (!user) {
       return new Response(JSON.stringify({ success: false, message: '管理员账号或密码错误' }), {
@@ -62,8 +70,8 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    // 验证管理员权限
-    if (!user.adm || user.adm !== 1) {
+    // 验证管理员权限：adm 不为 'user' 即为管理员，adm 列的值即管理令牌
+    if (!user.adm || user.adm === 'user') {
       return new Response(JSON.stringify({ success: false, message: '无管理员权限' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' }
