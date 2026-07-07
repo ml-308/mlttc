@@ -450,7 +450,7 @@ export async function onRequestGet({request,env}){
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (err) {
       console.error('列出线路错误:', err);
-      return new Response(JSON.stringify({ error: '服务器内部错误' ,debug:errstack,message:err.message}), {
+      return new Response(JSON.stringify({ error: '服务器内部错误' ,debug:err.stack,message:err.message}), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
