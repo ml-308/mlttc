@@ -275,198 +275,196 @@ function validateSearchParam(value, maxLen) {
 
 //Get
 export async function onRequestGet({request,env}){
-    // 1. 频率限制检查
-    try{
-    const rateLimitResponse = await checkRateLimit(request, env);
-    if (rateLimitResponse) return rateLimitResponse;
-
-    const url=new URL(request.url);
-    const city=url.searchParams.get("city");
-    const way=url.searchParams.get("way");
-    const id=url.searchParams.get("id");
-
-  if (id && id !== '0') {
-    // ID 查询（精确匹配，受控参数）
-    const cleanId = validateSearchParam(id, 20);
-    if (!cleanId) {
-      return new Response(JSON.stringify({
-        success: false,
-        message: 'ID 格式无效'
-      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    console.log("按 ID 查询");
     try {
-      const row = await env.mlttcd.prepare(
-        `SELECT t.*, u.NAME as WRITER_NAME
-         FROM TIMETABLE t
-         LEFT JOIN USER u ON u.EMAIL = t.WRITER
-         WHERE t.ID = ?`
-      ).bind(cleanId).first();
+        // 1. 频率限制检查
+        const rateLimitResponse = await checkRateLimit(request, env);
+        if (rateLimitResponse) return rateLimitResponse;
 
-      if (!row) {
-        return new Response(JSON.stringify({
-          success: false,
-          message: '未找到该记录'
-        }), { status: 404, headers: { 'Content-Type': 'application/json' } });
-      }
+        const url = new URL(request.url);
+        const city = url.searchParams.get("city");
+        const way = url.searchParams.get("way");
+        const id = url.searchParams.get("id");
 
-      return new Response(JSON.stringify({
-        success: true,
-        data: row
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    } catch (err) {
-      console.error('ID 查询错误:', err);
-      return new Response(JSON.stringify({ error: '服务器内部错误' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  }
+        if (id && id !== '0') {
+            // ID 查询（精确匹配，受控参数）
+            const cleanId = validateSearchParam(id, 20);
+            if (!cleanId) {
+                return new Response(JSON.stringify({
+                    success: false,
+                    message: 'ID 格式无效'
+                }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+            }
 
-  // ─── 按作者(邮箱)查询 ──────────────────────────
-  // 作者查询为用户查看自己的时刻表，显示全部（含未审核）
-  const writer = url.searchParams.get('writer');
-  if (writer) {
-    const cleanWriter = validateSearchParam(writer, 100);
-    if (cleanWriter) {
-      console.log("按作者查询:", cleanWriter);
-      try {
-        const { results } = await env.mlttcd.prepare(
-          `SELECT t.*, u.NAME as WRITER_NAME
-           FROM TIMETABLE t
-           LEFT JOIN USER u ON u.EMAIL = t.WRITER
-           WHERE t.WRITER = ? ORDER BY t.WRITETIME DESC`
-        ).bind(cleanWriter).all();
+            console.log("按 ID 查询");
+            try {
+                const row = await env.mlttcd.prepare(
+                    `SELECT t.*, u.NAME as WRITER_NAME
+                     FROM TIMETABLE t
+                     LEFT JOIN USER u ON u.EMAIL = t.WRITER
+                     WHERE t.ID = ?`
+                ).bind(cleanId).first();
 
-        return new Response(JSON.stringify({
-          success: true,
-          data: results,
-          count: results.length
-        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-      } catch (err) {
-        console.error('作者查询错误:', err);
-        return new Response(JSON.stringify({ error: '服务器内部错误' }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-    }
-  }
+                if (!row) {
+                    return new Response(JSON.stringify({
+                        success: false,
+                        message: '未找到该记录'
+                    }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+                }
 
-  const q = url.searchParams.get('q');
-  if (city || way || q) {
-    // 支持按城市、线路或通用关键词搜索
-    let query = 'SELECT t.*, u.NAME as WRITER_NAME FROM TIMETABLE t LEFT JOIN USER u ON u.EMAIL = t.WRITER WHERE t.PASS=1 AND';
-    const params = [];
-    const conditions = [];
-    const orGroups = []; // 用于 OR 分组
-
-    if (city) {
-      const cleanCity = validateSearchParam(city, 20);
-      if (cleanCity) {
-        conditions.push('CITY LIKE ? ');
-        params.push(`%${cleanCity}%`);
-      }
-    }
-    if (way) {
-      const cleanWay = validateSearchParam(way, 50);
-      if (cleanWay) {
-        conditions.push('WAY LIKE ? ');
-        params.push(`%${cleanWay}%`);
-      }
-    }
-
-    // 通用关键词 q：跨 CITY、WAY、START、END 多字段模糊搜索
-    const cleanQ = validateSearchParam(q, 50);
-    if (cleanQ) {
-      const qConditions = [
-        'CITY LIKE ?',
-        'WAY LIKE ?',
-        'START LIKE ?',
-        'END LIKE ?'
-      ];
-      orGroups.push('(' + qConditions.join(' OR ') + ')');
-      params.push(`%${cleanQ}%`, `%${cleanQ}%`, `%${cleanQ}%`, `%${cleanQ}%`);
-    }
-
-    if (conditions.length > 0 || orGroups.length > 0) {
-      const whereClauses = [];
-      if (conditions.length > 0) {
-        if (orGroups.length > 0) {
-          whereClauses.push('(' + conditions.join(' AND ') + ') OR ' + orGroups.join(' OR '));
-        } else {
-          whereClauses.push(conditions.join(' AND '));
+                return new Response(JSON.stringify({
+                    success: true,
+                    data: row
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            } catch (err) {
+                console.error('ID 查询错误:', err);
+                return new Response(JSON.stringify({ error: '服务器内部错误' }), {
+                    status: 500,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
         }
-      } else if (orGroups.length > 0) {
-        whereClauses.push(orGroups.join(' OR '));
-      }
-      whereClauses.push('t.PASS = 1');
-      query += ' ' + whereClauses.join(' AND ');
-    } else {
-      return new Response(JSON.stringify({
-        success: false,
-        message: '参数格式无效'
-      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    }
 
-    query += ' LIMIT 200';
+        // ─── 按作者(邮箱)查询 ──────────────────────────
+        const writer = url.searchParams.get('writer');
+        if (writer) {
+            const cleanWriter = validateSearchParam(writer, 100);
+            if (cleanWriter) {
+                console.log("按作者查询:", cleanWriter);
+                try {
+                    const { results } = await env.mlttcd.prepare(
+                        `SELECT t.*, u.NAME as WRITER_NAME
+                         FROM TIMETABLE t
+                         LEFT JOIN USER u ON u.EMAIL = t.WRITER
+                         WHERE t.WRITER = ? ORDER BY t.WRITETIME DESC`
+                    ).bind(cleanWriter).all();
 
-    console.log("组合查询:", query, params);
-    try {
-      const { results } = await env.mlttcd.prepare(query).bind(...params).all();
+                    return new Response(JSON.stringify({
+                        success: true,
+                        data: results,
+                        count: results.length
+                    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                } catch (err) {
+                    console.error('作者查询错误:', err);
+                    return new Response(JSON.stringify({ error: '服务器内部错误' }), {
+                        status: 500,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+            }
+        }
 
-      if (results.length === 0) {
+        const q = url.searchParams.get('q');
+        if (city || way || q) {
+            // 支持按城市、线路或通用关键词搜索
+            let query = 'SELECT t.*, u.NAME as WRITER_NAME FROM TIMETABLE t LEFT JOIN USER u ON u.EMAIL = t.WRITER WHERE t.PASS=1 AND';
+            const params = [];
+            const conditions = [];
+            const orGroups = []; // 用于 OR 分组
+
+            if (city) {
+                const cleanCity = validateSearchParam(city, 20);
+                if (cleanCity) {
+                    conditions.push('t.CITY LIKE ? ');   // 添加 t. 前缀
+                    params.push(`%${cleanCity}%`);
+                }
+            }
+            if (way) {
+                const cleanWay = validateSearchParam(way, 50);
+                if (cleanWay) {
+                    conditions.push('t.WAY LIKE ? ');    // 添加 t. 前缀
+                    params.push(`%${cleanWay}%`);
+                }
+            }
+
+            // 通用关键词 q：跨 CITY、WAY、START、END 多字段模糊搜索
+            const cleanQ = validateSearchParam(q, 50);
+            if (cleanQ) {
+                const qConditions = [
+                    't.CITY LIKE ?',   // 添加 t. 前缀
+                    't.WAY LIKE ?',
+                    't.START LIKE ?',
+                    't.END LIKE ?'
+                ];
+                orGroups.push('(' + qConditions.join(' OR ') + ')');
+                params.push(`%${cleanQ}%`, `%${cleanQ}%`, `%${cleanQ}%`, `%${cleanQ}%`);
+            }
+
+            if (conditions.length > 0 || orGroups.length > 0) {
+                const whereClauses = [];
+                if (conditions.length > 0) {
+                    if (orGroups.length > 0) {
+                        whereClauses.push('(' + conditions.join(' AND ') + ') OR ' + orGroups.join(' OR '));
+                    } else {
+                        whereClauses.push(conditions.join(' AND '));
+                    }
+                } else if (orGroups.length > 0) {
+                    whereClauses.push(orGroups.join(' OR '));
+                }
+                whereClauses.push('t.PASS = 1');
+                query += ' ' + whereClauses.join(' AND ');
+            } else {
+                return new Response(JSON.stringify({
+                    success: false,
+                    message: '参数格式无效'
+                }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+            }
+
+            query += ' LIMIT 200';
+
+            console.log("组合查询:", query, params);
+            try {
+                const { results } = await env.mlttcd.prepare(query).bind(...params).all();
+
+                if (results.length === 0) {
+                    return new Response(JSON.stringify({
+                        success: false,
+                        message: '未找到符合条件的时刻表'
+                    }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+                }
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    data: results
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            } catch (err) {
+                console.error('模糊查询错误:', err);
+                return new Response(JSON.stringify({ error: '服务器内部错误' ,debug:err.stack,message:err.message}), {
+                    status: 500,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
+        // ─── 列出所有已添加的线路（city + way）─────────────────────
+        const list = url.searchParams.get('list');
+        if (list === 'all') {
+            console.log("列出所有线路");
+            try {
+                const listQuery = 'SELECT DISTINCT CITY, WAY FROM TIMETABLE WHERE PASS = 1 ORDER BY CITY, WAY';
+                const { results } = await env.mlttcd.prepare(listQuery).all();
+
+                return new Response(JSON.stringify({
+                    success: true,
+                    data: results
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            } catch (err) {
+                console.error('列出线路错误:', err);
+                return new Response(JSON.stringify({ error: '服务器内部错误' ,debug:err.stack,message:err.message}), {
+                    status: 500,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+
         return new Response(JSON.stringify({
-          success: false,
-          message: '未找到符合条件的时刻表'
-        }), { status: 404, headers: { 'Content-Type': 'application/json' } });
-      }
-
-      return new Response(JSON.stringify({
-        success: true,
-        data: results      
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            success: false,
+            message: '请提供 id 或 city+way 参数'
+        }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     } catch (err) {
-      console.error('模糊查询错误:', err);
-      return new Response(JSON.stringify({ error: '服务器内部错误' ,debug:err.stack,message:err.message}), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+        return new Response(JSON.stringify({
+            error: '服务器内部错误',
+            debug: err.stack,        // 保留调试信息，定位其他潜在问题后建议移除
+            message: err.message
+        }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
-  }
-
-  // ─── 列出所有已添加的线路（city + way）─────────────────────
-  const list = url.searchParams.get('list');
-  if (list === 'all') {
-    console.log("列出所有线路");
-    try {
-      const listQuery = 'SELECT DISTINCT CITY, WAY FROM TIMETABLE WHERE PASS = 1 ORDER BY CITY, WAY';
-      const { results } = await env.mlttcd.prepare(listQuery).all();
-
-      return new Response(JSON.stringify({
-        success: true,
-        data: results
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    } catch (err) {
-      console.error('列出线路错误:', err);
-      return new Response(JSON.stringify({ error: '服务器内部错误' ,debug:err.stack,message:err.message}), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-  }
-
-  return new Response(JSON.stringify({
-    success: false,
-    message: '请提供 id 或 city+way 参数'
-  }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-}
-catch (err) {
-    return new Response(JSON.stringify({
-      error: '服务器内部错误',
-      debug: err.stack,        // 关键！会显示出错文件和行号
-      message: err.message
-    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-  }
 }
