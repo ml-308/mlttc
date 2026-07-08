@@ -64,6 +64,15 @@ async function loadProfile() {
     if (user.registertime) {
       document.getElementById('profileRegDate').textContent = user.registertime;
     }
+    // 显示身份
+    const typeEl = document.getElementById('profileAccountType');
+    if (user.adm && user.adm !== 'user') {
+      typeEl.textContent = '管理员';
+      typeEl.style.background = 'var(--danger, #e74c3c)';
+    } else {
+      typeEl.textContent = '普通用户';
+      typeEl.style.background = 'var(--primary)';
+    }
     // 更新 cookie 中的昵称（无论是否有值，都写入以便 header 判断登录状态）
     document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=3600; SameSite=Lax`;
     if (user.NAME) document.getElementById('nameInput').placeholder = user.NAME;
