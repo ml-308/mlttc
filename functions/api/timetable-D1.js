@@ -491,3 +491,57 @@ export async function onRequestGet({request,env}){
         }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
 }
+
+// ─── 删除时刻表 ─────────────────────────────────────────────
+export async function onRequestDelete({ request, env }) {
+    try {
+        const body = await request.json().catch(() => null);
+        if (!body) {
+            return new Response(JSON.stringify({ error: '无效的请求数据' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const { id, writer } = body;
+        if (!id || !writer) {
+            return new Response(JSON.stringify({ error: '参数不完整' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 验证该记录存在且作者匹配
+        const existing = await env.mlttcd.prepare(
+            'SELECT ID, WRITER FROM TIMETABLE WHERE ID = ?'
+        ).bind(id).first();
+
+        if (!existing) {
+            return new Response(JSON.stringify({ error: '记录不存在' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (existing.WRITER !== writer) {
+            return new Response(JSON.stringify({ error: '无权删除此记录' }), {
+                status: 403,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        await env.mlttcd.prepare('DELETE FROM TIMETABLE WHERE ID = ? AND WRITER = ?')
+            .bind(id, writer).run();
+
+        return new Response(JSON.stringify({
+            success: true,
+            message: '删除成功'
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    } catch (err) {
+        console.error('删除错误:', err);
+        return new Response(JSON.stringify({ error: '删除失败' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}

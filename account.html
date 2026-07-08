@@ -85,7 +85,10 @@
 
         <!-- 我的时刻表 -->
         <hcw-card style="margin-top: 1rem;">
-            <hcw-card-title style="font-size: 1.1rem;">我的时刻表</hcw-card-title>
+            <hcw-card-title style="font-size: 1.1rem; display:flex; align-items:center; justify-content:space-between;">
+                <span>我的时刻表</span>
+                <hcw-button id="tt-refresh-btn" flat icon style="height:1.8rem;width:1.8rem; font-size:0.9rem;" aria-label="刷新">⟳</hcw-button>
+            </hcw-card-title>
             <div id="myTimetableArea">
                 <div id="timetable-loading" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">加载中...</div>
                 <div id="timetable-empty" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">暂未写入时刻表</div>

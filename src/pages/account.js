@@ -1,4 +1,5 @@
 // ─── 个人信息页面逻辑 ────────────────────────────────
+import { showConfirm } from '/lib/ui/popup.mjs';
 
 // 验证提示（参考 timetables.js 的 msgout）
 function msgout(input, test, msg, judge) {
@@ -201,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const PAGE_SIZE = 2;
   let myTimetables = [];
   let myCurrentPage = 0;
+  let myEmail = '';
 
   const ttList = document.getElementById('timetable-list');
   const ttLoading = document.getElementById('timetable-loading');
@@ -214,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadMyTimetables() {
     // 先获取用户邮箱
     let email = '';
+    myEmail = '';
     try {
       const res = await fetch('/api/profile', { credentials: 'include' });
       if (!res.ok) {
@@ -237,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ttError.textContent = '获取用户信息失败';
       return;
     }
+    myEmail = email;
 
     // 尝试从 sessionStorage 读取缓存
     const CACHE_KEY = 'account_tt_cache';
@@ -370,6 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="result-item-actions">
           <hcw-button class="detail-btn" flat style="min-width:5rem; font-size:0.82rem;">查看详情</hcw-button>
           <hcw-button class="edit-btn" flat style="min-width:5rem; font-size:0.82rem;">修改时刻表</hcw-button>
+          <hcw-button class="delete-btn" flat style="min-width:5rem; font-size:0.82rem; color:var(--danger);">删除</hcw-button>
         </div>
       `;
 
@@ -383,6 +388,37 @@ document.addEventListener('DOMContentLoaded', () => {
       card.querySelector('.edit-btn').addEventListener('click', (e) => {
         e.stopPropagation();
         window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
+      });
+
+      // 删除按钮
+      card.querySelector('.delete-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const confirmed = await showConfirm({
+          text: `确定要删除 #${item.ID} 时刻表吗？此操作不可恢复。`,
+          buttons: ['确定删除', '取消'],
+          button_style: ['danger', '']
+        });
+        if (!confirmed) return;
+
+        try {
+          const res = await fetch('/api/timetable-D1', {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: item.ID, writer: myEmail })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showMessage('删除成功', false);
+            // 清除缓存并重新加载
+            sessionStorage.removeItem('account_tt_cache');
+            loadMyTimetables();
+          } else {
+            showMessage(data.error || '删除失败', true);
+          }
+        } catch (err) {
+          showMessage('删除失败: 网络错误', true);
+        }
       });
 
       ttList.appendChild(card);
@@ -399,6 +435,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   ttPrevBtn.addEventListener('click', () => changeMyPage(-1));
   ttNextBtn.addEventListener('click', () => changeMyPage(1));
+
+  // 刷新按钮
+  document.getElementById('tt-refresh-btn')?.addEventListener('click', () => {
+    sessionStorage.removeItem('account_tt_cache');
+    loadMyTimetables();
+    showMessage('已刷新', false);
+  });
 
   function formatTimeDisplay(timeStr) {
     if (!timeStr || timeStr === 'unknown') return '未知';
