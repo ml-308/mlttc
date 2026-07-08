@@ -151,6 +151,10 @@ function renderDetail(item) {
     detailPassStatus.textContent = '被驳回';
     detailPassStatus.style.color = 'var(--danger)';
     detailPasser.textContent = item.PASSER || '管理员';
+  } else if (item.SPECIAL && item.SPECIAL.includes('（已修改驳回）')) {
+    detailPassStatus.textContent = '已修改驳回';
+    detailPassStatus.style.color = '#e67e22';
+    detailPasser.textContent = '—';
   } else {
     detailPassStatus.textContent = '待审核';
     detailPassStatus.style.color = 'var(--warning)';

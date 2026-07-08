@@ -201,6 +201,7 @@ function createTimetableCard(item, isUnreviewed) {
         ${
           item.PASS == true ? `<span>审核: ${item.PASSER || '管理员'}</span>` :
           (item.SPECIAL === '时刻表被驳回') ? '<span style="color:var(--danger);">被驳回</span>' :
+          (item.SPECIAL && item.SPECIAL.includes('（已修改驳回）')) ? '<span style="color:#e67e22;">已修改驳回</span>' :
           '<span style="color:var(--warning);">待审核</span>'
         }
       </div>

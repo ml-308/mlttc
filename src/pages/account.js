@@ -283,11 +283,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       myTimetables = json.data || [];
-      // 被驳回 > 待审核 > 已通过 排序
+      // 被驳回 > 已修改驳回 > 待审核 > 已通过 排序
       myTimetables.sort((a, b) => {
-        const aRejected = a.SPECIAL === '时刻表被驳回' ? 2 : (a.PASS == true ? 0 : 1);
-        const bRejected = b.SPECIAL === '时刻表被驳回' ? 2 : (b.PASS == true ? 0 : 1);
-        return bRejected - aRejected;
+        const getLevel = (x) => {
+          if (x.SPECIAL === '时刻表被驳回') return 3;
+          if (x.SPECIAL && x.SPECIAL.includes('（已修改驳回）')) return 2;
+          if (x.PASS == true) return 0;
+          return 1;
+        };
+        return getLevel(b) - getLevel(a);
       });
       myCurrentPage = 0;
 
@@ -353,10 +357,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <span style="font-weight:600; ${
               item.PASS == true ? 'color:var(--success);' :
               item.SPECIAL === '时刻表被驳回' ? 'color:var(--danger);' :
+              (item.SPECIAL && item.SPECIAL.includes('（已修改驳回）')) ? 'color:#e67e22;' :
               'color:var(--warning);'
             }">${
               item.PASS == true ? '已通过' :
               item.SPECIAL === '时刻表被驳回' ? '被驳回' :
+              (item.SPECIAL && item.SPECIAL.includes('（已修改驳回）')) ? '已修改驳回' :
               '待审核'
             }</span>
           </div>

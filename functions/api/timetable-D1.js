@@ -73,6 +73,29 @@ export async function onRequestPost({ request, env }) {
             }
         }
 
+        // ─── 被驳回后重新提交：标记已修改驳回 ────────
+        const existingRow = await env.mlttcd.prepare(
+            'SELECT SPECIAL FROM TIMETABLE WHERE ID = ?'
+        ).bind(id).first();
+        if (existingRow && existingRow.SPECIAL === '时刻表被驳回') {
+            // 用户提交了新的 special → 追加标记；否则自动设为标记
+            if (special !== undefined && special !== null && typeof special === 'string') {
+                const userVal = special.trim().length > 0 ? special.trim() : '无';
+                // 替换 sets 中已有的 SPECIAL 项或新增
+                const spIdx = sets.findIndex(s => s.startsWith('SPECIAL'));
+                if (spIdx !== -1) {
+                    params[spIdx] = userVal + '（已修改驳回）';
+                } else {
+                    sets.push('SPECIAL = ?');
+                    params.push(userVal + '（已修改驳回）');
+                }
+            } else {
+                // 用户未修改备注，自动标记
+                sets.push('SPECIAL = ?');
+                params.push('已修改驳回');
+            }
+        }
+
         if (sets.length === 0) {
             return new Response(JSON.stringify({ error: '没有提供需要更新的字段' }), {
                 status: 400, headers: { 'Content-Type': 'application/json' }
