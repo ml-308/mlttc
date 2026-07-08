@@ -504,8 +504,83 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="style/index.css">
+    <script src="/src/auth-header.js" type="module"></script>
+    <script src="lib/ui/init.mjs" type="module"></script>
+    <script src="/lib/ui/popup.mjs" type="module"></script>
+    <script src="/src/pages/main.js" type="module"></script>
+    <style>
+        /* 确保游戏页面的 body 布局与站点主题兼容 */
+        body.game-page-body {
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 0;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+        }
+        body.game-page-body .game-wrapper {
+            padding: 16px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 460px;
+            margin: 0 auto;
+        }
+        /* 游戏页面的头部 auth 区域 */
+        .game-auth-header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 10px 16px;
+            background: var(--surface, #1a1a2e);
+            border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+            width: 100%;
+            z-index: 100;
+        }
+        .game-auth-header .auth-btn {
+            background: var(--btn-bg, #2a2a40);
+            border: 1px solid var(--border, rgba(255,255,255,0.08));
+            color: var(--text, #e0e0e0);
+            padding: 6px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+        .game-auth-header .auth-btn:hover {
+            background: var(--btn-hover, #353550);
+        }
+        .game-auth-header .auth-user-info {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text, #e0e0e0);
+        }
+        .game-auth-header .auth-user-info strong {
+            cursor: pointer;
+        }
+        .game-auth-header .auth-user-info strong:hover {
+            color: var(--accent, #4ade80);
+        }
+    </style>
 </head>
-<body>
+<body class="game-page-body">
+
+    <!-- 游戏页面顶部登录区域 -->
+    <div class="game-auth-header" id="headerAuthArea">
+        <hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题" style="font-size:1.2rem;background:none;border:none;cursor:pointer;">🌙</hcw-button>
+        <button class="auth-btn" id="globalLoginBtn">登录</button>
+        <div class="auth-user-info" id="globalUserInfo">
+            <span>欢迎，<strong id="globalDisplayName">用户</strong></span>
+            <button class="auth-btn" id="globalLogoutBtn">退出</button>
+        </div>
+    </div>
 
     <div class="game-wrapper">
         <!-- 头部：标题和分数 -->
@@ -1277,5 +1352,26 @@
             console.log('  - 最高分已保存到本地存储');
         })();
     </script>
+
+    <!-- 登录模态框 -->
+    <div id="globalLoginModal" class="modal" style="align-items: center; display: none;">
+        <div hcw-modal>
+            <div hcw-modal-title>
+                <h3>登录系统</h3>
+                <hcw-button tp icon id="closeModalBtn">&times;</hcw-button>
+            </div>
+            <div hcw-modal-body>
+                <hcw-input primary label="用户名" type="text" id="username" placeholder="邮箱/昵称" autocomplete="off" required></hcw-input>
+                <hcw-input label="密码" type="password" id="password" placeholder="请输入密码" required></hcw-input>
+                <div id="ErrorLogin" class="error-msg">
+                    <p>用户名或密码错误，请重新输入</p>
+                </div>
+                <hcw-button primary large id="login-btn" type="submit">登 录</hcw-button>
+                <hcw-button id='RegisterBtn' large href="register.html">注册账户</hcw-button>
+                <p style="color: var(--text-muted)">注册功能将在后续版本开放</p>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
