@@ -283,8 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       myTimetables = json.data || [];
-      // 已通过优先排序
-      myTimetables.sort((a, b) => (b.PASS == true ? 1 : 0) - (a.PASS == true ? 1 : 0));
+      // 被驳回 > 待审核 > 已通过 排序
+      myTimetables.sort((a, b) => {
+        const aRejected = a.SPECIAL === '时刻表被驳回' ? 2 : (a.PASS == true ? 0 : 1);
+        const bRejected = b.SPECIAL === '时刻表被驳回' ? 2 : (b.PASS == true ? 0 : 1);
+        return bRejected - aRejected;
+      });
       myCurrentPage = 0;
 
       // 写入缓存
@@ -348,11 +352,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <span>写入: ${item.WRITETIME || '未知'}</span>
             <span style="font-weight:600; ${
               item.PASS == true ? 'color:var(--success);' :
-              (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? 'color:var(--danger);' :
+              item.SPECIAL === '时刻表被驳回' ? 'color:var(--danger);' :
               'color:var(--warning);'
             }">${
               item.PASS == true ? '已通过' :
-              (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? '被驳回' :
+              item.SPECIAL === '时刻表被驳回' ? '被驳回' :
               '待审核'
             }</span>
           </div>
@@ -363,37 +367,17 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
-      const isRejected = item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】');
-
       // 查看详情按钮
       card.querySelector('.detail-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        // 被驳回的时刻表：查看后删除
-        if (isRejected) {
-          if (confirm('该时刻表已被管理员驳回，查看后将自动删除。确定查看？')) {
-            fetch('/api/admin', {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: item.ID })
-            }).catch(() => {});
-            window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
-          }
-        } else {
-          window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
-        }
+        window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
       });
 
-      // 修改时刻表按钮（被驳回的不可修改）
-      if (isRejected) {
-        card.querySelector('.edit-btn').disabled = true;
-        card.querySelector('.edit-btn').style.opacity = '0.4';
-        card.querySelector('.edit-btn').textContent = '已驳回';
-      } else {
-        card.querySelector('.edit-btn').addEventListener('click', (e) => {
-          e.stopPropagation();
-          window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
-        });
-      }
+      // 修改时刻表按钮
+      card.querySelector('.edit-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
+      });
 
       ttList.appendChild(card);
     });

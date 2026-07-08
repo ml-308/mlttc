@@ -11,15 +11,15 @@ export async function onRequestGet({ request, env }) {
        ORDER BY t.WRITETIME DESC`
     ).all();
 
-    // 在 JS 层分类，减少数据库 2/3 的查询
+    // 在 JS 层分类
     const unreviewed = [];
-    const rejected = [];
     const reviewed = [];
+    const rejected = [];
 
     for (const row of results) {
       if (row.PASS === 1) {
         reviewed.push(row);
-      } else if (row.SPECIAL && row.SPECIAL.includes('【时刻表被驳回】')) {
+      } else if (row.SPECIAL && row.SPECIAL === '时刻表被驳回') {
         rejected.push(row);
       } else {
         unreviewed.push(row);
@@ -29,8 +29,8 @@ export async function onRequestGet({ request, env }) {
     return new Response(JSON.stringify({
       success: true,
       unreviewed,
-      rejected,
-      reviewed
+      reviewed,
+      rejected
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (err) {
     console.error('管理员查询错误:', err);
@@ -40,7 +40,7 @@ export async function onRequestGet({ request, env }) {
   }
 }
 
-// ─── POST: 审核操作（通过/驳回）─────────────────
+// ─── POST: 审核操作────────────────────────────
 export async function onRequestPost({ request, env }) {
   try {
     const body = await request.json().catch(() => null);
@@ -58,10 +58,12 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    // 通过操作：设置 PASS=1 和 PASSER（直接 UPDATE，用 changes 判断存在性）
+    // 通过操作：设置 PASS=1 和 PASSER，同时清除驳回标记
     if (action === 'approve' || (pass !== undefined && Number(pass) === 1)) {
       const result = await env.mlttcd.prepare(
-        'UPDATE TIMETABLE SET PASS = 1, PASSER = ? WHERE ID = ?'
+        `UPDATE TIMETABLE SET PASS = 1, PASSER = ?,
+         SPECIAL = CASE WHEN SPECIAL = '时刻表被驳回' THEN '无' ELSE SPECIAL END
+         WHERE ID = ?`
       ).bind(passer || '管理员', id).run();
 
       if (!result.meta || result.meta.changes === 0) {
@@ -75,11 +77,10 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    // 驳回操作：PASS 保持 0，在备注追加驳回标记
+    // 驳回操作：SPECIAL 替换为"时刻表被驳回"，PASS 保持 0
     if (action === 'reject') {
-      // 先获取当前 SPECIAL 值以追加驳回标记
       const existing = await env.mlttcd.prepare(
-        'SELECT SPECIAL FROM TIMETABLE WHERE ID = ?'
+        'SELECT ID FROM TIMETABLE WHERE ID = ?'
       ).bind(id).first();
 
       if (!existing) {
@@ -88,12 +89,9 @@ export async function onRequestPost({ request, env }) {
         });
       }
 
-      const newSpecial = existing.SPECIAL && existing.SPECIAL !== '无'
-        ? existing.SPECIAL + '【时刻表被驳回】'
-        : '【时刻表被驳回】';
       await env.mlttcd.prepare(
         'UPDATE TIMETABLE SET PASS = 0, SPECIAL = ?, PASSER = ? WHERE ID = ?'
-      ).bind(newSpecial, passer || '管理员', id).run();
+      ).bind('时刻表被驳回', passer || '管理员', id).run();
 
       return new Response(JSON.stringify({ success: true, message: '已驳回' }), {
         status: 200, headers: { 'Content-Type': 'application/json' }

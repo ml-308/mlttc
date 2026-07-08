@@ -41,38 +41,29 @@ const reviewPanel = document.getElementById('reviewPanel');
 
 const unreviewedList = document.getElementById('unreviewedList');
 const reviewedList = document.getElementById('reviewedList');
-const rejectedList = document.getElementById('rejectedList');
 const unreviewedLoading = document.getElementById('unreviewedLoading');
 const reviewedLoading = document.getElementById('reviewedLoading');
-const rejectedLoading = document.getElementById('rejectedLoading');
 const unreviewedEmpty = document.getElementById('unreviewedEmpty');
 const reviewedEmpty = document.getElementById('reviewedEmpty');
-const rejectedEmpty = document.getElementById('rejectedEmpty');
 const unreviewedCount = document.getElementById('unreviewedCount');
 const reviewedCount = document.getElementById('reviewedCount');
-const rejectedCount = document.getElementById('rejectedCount');
 
 // ─── 分页 DOM ───────────────────────────────
 const unreviewedPagination = document.getElementById('unreviewedPagination');
 const reviewedPagination = document.getElementById('reviewedPagination');
-const rejectedPagination = document.getElementById('rejectedPagination');
 const unreviewedPrevBtn = document.getElementById('unreviewedPrevBtn');
 const unreviewedNextBtn = document.getElementById('unreviewedNextBtn');
 const reviewedPrevBtn = document.getElementById('reviewedPrevBtn');
 const reviewedNextBtn = document.getElementById('reviewedNextBtn');
-const rejectedPrevBtn = document.getElementById('rejectedPrevBtn');
-const rejectedNextBtn = document.getElementById('rejectedNextBtn');
 const unreviewedPageInfo = document.getElementById('unreviewedPageInfo');
 const reviewedPageInfo = document.getElementById('reviewedPageInfo');
-const rejectedPageInfo = document.getElementById('rejectedPageInfo');
 
 const PAGE_SIZE = 2;
 
 // ─── 分页状态 ───────────────────────────────
 const pageState = {
   unreviewed: { data: [], page: 0 },
-  reviewed: { data: [], page: 0 },
-  rejected: { data: [], page: 0 }
+  reviewed: { data: [], page: 0 }
 };
 
 const adminEmail = sessionStorage.getItem('admin_email') || '';
@@ -113,7 +104,7 @@ function moveToState(key, item) {
 }
 
 function updateSection(key, showActions) {
-  const countEl = key === 'unreviewed' ? unreviewedCount : key === 'rejected' ? rejectedCount : reviewedCount;
+  const countEl = key === 'unreviewed' ? unreviewedCount : reviewedCount;
   countEl.textContent = pageState[key].data.length + ' 条';
   renderPage(key, showActions);
 }
@@ -129,9 +120,8 @@ async function approveItem(item) {
     const data = await res.json();
     if (!res.ok) { showMessage(data.error || '操作失败', true); return; }
 
-    // 本地移动：从未审核/被驳回 → 已通过
-    const fromKey = removeFromState('unreviewed', item.ID) ? 'unreviewed' :
-                    removeFromState('rejected', item.ID) ? 'rejected' : null;
+    // 本地移动：从未审核 → 已通过
+    const fromKey = removeFromState('unreviewed', item.ID) ? 'unreviewed' : null;
     if (fromKey) {
       const moved = { ...item, PASS: 1, PASSER: adminEmail || '管理员' };
       moveToState('reviewed', moved);
@@ -151,13 +141,13 @@ async function rejectItem(item) {
     });
     if (!res.ok) { const d = await res.json().catch(()=>({})); showMessage(d.error || '操作失败', true); return; }
 
-    // 本地移动：从未审核 → 被驳回
+    // 本地从未审核列表中移除（已包含在原 unreviewed 中）
     const removed = removeFromState('unreviewed', item.ID);
     if (removed) {
-      const moved = { ...removed, PASS: 0, SPECIAL: (removed.SPECIAL && removed.SPECIAL !== '无' ? removed.SPECIAL : '') + '【时刻表被驳回】', PASSER: adminEmail || '管理员' };
-      moveToState('rejected', moved);
+      // 更新 SPECIAL 为驳回标记，插回列表最前面
+      const moved = { ...removed, SPECIAL: '时刻表被驳回' };
+      pageState.unreviewed.data.unshift(moved);
       updateSection('unreviewed', true);
-      updateSection('rejected', true);
     }
     showMessage('已驳回', false);
   } catch { showMessage('网络错误', true); }
@@ -175,10 +165,9 @@ async function deleteItem(item) {
     if (!res.ok) { const d = await res.json().catch(()=>({})); showMessage(d.message || d.error || '删除失败', true); return; }
 
     // 本地删除
-    const removed = removeFromState('unreviewed', item.ID) || removeFromState('rejected', item.ID) || removeFromState('reviewed', item.ID);
+    const removed = removeFromState('unreviewed', item.ID) || removeFromState('reviewed', item.ID);
     if (removed) {
       updateSection('unreviewed', true);
-      updateSection('rejected', true);
       updateSection('reviewed', false);
     }
     showMessage('已删除', false);
@@ -211,7 +200,7 @@ function createTimetableCard(item, isUnreviewed) {
         <span>写入: ${item.WRITETIME || '未知'}</span>
         ${
           item.PASS == true ? `<span>审核: ${item.PASSER || '管理员'}</span>` :
-          (item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】')) ? '<span style="color:var(--danger);">被驳回</span>' :
+          (item.SPECIAL === '时刻表被驳回') ? '<span style="color:var(--danger);">被驳回</span>' :
           '<span style="color:var(--warning);">待审核</span>'
         }
       </div>
@@ -243,8 +232,7 @@ function createTimetableCard(item, isUnreviewed) {
 // ─── 分页渲染 ────────────────────────────────
 const sectionMap = {
   unreviewed: { list: 'unreviewedList', empty: 'unreviewedEmpty', pagination: 'unreviewedPagination', prevBtn: 'unreviewedPrevBtn', nextBtn: 'unreviewedNextBtn', pageInfo: 'unreviewedPageInfo' },
-  reviewed:  { list: 'reviewedList',  empty: 'reviewedEmpty',  pagination: 'reviewedPagination',  prevBtn: 'reviewedPrevBtn',  nextBtn: 'reviewedNextBtn',  pageInfo: 'reviewedPageInfo' },
-  rejected:  { list: 'rejectedList',  empty: 'rejectedEmpty',  pagination: 'rejectedPagination',  prevBtn: 'rejectedPrevBtn',  nextBtn: 'rejectedNextBtn',  pageInfo: 'rejectedPageInfo' }
+  reviewed:  { list: 'reviewedList',  empty: 'reviewedEmpty',  pagination: 'reviewedPagination',  prevBtn: 'reviewedPrevBtn',  nextBtn: 'reviewedNextBtn',  pageInfo: 'reviewedPageInfo' }
 };
 
 function resolveSection(key) {
@@ -294,47 +282,39 @@ async function loadReviewData() {
   // 重置加载提示文字（修正重试后仍显示"加载失败"的bug）
   unreviewedLoading.textContent = '加载中...';
   reviewedLoading.textContent = '加载中...';
-  rejectedLoading.textContent = '加载中...';
   unreviewedLoading.classList.remove('hidden');
   reviewedLoading.classList.remove('hidden');
-  rejectedLoading.classList.remove('hidden');
   unreviewedList.innerHTML = '';
   reviewedList.innerHTML = '';
-  rejectedList.innerHTML = '';
   unreviewedEmpty.classList.add('hidden');
   reviewedEmpty.classList.add('hidden');
-  rejectedEmpty.classList.add('hidden');
 
   try {
     const res = await fetch('/api/admin', { credentials: 'include' });
     if (res.ok) {
       const json = await res.json();
       if (json.success) {
-        // 后端已分离数据，直接使用
-        pageState.unreviewed.data = json.unreviewed || [];
+        // 被驳回时刻表合并到未审核列表最前面
+        const rejected = (json.rejected || []).map(r => ({ ...r, SPECIAL: '时刻表被驳回' }));
+        const unreviewed = json.unreviewed || [];
+        pageState.unreviewed.data = [...rejected, ...unreviewed];
         pageState.reviewed.data = json.reviewed || [];
-        pageState.rejected.data = json.rejected || [];
       }
     }
     pageState.unreviewed.page = 0;
     pageState.reviewed.page = 0;
-    pageState.rejected.page = 0;
 
     unreviewedLoading.classList.add('hidden');
     reviewedLoading.classList.add('hidden');
-    rejectedLoading.classList.add('hidden');
     unreviewedCount.textContent = pageState.unreviewed.data.length + ' 条';
     reviewedCount.textContent = pageState.reviewed.data.length + ' 条';
-    rejectedCount.textContent = pageState.rejected.data.length + ' 条';
 
     renderPage('unreviewed', true);
     renderPage('reviewed', false);
-    renderPage('rejected', true);
   } catch (e) {
     console.error('加载审核数据失败:', e);
     unreviewedLoading.textContent = '加载失败，请重试';
     reviewedLoading.textContent = '加载失败，请重试';
-    rejectedLoading.textContent = '加载失败，请重试';
     showMessage('加载数据失败', true);
   }
 }
@@ -374,5 +354,3 @@ unreviewedPrevBtn.addEventListener('click', () => changePage('unreviewed', -1));
 unreviewedNextBtn.addEventListener('click', () => changePage('unreviewed', 1));
 reviewedPrevBtn.addEventListener('click', () => changePage('reviewed', -1));
 reviewedNextBtn.addEventListener('click', () => changePage('reviewed', 1));
-rejectedPrevBtn.addEventListener('click', () => changePage('rejected', -1));
-rejectedNextBtn.addEventListener('click', () => changePage('rejected', 1));

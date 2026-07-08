@@ -143,12 +143,11 @@ function renderDetail(item) {
   detailWriter.textContent = item.WRITER_NAME || item.WRITER || '未知';
   detailWritetime.textContent = item.WRITETIME || '未知';
 
-  const isRejected = item.SPECIAL && item.SPECIAL.includes('【时刻表被驳回】');
   if (item.PASS == true) {
     detailPassStatus.textContent = '已审核';
     detailPassStatus.style.color = 'var(--success)';
     detailPasser.textContent = item.PASSER || '管理员';
-  } else if (isRejected) {
+  } else if (item.SPECIAL === '时刻表被驳回') {
     detailPassStatus.textContent = '被驳回';
     detailPassStatus.style.color = 'var(--danger)';
     detailPasser.textContent = item.PASSER || '管理员';
