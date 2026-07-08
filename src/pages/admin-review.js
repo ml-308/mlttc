@@ -141,12 +141,9 @@ async function rejectItem(item) {
     });
     if (!res.ok) { const d = await res.json().catch(()=>({})); showMessage(d.error || '操作失败', true); return; }
 
-    // 本地从未审核列表中移除（已包含在原 unreviewed 中）
+    // 本地从未审核列表中移除（驳回后不再显示，直到用户修改后重新提交）
     const removed = removeFromState('unreviewed', item.ID);
     if (removed) {
-      // 更新 SPECIAL 为驳回标记，插回列表最前面
-      const moved = { ...removed, SPECIAL: '时刻表被驳回' };
-      pageState.unreviewed.data.unshift(moved);
       updateSection('unreviewed', true);
     }
     showMessage('已驳回', false);
@@ -295,10 +292,8 @@ async function loadReviewData() {
     if (res.ok) {
       const json = await res.json();
       if (json.success) {
-        // 被驳回时刻表合并到未审核列表最前面
-        const rejected = (json.rejected || []).map(r => ({ ...r, SPECIAL: '时刻表被驳回' }));
-        const unreviewed = json.unreviewed || [];
-        pageState.unreviewed.data = [...rejected, ...unreviewed];
+        // 被驳回时刻表不显示，直到用户修改后重新提交
+        pageState.unreviewed.data = json.unreviewed || [];
         pageState.reviewed.data = json.reviewed || [];
       }
     }
