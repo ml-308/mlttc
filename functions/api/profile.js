@@ -31,7 +31,19 @@ function setCorsHeaders(response) {
 
 export async function onRequestGet({ request, env }) {
   try {
-    const token = safeGetCookie(request, 'auth_token');
+    let token = null;
+
+    // 1. 优先从 Authorization 头获取 Bearer token
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+
+    // 2. 如果没有，再从 Cookie 中获取
+    if (!token) {
+      token = safeGetCookie(request, 'auth_token');
+    }
+
     if (!token) {
       const response = new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
       return setCorsHeaders(response);
