@@ -463,7 +463,7 @@ export async function onRequestGet({request,env}){
         if (list === 'all') {
             console.log("列出所有线路");
             try {
-                const listQuery = 'SELECT DISTINCT CITY, WAY FROM TIMETABLE WHERE PASS = 1 ORDER BY CITY, WAY';
+                const listQuery = 'SELECT DISTINCT CITY, WAY FROM TIMETABLE ORDER BY CITY, WAY';
                 const { results } = await env.mlttcd.prepare(listQuery).all();
 
                 return new Response(JSON.stringify({
