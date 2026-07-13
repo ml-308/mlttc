@@ -41,8 +41,6 @@
 			<hcw-button id="search-btn" class="menu-btn" primary data-menu="search"
 				>查询时刻表</hcw-button>
 			<hcw-button id="add-btn" class="menu-btn" data-menu="add">添加时刻表</hcw-button>
-			<hcw-button id="delete-btn" class="menu-btn" variant=danger data-menu="delete"
-				>删除时刻表</hcw-button>
 		</div>
 		<div class="form-panel">
 			<!-- 添加模块 -->
@@ -153,20 +151,6 @@
 					</div>
 				</div>
 			</div>
-
-			<!-- 删除模块 -->
-			<div hcw-card id="delete-form" class="form-card hidden">
-				<div class="form-group">
-					<label>删除记录 (输入时刻表ID)</label>
-					<input hcw-input type="text" id="delete-id" placeholder="例如: T10001" autocomplete="off">
-				</div>
-				<div class="btn-group">
-					<hcw-button variant="danger" style="min-width: 6rem" id="submitDeleteBtn">永久删除</hcw-button>
-				</div>
-				<div id="delete-result" class="result-card hidden"></div>
-			</div>
-		</div>
-
 	</hcw-article>
 
 	<hcw-body-footer></hcw-body-footer>
