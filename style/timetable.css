@@ -326,6 +326,19 @@ footer::before {
     gap: 12px;
 }
 
+/* 搜索页：一行显示 2 个结果（不影响个人主页的竖向列表） */
+#search-result .result-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 600px) {
+    #search-result .result-list {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ---------- 结果卡片项 ---------- */
 .result-item {
     background: var(--bg-card);
