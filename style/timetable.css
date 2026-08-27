@@ -231,13 +231,11 @@ hcw-article,
     from {
         opacity: 0;
         transform: translateY(-8px);
-        max-height: 0;
     }
 
     to {
         opacity: 1;
         transform: translateY(0);
-        max-height: 600px;
     }
 }
 
@@ -319,19 +317,6 @@ footer::before {
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-secondary);
-}
-
-.result-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-#result-page-info {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    min-width: 3rem;
-    text-align: center;
 }
 
 /* ---------- 结果列表 ---------- */
@@ -656,66 +641,6 @@ footer::before {
     font-weight: 600;
     color: var(--text-secondary);
     letter-spacing: 0.01em;
-}
-
-[data-theme="dark"] .result-area .result-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-[data-theme="dark"] .result-area #result-page-info {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    min-width: 3rem;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ── 翻页按钮 (环形图标按钮) ── */
-[data-theme="dark"] .result-area #result-prev-btn,
-[data-theme="dark"] .result-area #result-next-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: var(--button-bg);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-light);
-    cursor: pointer;
-    font-size: 0.78rem;
-    line-height: 1;
-    transition: all 0.2s ease;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-    position: relative;
-    flex-shrink: 0;
-}
-
-[data-theme="dark"] .result-area #result-prev-btn:hover,
-[data-theme="dark"] .result-area #result-next-btn:hover {
-    background: var(--button-bg-hl);
-    border-color: var(--primary);
-    color: #fff;
-    transform: scale(1.05);
-}
-
-[data-theme="dark"] .result-area #result-prev-btn:active,
-[data-theme="dark"] .result-area #result-next-btn:active {
-    transform: scale(0.93);
-}
-
-[data-theme="dark"] .result-area #result-prev-btn:disabled,
-[data-theme="dark"] .result-area #result-next-btn:disabled {
-    opacity: 0.3;
-    border-color: transparent;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
 }
 
 /* ── 结果列表 ── */

@@ -765,23 +765,13 @@ const searchid = document.getElementById("search-id");
 const searchResult = document.getElementById("search-result");
 const resultCount = document.getElementById("result-count");
 const resultList = document.getElementById("result-list");
-const resultPageInfo = document.getElementById("result-page-info");
-const resultPrevBtn = document.getElementById("result-prev-btn");
-const resultNextBtn = document.getElementById("result-next-btn");
-const resultCloseBtn = document.getElementById("result-close-btn");
 
-// 搜索结果分页状态
+// 搜索结果数据
 let searchResultsData = [];
-let currentPage = 0;
-// 搜索卡片无操作按钮，每页3条可完整显示
-const PAGE_SIZE = 10;
 
 //btn k
 searchbtn.addEventListener("click", searchbtnClick);
 searchclean.addEventListener("click", searchcleanClick);
-resultPrevBtn.addEventListener("click", () => changePage(-1));
-resultNextBtn.addEventListener("click", () => changePage(1));
-resultCloseBtn.addEventListener("click", closeResults);
 
 function searchcleanClick() {
     console.log("search clean");
@@ -794,7 +784,6 @@ function searchcleanClick() {
 function closeResults() {
     searchResult.classList.add("hidden");
     searchResultsData = [];
-    currentPage = 0;
     sessionStorage.removeItem('timetable_search_state');
 }
 
@@ -997,8 +986,7 @@ function renderResults(data) {
     });
 
     searchResultsData = data;
-    currentPage = 0;
-    
+
     if (data.length === 0) {
         searchResult.classList.add("hidden");
         return;
@@ -1010,19 +998,9 @@ function renderResults(data) {
 }
 
 function renderPage() {
-    const start = currentPage * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, searchResultsData.length);
-    const pageData = searchResultsData.slice(start, end);
-    const totalPages = Math.ceil(searchResultsData.length / PAGE_SIZE);
-
-    // 更新分页信息
-    resultPageInfo.textContent = `${currentPage + 1}/${totalPages}`;
-    resultPrevBtn.disabled = currentPage === 0;
-    resultNextBtn.disabled = currentPage >= totalPages - 1;
-
-    // 渲染当前页
+    // 一次性渲染全部结果
     resultList.innerHTML = '';
-    pageData.forEach((item, idx) => {
+    searchResultsData.forEach((item, idx) => {
         const card = document.createElement('div');
         card.className = 'result-item';
         card.style.animationDelay = `${idx * 0.05}s`;
@@ -1056,14 +1034,6 @@ function renderPage() {
     searchResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function changePage(delta) {
-    const totalPages = Math.ceil(searchResultsData.length / PAGE_SIZE);
-    const newPage = currentPage + delta;
-    if (newPage < 0 || newPage >= totalPages) return;
-    currentPage = newPage;
-    renderPage();
-}
-
 function formatTimeDisplay(timeStr) {
     if (!timeStr || timeStr === 'unknown') return '未知';
     // 时间格式通常是 "06:00 06:30 07:00" 带制表符
@@ -1078,8 +1048,7 @@ async function showDetail(item) {
     // 跳转前保存搜索状态到 sessionStorage
     sessionStorage.setItem('timetable_search_state', JSON.stringify({
         keyword: searchKeyword.value,
-        results: searchResultsData,
-        page: currentPage
+        results: searchResultsData
     }));
     // 跳转到新的详情页面
     const id = item.ID;
@@ -1124,7 +1093,6 @@ function restoreSearchState() {
 
         // 恢复搜索结果
         searchResultsData = state.results;
-        currentPage = state.page || 0;
         searchResult.classList.remove("hidden");
         resultCount.textContent = `共 ${searchResultsData.length} 条结果`;
         renderPage();

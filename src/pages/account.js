@@ -162,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ─── 加载我的时刻表 ─────────────────────────────
+  let myEmail = '';
   loadMyTimetables();
 
   // 保存按钮
@@ -206,21 +207,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ─── 我的时刻表 - 分页与渲染 ─────────────────────
-  // 卡片含2个操作按钮，每页3条可完整显示
-  const PAGE_SIZE = 2;
+  // ─── 我的时刻表 - 渲染（一次性展示全部） ─────────
   let myTimetables = [];
-  let myCurrentPage = 0;
-  let myEmail = '';
 
   const ttList = document.getElementById('timetable-list');
   const ttLoading = document.getElementById('timetable-loading');
   const ttEmpty = document.getElementById('timetable-empty');
   const ttError = document.getElementById('timetable-error');
-  const ttPagination = document.getElementById('timetable-pagination');
-  const ttPageInfo = document.getElementById('tt-page-info');
-  const ttPrevBtn = document.getElementById('tt-prev-btn');
-  const ttNextBtn = document.getElementById('tt-next-btn');
 
   async function loadMyTimetables() {
     // 先获取用户邮箱
@@ -264,12 +257,10 @@ document.addEventListener('DOMContentLoaded', () => {
       myTimetables = cached.data;
       // 已通过优先排序
       myTimetables.sort((a, b) => (b.PASS == true ? 1 : 0) - (a.PASS == true ? 1 : 0));
-      myCurrentPage = 0;
       ttLoading.classList.add('hidden');
 
       if (myTimetables.length === 0) {
         ttEmpty.classList.remove('hidden');
-        ttPagination.classList.add('hidden');
       } else {
         ttEmpty.classList.add('hidden');
         renderMyPage();
@@ -306,7 +297,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         return getLevel(b) - getLevel(a);
       });
-      myCurrentPage = 0;
 
       // 写入缓存
       try {
@@ -317,7 +307,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (myTimetables.length === 0) {
         ttEmpty.classList.remove('hidden');
-        ttPagination.classList.add('hidden');
         return;
       }
 
@@ -331,18 +320,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderMyPage() {
-    const start = myCurrentPage * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, myTimetables.length);
-    const pageData = myTimetables.slice(start, end);
-    const totalPages = Math.ceil(myTimetables.length / PAGE_SIZE);
-
-    ttPageInfo.textContent = `${myCurrentPage + 1}/${totalPages}`;
-    ttPrevBtn.disabled = myCurrentPage === 0;
-    ttNextBtn.disabled = myCurrentPage >= totalPages - 1;
-    ttPagination.classList.remove('hidden');
-
+    // 一次性渲染全部时刻表
     ttList.innerHTML = '';
-    pageData.forEach((item, idx) => {
+    myTimetables.forEach((item, idx) => {
       const card = document.createElement('div');
       card.className = 'result-item';
       card.style.animationDelay = `${idx * 0.05}s`;
@@ -357,10 +337,8 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="result-item-body">
           <div class="result-item-stations">
-            <span class="station-label">起点</span>
             <span class="station-name">${item.START}</span>
-            <span class="station-arrow">→</span>
-            <span class="station-label">终点</span>
+            <span class="station-arrow">↔</span>
             <span class="station-name">${item.END}</span>
           </div>
           ${item.SPECIAL && item.SPECIAL !== '无' ? `<div class="result-item-note">${item.SPECIAL}</div>` : ''}
@@ -433,17 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ttList.appendChild(card);
     });
   }
-
-  function changeMyPage(delta) {
-    const totalPages = Math.ceil(myTimetables.length / PAGE_SIZE);
-    const newPage = myCurrentPage + delta;
-    if (newPage < 0 || newPage >= totalPages) return;
-    myCurrentPage = newPage;
-    renderMyPage();
-  }
-
-  ttPrevBtn.addEventListener('click', () => changeMyPage(-1));
-  ttNextBtn.addEventListener('click', () => changeMyPage(1));
 
   // 刷新按钮
   document.getElementById('tt-refresh-btn')?.addEventListener('click', () => {
