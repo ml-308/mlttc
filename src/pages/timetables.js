@@ -774,7 +774,7 @@ const resultCloseBtn = document.getElementById("result-close-btn");
 let searchResultsData = [];
 let currentPage = 0;
 // 搜索卡片无操作按钮，每页3条可完整显示
-const PAGE_SIZE = 3;
+const PAGE_SIZE = 10;
 
 //btn k
 searchbtn.addEventListener("click", searchbtnClick);
