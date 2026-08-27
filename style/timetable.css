@@ -8,7 +8,9 @@
 
 /* ---------- 布局溢出控制 ---------- */
 html, body {
+    /* hidden 仅作旧浏览器回退；clip 不创建滚动容器，保证顶部导航栏 sticky 悬浮跟随 */
     overflow-x: hidden;
+    overflow-x: clip;
     max-width: 100%;
 }
 
