@@ -1,9 +1,25 @@
 @import url('./main.css');
-/* @import url('./derive/deepseek.index.css'); */
-@import url('./derive/group.css');
 
 .LP {
     font-size: .75rem;
     margin-left: 1rem;
     margin-top: -.25rem;
+    color: var(--text-muted);
+}
+
+/* 注册页 Apple 风格：居中紧凑卡片 */
+hcw-article {
+    justify-content: center;
+}
+
+hcw-card {
+    max-width: 420px;
+    margin: 0 auto;
+    box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 480px) {
+    hcw-card {
+        box-shadow: none;
+    }
 }

@@ -5,9 +5,9 @@
             position: fixed;
             inset: 0;
             z-index: 200;
-            background: rgba(20, 32, 46, 0.4);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: rgba(0, 0, 0, 0.4);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
             justify-content: center;
             align-items: center;
             padding: 1.5rem;
@@ -86,40 +86,58 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-full);
             background-color: var(--button-bg);
             color: var(--button-color);
-            padding: .45rem .25rem;
-            backdrop-filter: blur(.5rem) saturate(3);
-            box-shadow:
-                0 0 .25rem #0001,
-                inset 0 .1rem .025rem .025rem var(--glass-inner-hl),
-                inset 0 -.1rem .025rem .025rem var(--glass-inner-dl);
-            text-shadow: 0 0 .25rem var(--glass-inner-hl);
+            padding: .55rem 1.15rem;
             transition: var(--transition-fast);
-            transition-property: transform, background-color, color, box-shadow;
+            transition-property: transform, background-color, color, box-shadow, opacity;
             text-align: center;
             cursor: pointer;
             font-size: 1rem;
-            min-height: 2.25rem;
-            min-width: 2.25rem;
+            min-height: 2.4rem;
+            min-width: 2.4rem;
             text-decoration: none;
             -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
             animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
         }
 
         :host-context(hcw-card)>.inner-root,
         :host-context([hcw-card])>.inner-root {
+            background-color: var(--button-bg);
+            border-radius: var(--radius-full);
+            padding: .5rem 1.05rem;
+        }
+
+        :host-context(hcw-body-header)>.inner-root {
+            background-color: rgba(255, 255, 255, 0.14);
+            color: var(--nav-text);
+        }
+
+        :host-context(hcw-body-header)>.inner-root:hover {
+            background-color: rgba(255, 255, 255, 0.24);
+            color: #ffffff;
+        }
+
+        :host-context(hcw-body-header)[tp]>.inner-root {
             background-color: transparent;
-            box-shadow:
-                0 0 .25rem #0001,
-                inset 0 .1rem .015rem .015rem var(--glass-inner-hl),
-                inset 0 -.1rem .015rem .015rem var(--glass-inner-dl);
-            border-radius: var(--radius-md);
+        }
+
+        :host-context(hcw-body-header)[primary]>.inner-root {
+            background-color: var(--primary);
+            color: #ffffff;
+        }
+
+        :host-context(hcw-body-header)[primary]>.inner-root:hover {
+            background-color: var(--primary-hl);
+            color: #ffffff;
         }
 
         :host([large])>.inner-root {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
+            padding: .7rem 1.5rem;
         }
 
         :host([inline])>.inner-root {
@@ -128,7 +146,8 @@
 
         :host([icon])>.inner-root {
             aspect-ratio: 1;
-            height: 2rem;
+            height: 2.4rem;
+            padding: 0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -190,6 +209,11 @@
             cursor: not-allowed;
             box-shadow: none;
             color: var(--button-color-disabled);
+            opacity: .5;
+        }
+
+        :host(:active:not([disabled]))>.inner-root {
+            transform: scale(0.97);
         }
     </style>
     <div class="inner-root">
@@ -214,23 +238,26 @@
 
         input {
             appearance: none;
-            border: none;
+            border: 1px solid var(--border);
             position: relative;
             box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            border-radius: var(--radius-md);
+            display: block;
+            width: 100%;
+            border-radius: var(--radius-sm);
             background-color: var(--input-bg);
             color: var(--input-color);
-            padding: .75rem .45rem;
-            backdrop-filter: blur(.5rem) saturate(3);
-            text-shadow: 0 0 .25rem var(--glass-inner-hl);
+            padding: .7rem 1rem;
             transition: var(--transition-fast);
-            transition-property: transform, background-color, color, box-shadow;
+            transition-property: background-color, color, box-shadow, border-color;
             cursor: text;
             font-size: 1rem;
-            border: .15rem solid #8881;
+            outline: none;
             animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-focus);
         }
 
         :host([large]) input {
@@ -288,23 +315,27 @@
         textarea {
             height:110px;
             appearance: none;
-            border: none;
+            border: 1px solid var(--border);
             position: relative;
             box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            border-radius: var(--radius-md);
+            display: block;
+            width: 100%;
+            border-radius: var(--radius-sm);
             background-color: var(--input-bg);
             color: var(--input-color);
-            padding: .75rem .45rem;
-            backdrop-filter: blur(.5rem) saturate(3);
-            text-shadow: 0 0 .25rem var(--glass-inner-hl);
+            padding: .7rem 1rem;
             transition: var(--transition-fast);
-            transition-property: transform, background-color, color, box-shadow;
+            transition-property: background-color, color, box-shadow, border-color;
             cursor: text;
             font-size: 1rem;
-            border: .15rem solid #8881;
+            outline: none;
+            resize: vertical;
             animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+        }
+
+        textarea:focus {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-focus);
         }
 
         :host([large]) textarea {
@@ -401,17 +432,12 @@
             display: flex;
             flex-direction: column;
             border-radius: var(--radius-lg);
-            background-color: var(--glass-bg);
-            color: var(--glass-text);
-            padding: 1rem;
-            backdrop-filter: blur(.5rem) saturate(3);
-            box-shadow:
-                0 0 .25rem #0001,
-                inset 0 .1rem .025rem .025rem var(--glass-inner-hl),
-                inset 0 -.1rem .025rem .025rem var(--glass-inner-dl);
-            text-shadow: 0 0 .25rem var(--glass-inner-hl);
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            padding: 1.25rem 1.5rem;
+            border: 1px solid var(--border-light);
+            box-shadow: var(--shadow-xl);
             transition: var(--transition-fast);
-            transition-property: transform, background-color, color, box-shadow;
             overflow: hidden;
             margin-bottom: 5rem;
         }

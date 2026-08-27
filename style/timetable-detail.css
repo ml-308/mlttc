@@ -1,5 +1,6 @@
+@import url('./main.css');
 /* ============================================
-   时刻表详情页样式
+   时刻表详情页样式（Apple 风格）
    ============================================ */
 
 /* 加载状态 */
@@ -55,93 +56,37 @@
     gap: 1rem;
     margin-bottom: 1.5rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-light);
     flex-wrap: wrap;
 }
 
 .detail-title {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     font-weight: 700;
+    letter-spacing: -0.015em;
     color: var(--text-primary);
     margin: 0;
 }
 
 .detail-id {
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: var(--text-muted);
-    background: rgba(0,0,0,0.04);
-    padding: 4px 10px;
-    border-radius: 4px;
-    letter-spacing: 0.03em;
+    background: var(--bg-hover);
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    letter-spacing: 0.02em;
     white-space: nowrap;
 }
 
-[data-theme="dark"] .detail-id {
-    background: rgba(255,255,255,0.08);
-    color: #ccc;
-}
-
-/* ── 详情页深色模式 ── */
-[data-theme="dark"] .detail-card {
-    background: #111;
-    border-color: rgba(255,255,255,0.08);
-    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-}
-
-[data-theme="dark"] .detail-card .detail-value {
-    color: #f0f0f0;
-}
-
-[data-theme="dark"] .detail-card .detail-label {
-    color: #ffffff;
-}
-
-[data-theme="dark"] .detail-section-title {
-    color: #5bc0eb;
-    border-bottom-color: rgba(255,255,255,0.08);
-}
-
-[data-theme="dark"] .detail-time-chip {
-    background: #1a1a1a;
-    border-color: rgba(255,255,255,0.08);
-    color: #e0e0e0;
-}
-
-[data-theme="dark"] .detail-time-chip:hover {
-    border-color: var(--primary);
-    background: #0d2b4a;
-    color: #6bc8ff;
-}
-
-[data-theme="dark"] .detail-meta-card {
-    background: #111;
-}
-
-[data-theme="dark"] .detail-meta-row + .detail-meta-row {
-    border-top-color: rgba(255,255,255,0.06);
-}
-
-[data-theme="dark"] .detail-meta-label {
-    color: #bbb;
-}
-
-[data-theme="dark"] .detail-header {
-    border-bottom-color: rgba(255,255,255,0.08);
-}
-
-[data-theme="dark"] .detail-title {
-    color: #fff;
-}
+/* ── 深色模式：详情页由主题变量自动适配 ── */
 
 /* 详情卡片 */
 .detail-card {
     background: var(--bg-card);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-light);
     border-radius: var(--radius-md);
     padding: 1.25rem 1.5rem;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     box-shadow: var(--shadow-xs);
     margin-bottom: 1rem;
     animation: cardEnter 0.3s ease forwards;
@@ -183,8 +128,8 @@
 }
 
 .detail-label {
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-size: 0.76rem;
+    font-weight: 500;
     color: var(--text-muted);
     letter-spacing: 0.02em;
     text-transform: uppercase;
@@ -201,7 +146,7 @@
 .detail-section-title {
     font-size: 1rem;
     font-weight: 600;
-    color: var(--primary-light);
+    color: var(--primary);
     margin-bottom: 0.75rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--border-light);
@@ -218,9 +163,9 @@
     align-items: center;
     justify-content: center;
     padding: 6px 14px;
-    background: var(--bg-page);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    background: var(--bg-hover);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-full);
     font-family: var(--font-mono);
     font-size: 0.85rem;
     color: var(--text-secondary);
@@ -229,7 +174,7 @@
 
 .detail-time-chip:hover {
     border-color: var(--primary);
-    background: var(--primary-light);
+    background: var(--primary-bg);
     color: var(--primary);
 }
 
@@ -280,7 +225,7 @@
     }
 
     .detail-title {
-        font-size: 1.25rem;
+        font-size: 1.4rem;
     }
 
     .detail-info-grid {
@@ -299,7 +244,7 @@
 
 @media (max-width: 480px) {
     .detail-title {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
     }
 
     .detail-meta-row {
