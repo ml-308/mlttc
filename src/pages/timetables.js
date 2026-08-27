@@ -1038,17 +1038,11 @@ function renderPage() {
             </div>
             <div class="result-item-body">
                 <div class="result-item-stations">
-                    <span class="station-label">起点</span>
                     <span class="station-name">${item.START}</span>
-                    <span class="station-arrow">→</span>
-                    <span class="station-label">终点</span>
+                    <span class="station-arrow">↔</span>
                     <span class="station-name">${item.END}</span>
                 </div>
                 ${item.SPECIAL && item.SPECIAL !== '无' ? `<div class="result-item-note">${item.SPECIAL}</div>` : ''}
-                <div class="result-item-meta">
-                    <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
-                    <span>作者: ${item.WRITER_NAME || item.WRITER || '未知'}</span>
-                </div>
             </div>
         `;
 
