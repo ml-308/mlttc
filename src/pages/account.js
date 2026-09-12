@@ -67,6 +67,37 @@ function timetableLevel(item) {
   return 1;
 }
 
+/**
+ * 身份定义：key → 显示名与标识颜色
+ * 颜色对应 style/main.css 中的 --role-* 变量，如需调整只改那里即可
+ */
+const ROLE_INFO = {
+  admin: { label: '管理员', color: 'var(--role-admin)' },
+  station: { label: '站长', color: 'var(--role-station)' },
+  user: { label: '普通用户', color: 'var(--role-user)' }
+};
+
+/**
+ * 解析用户身份
+ * 优先使用后端 /api/profile 返回的 role / roleLabel；
+ * 若后端未返回（旧响应），则按 adm 原始值兜底判断（兼容大小写与前后空格）
+ * @returns {{key:'admin'|'station'|'user', label:string, color:string}}
+ */
+function resolveRole(user) {
+  if (!user) return { key: 'user', ...ROLE_INFO.user };
+
+  const key = String(user.role ?? '').trim().toLowerCase();
+  if (ROLE_INFO[key]) {
+    return { key, label: user.roleLabel || ROLE_INFO[key].label, color: ROLE_INFO[key].color };
+  }
+
+  const adm = String(user.adm ?? '').trim().toLowerCase();
+  let fallbackKey = 'user';
+  if (adm === 'adm' || adm === 'admin') fallbackKey = 'admin';
+  else if (adm === 'station' || adm === '站长') fallbackKey = 'station';
+  return { key: fallbackKey, ...ROLE_INFO[fallbackKey] };
+}
+
 async function loadProfile() {
   try {
     const res = await fetch('/api/profile', { credentials: 'include' });
@@ -82,14 +113,13 @@ async function loadProfile() {
     if (user.registertime) {
       document.getElementById('profileRegDate').textContent = user.registertime;
     }
-    // 显示身份
+    // 显示身份（优先用后端返回的 role/roleLabel，缺失时按 adm 兜底）
     const typeEl = document.getElementById('profileAccountType');
-    if (user.adm && user.adm =="adm") {
-      typeEl.textContent = '管理员';
-      typeEl.style.background = 'var(--danger, #e74c3c)';
-    } else {
-      typeEl.textContent = '普通用户';
-      typeEl.style.background = 'var(--primary)';
+    if (typeEl) {
+      const role = resolveRole(user);
+      typeEl.textContent = role.label;
+      typeEl.style.background = role.color;
+      typeEl.dataset.role = role.key;
     }
     // 更新 cookie 中的昵称（无论是否有值，都写入以便 header 判断登录状态）
     document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=3600; SameSite=Lax`;

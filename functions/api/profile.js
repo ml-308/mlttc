@@ -29,6 +29,29 @@ function setCorsHeaders(response) {
   return response;
 }
 
+// ─── 用户身份（角色）判定 ─────────────────────────
+// 数据来源：USER.adm 列。在此统一解析后随资料一起返回，
+// 前端直接使用 role / roleLabel 显示，无需再比对原始值
+// （避免大小写、前后空格导致判定失败）
+const ROLE_INFO = {
+  adm: { key: 'admin', label: '管理员' },
+  admin: { key: 'admin', label: '管理员' },
+  station: { key: 'station', label: '站长' },
+  '站长': { key: 'station', label: '站长' }
+};
+const ROLE_USER = { key: 'user', label: '普通用户' };
+
+/**
+ * 把 adm 原始值解析为标准角色
+ * @param {string|null|undefined} adm 数据库中的身份值
+ * @returns {{key:'admin'|'station'|'user', label:string}}
+ */
+function parseRole(adm) {
+  if (adm === null || adm === undefined) return ROLE_USER;
+  const raw = String(adm).trim().toLowerCase();
+  return ROLE_INFO[raw] || ROLE_USER;
+}
+
 export async function onRequestGet({ request, env }) {
   try {
     let token = null;
@@ -67,7 +90,14 @@ export async function onRequestGet({ request, env }) {
       return setCorsHeaders(response);
     }
 
-    const response = new Response(JSON.stringify({ user }), {
+    // 统一身份判定：前端可直接使用 user.roleLabel 显示身份
+    const role = parseRole(user.adm);
+
+    const response = new Response(JSON.stringify({
+      user: { ...user, role: role.key, roleLabel: role.label },
+      role: role.key,
+      roleLabel: role.label
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });

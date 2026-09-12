@@ -652,6 +652,11 @@ a:hover {
     --radius-xl: 1.5rem;
     --radius-full: 980px;    /* Apple 胶囊按钮 */
 
+    /* 用户身份标识色（个人页身份徽章等） */
+    --role-admin: var(--danger);    /* 管理员 */
+    --role-station: var(--warning); /* 站长（如需紫色可改为 #5f00c5） */
+    --role-user: var(--primary);    /* 普通用户 */
+
     font-size: 16px;
 }
 
