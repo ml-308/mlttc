@@ -1,3 +1,6 @@
+// 用户同意（与 /src/auth-header.js 共用同一模块实例）
+import { setConsent } from '/src/consent.js';
+
 //showmsg
 function showMessage(msg, isError) {
   const box = document.getElementById('errormsg');
@@ -72,6 +75,11 @@ const pass=document.getElementById('pass');
 const password=document.getElementById('password');
 const passwordconfirm=document.getElementById('passwordconfirm');
 
+//同意勾选
+const consentAgree=document.getElementById('agreeConsent');
+const consentAgreeBox=document.getElementById('consentAgreeBox');
+const agreeMsg=document.getElementById('agreeMsg');
+
 //MSG
 const emailmsg=document.getElementById('emailMsg');
 const passmsg=document.getElementById('passMsg');
@@ -87,6 +95,16 @@ email.addEventListener("input",emailinput);
 pass.addEventListener("input",passinput);
 password.addEventListener("input",passwordinput);
 passwordconfirm.addEventListener("input",passwordconfirminput);
+
+//同意勾选：勾选后清除警告提示
+consentAgree.addEventListener("change",consentChange);
+
+function consentChange(){
+    if(consentAgree.checked){
+        consentAgreeBox.classList.remove('invalid','shake');
+        agreeMsg.style.display='none';
+    }
+}
 
 let judge={
     email:0,
@@ -200,6 +218,23 @@ function refisterbtnclick(){
     passinput();
     passwordinput();
     passwordconfirminput();
+
+    // 必须阅读并同意《用户协议》与《隐私政策》
+    if(!consentAgree.checked){
+        agreeMsg.style.display='block';
+        agreeMsg.style.color='var(--danger)';
+        agreeMsg.textContent='请先阅读并勾选同意《用户协议》与《隐私政策》';
+        consentAgreeBox.classList.add('invalid');
+        // 重新触发抖动动画
+        consentAgreeBox.classList.remove('shake');
+        void consentAgreeBox.offsetWidth;
+        consentAgreeBox.classList.add('shake');
+        consentAgree.focus();
+        return;
+    }
+    consentAgreeBox.classList.remove('invalid','shake');
+    agreeMsg.style.display='none';
+
     console.log(judge);
     if(judge.email!=1||judge.pass!=1||judge.password!=1||judge.passwordconfirm!=1){
         console.log('error');
@@ -212,12 +247,17 @@ function refisterbtnclick(){
 
 async function writeD1(email,password){
     console.log('writeD1');
+    // 记录用户同意（本地保存条款版本与时间）
+    const consent=setConsent({ source:'register', email: email });
     const res = await fetch('/api/register-D1', {
         method: 'POST',
-        heaers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
         email: email,
-        password: password
+        password: password,
+        agree: true,
+        policyVersion: consent.version,
+        agreedAt: consent.time
   })
 });
     const data=await res.json();

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<meta name="description" content="MLTTC 用户协议、隐私政策与 Cookie 与本地存储说明">
+	<title>用户协议与隐私政策 - MLTTC</title>
+	<link rel="stylesheet" href="style/legal.css">
+	<script src="src/pages/main.js" type="module"></script>
+	<script src="lib/ui/init.mjs" type="module"></script>
+	<script src="/lib/ui/popup.mjs" type="module"></script>
+	<script src="/src/auth-header.js" type="module"></script>
+</head>
+
+<body>
+	<hcw-body-header>
+		<a hcw-button flat fill href="/index.html" style="min-width: 5rem;">返回</a>
+		<div class="logo-area">
+			<div class="logo-text">
+				MLTTC - 法律条款
+			</div>
+		</div>
+		<div id="headerAuthArea">
+			<!-- 主题切换按钮 -->
+			<hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
+			<hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem">登录</hcw-button>
+			<div id="globalUserInfo" style="display: none;">
+				<span>欢迎，<strong id="globalDisplayName">用户</strong></span>
+				<hcw-button id="globalLogoutBtn" tp flat inline style="min-width: 5rem">退出</hcw-button>
+			</div>
+		</div>
+	</hcw-body-header>
+
+	<hcw-article class="legal">
+		<header class="legal-head">
+			<p class="legal-kicker">法律条款</p>
+			<h1>用户协议与隐私政策</h1>
+			<p class="legal-meta">版本 <b>v1.0</b>　·　生效日期：2026 年 9 月 12 日</p>
+			<p class="legal-lead">
+				MLTTC（马陆梦想家时刻表项目）是由爱好者义务维护的<b>公益性</b>公交与班车时刻表整理、查询项目。
+				我们只收集为提供服务所必需的最少信息，<b>不投放广告、不进行用户画像、不出售或出租你的个人信息</b>。
+				注册账号或使用本站服务，即表示你已阅读、理解并同意以下全部条款。
+			</p>
+			<nav class="legal-toc" aria-label="目录">
+				<a href="#terms">一、用户协议</a>
+				<a href="#privacy">二、隐私政策</a>
+				<a href="#cookies">三、Cookie 与本地存储</a>
+				<a href="#thirdparty">四、第三方服务</a>
+				<a href="#minors">五、未成年人保护</a>
+				<a href="#rights">六、你的权利</a>
+				<a href="#changes">七、条款更新</a>
+				<a href="#contact">八、联系我们</a>
+			</nav>
+		</header>
+
+		<!-- ============ 一、用户协议 ============ -->
+		<section class="legal-section" id="terms">
+			<h2>一、用户协议</h2>
+
+			<h3>1. 服务内容</h3>
+			<p>本站提供公交、班车等公共交通时刻表信息的整理、查询与提交功能。站内时刻表数据由用户自发提交，经管理员审核后公开展示。</p>
+
+			<h3>2. 数据准确性免责</h3>
+			<p>本站数据仅供参考，<b>不保证及时性、完整性与准确性</b>。线路调整、临时改点等情况可能未被及时收录，出行请以公交运营企业、站牌等官方渠道发布的信息为准。因使用或依赖本站信息而产生的任何损失，本站不承担责任。</p>
+
+			<h3>3. 账号与安全</h3>
+			<ul>
+				<li>本站采用<b>邀请制注册</b>，需持有与邮箱匹配的有效注册码才能创建账号。</li>
+				<li>请妥善保管账号与密码。因个人保管不当（如密码过于简单、主动告知他人）造成的损失，由你自行承担。</li>
+				<li>禁止将账号转借、转让、出租或以其他方式供他人使用。</li>
+				<li>一个用户原则上仅应持有一个账号，请勿批量注册占用资源。</li>
+			</ul>
+
+			<h3>4. 用户行为规范</h3>
+			<p>使用本站时，你承诺不进行以下行为：</p>
+			<ul>
+				<li>提交虚假、臆造或恶意篡改的时刻表数据；</li>
+				<li>提交违反法律法规、侵犯他人合法权益，或含有辱骂、歧视、色情、暴力等内容的信息；</li>
+				<li>使用爬虫、自动化脚本等手段批量抓取数据或高频请求接口，影响服务正常运行；</li>
+				<li>尝试绕过权限限制、攻击、入侵或以其他方式破坏本站及其后端服务；</li>
+				<li>其他损害本站、其他用户或第三方合法权益的行为。</li>
+			</ul>
+
+			<h3>5. 内容权利与授权</h3>
+			<p>你提交的时刻表数据将<b>公开展示</b>，用于公益查询目的。你授权本站存储、整理、展示并对内容作必要的规范化编辑；你保留对自己提交内容的权利。管理员有权对不符合规范或存在争议的内容进行修改、驳回或删除。</p>
+
+			<h3>6. 违规处理</h3>
+			<p>若你违反本协议，本站有权在不事先通知的情况下删除相关内容、限制功能使用或封禁账号。</p>
+
+			<h3>7. 服务变更与终止</h3>
+			<p>本站为义务维护的公益项目，可能因日常维护、功能升级、资源限制或不可抗力而中断、变更或终止全部或部分服务，恕不另行通知。本站不对因此造成的不便承担赔偿责任。</p>
+		</section>
+
+		<!-- ============ 二、隐私政策 ============ -->
+		<section class="legal-section" id="privacy">
+			<h2>二、隐私政策</h2>
+
+			<h3>1. 我们收集哪些信息</h3>
+			<p>我们仅收集实现功能所必需的信息，具体如下：</p>
+			<div class="legal-table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>场景</th>
+							<th>收集内容</th>
+							<th>目的</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>注册账号</td>
+							<td>邮箱、密码、注册时间</td>
+							<td>创建账号、身份识别与登录验证</td>
+						</tr>
+						<tr>
+							<td>个人资料</td>
+							<td>昵称（最多 6 字）、所在地（最多 6 字）</td>
+							<td>在页头与个人主页展示，并用于区分同名用户</td>
+						</tr>
+						<tr>
+							<td>提交时刻表</td>
+							<td>城市、线路、起点站、终点站、时刻表、备注、执行时间、写入时间、写入者邮箱</td>
+							<td>整理与展示公共交通信息，便于审核、核对与联系提交者</td>
+						</tr>
+						<tr>
+							<td>BUG 反馈</td>
+							<td>反馈内容、你的邮箱</td>
+							<td>定位问题、联系你以确认细节、改进服务</td>
+						</tr>
+						<tr>
+							<td>保持登录</td>
+							<td>登录凭证 Cookie（签名令牌）</td>
+							<td>维持登录状态、验证请求身份</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+			<p class="legal-note">我们<b>不会</b>收集你的真实姓名、身份证件号码、手机号、精确地理位置、通讯录、相册或设备通讯记录等信息。</p>
+
+			<h3>2. 密码是如何保存的</h3>
+			<p>密码<b>不会以明文形式保存</b>。我们使用 <b>PBKDF2-SHA256</b> 算法，为每个账号生成独立的随机盐（16 字节）并迭代 <b>100,000</b> 次后得到哈希值，数据库中仅保存该哈希值。即使数据库发生泄露，攻击者也无法直接还原出你的原始密码。</p>
+
+			<h3>3. 信息如何使用</h3>
+			<ul>
+				<li>提供并维护账号、登录、权限与个人资料功能；</li>
+				<li>展示、审核、整理你提交的时刻表数据；</li>
+				<li>处理反馈、排查故障，并保障服务安全（例如识别异常高频请求）；</li>
+				<li>履行法律法规规定的义务。</li>
+			</ul>
+			<p>我们不会将你的个人信息用于上述目的之外的用途。</p>
+
+			<h3>4. 信息存储与安全</h3>
+			<ul>
+				<li>本站托管于 <b>Cloudflare</b> 平台，数据存储于 Cloudflare <b>D1</b>（关系型数据库）与 <b>KV</b>（键值存储），服务器可能位于中国大陆境外。</li>
+				<li>全站启用 <b>HTTPS</b> 加密传输；登录凭证使用带 <code>HttpOnly</code>、<code>Secure</code>、<code>SameSite</code> 属性的 Cookie 保存，页面脚本无法读取该 Cookie 的内容。</li>
+				<li>接口通过签名令牌（JWT）校验身份，并限制跨域请求来源。</li>
+				<li>我们遵循最小必要原则，仅保存实现功能所需的数据。</li>
+				<li>但请理解，互联网环境不存在绝对的安全，我们无法承诺百分之百的安全保障。</li>
+			</ul>
+
+			<h3>5. 信息共享</h3>
+			<p>除下列情形外，我们不会向任何第三方提供你的个人信息：</p>
+			<ul>
+				<li>你提交的时刻表内容（含写入者邮箱）本身即为<b>公开数据</b>，会在查询结果与详情页中展示；</li>
+				<li>根据法律法规要求，或应司法机关、行政机关的合法要求；</li>
+				<li>为保护本站、其他用户或社会公众的合法权益与人身财产安全所必需。</li>
+			</ul>
+
+			<h3>6. 保存期限</h3>
+			<ul>
+				<li><b>账号信息</b>（邮箱、密码哈希、昵称、所在地、注册时间）：保存至你注销账号或申请删除为止；</li>
+				<li><b>时刻表数据</b>：作为公开的公益数据长期保留。你可在个人主页自行删除；如需删除他人可见的历史记录，请与我们联系；</li>
+				<li><b>BUG 反馈记录</b>：处理完毕后删除，或最长保留 12 个月；</li>
+				<li><b>登录凭证 Cookie</b>：最长 30 天，或在你点击「退出」时立即失效。</li>
+			</ul>
+		</section>
+
+		<!-- ============ 三、Cookie 与本地存储 ============ -->
+		<section class="legal-section" id="cookies">
+			<h2>三、Cookie 与本地存储</h2>
+			<p>本站使用少量 Cookie 与浏览器本地存储（localStorage / sessionStorage）来实现基本功能。<b>本站不使用广告 Cookie，也不进行跨网站追踪。</b></p>
+
+			<h3>1. Cookie</h3>
+			<div class="legal-table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>名称</th>
+							<th>类型</th>
+							<th>用途</th>
+							<th>期限</th>
+							<th>安全属性</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td><code>auth_token</code></td>
+							<td>必需</td>
+							<td>登录凭证（签名令牌），用于确认你的登录身份</td>
+							<td>30 天</td>
+							<td>HttpOnly、Secure、SameSite=None</td>
+						</tr>
+						<tr>
+							<td><code>user_name</code></td>
+							<td>必需</td>
+							<td>在页面顶部显示你的昵称</td>
+							<td>1 小时</td>
+							<td>Secure、SameSite=Lax</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+			<p class="legal-note">这两个 Cookie 均为<b>实现登录所必需</b>，并非用于广告或分析。若禁用它们，你将无法保持登录状态。</p>
+
+			<h3>2. 浏览器本地存储</h3>
+			<div class="legal-table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>键名</th>
+							<th>存储位置</th>
+							<th>用途</th>
+							<th>期限</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td><code>mlttc-theme</code></td>
+							<td>localStorage</td>
+							<td>记住你选择的深色 / 浅色主题</td>
+							<td>直到你清除浏览器数据</td>
+						</tr>
+						<tr>
+							<td><code>mlttc_consent</code></td>
+							<td>localStorage</td>
+							<td>记录你对本说明的确认版本与时间，避免重复提示</td>
+							<td>直到你清除浏览器数据</td>
+						</tr>
+						<tr>
+							<td><code>snake_best_score</code></td>
+							<td>localStorage</td>
+							<td>保存贪吃蛇小游戏的本地最高分</td>
+							<td>直到你清除浏览器数据</td>
+						</tr>
+						<tr>
+							<td><code>account_tt_cache</code></td>
+							<td>sessionStorage</td>
+							<td>临时缓存「我的时刻表」列表，减少重复请求</td>
+							<td>关闭标签页后自动清除</td>
+						</tr>
+						<tr>
+							<td><code>timetable_search_state</code></td>
+							<td>sessionStorage</td>
+							<td>临时记录搜索条件，便于从详情页返回时恢复结果</td>
+							<td>关闭标签页后自动清除</td>
+						</tr>
+						<tr>
+							<td><code>admin_token</code>、<code>admin_email</code>、<code>admin_logged_in</code></td>
+							<td>sessionStorage</td>
+							<td>管理后台临时会话（仅管理员使用）</td>
+							<td>关闭标签页后自动清除</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<h3>3. 如何管理这些数据</h3>
+			<p>你可以随时在浏览器设置中查看、删除 Cookie 与本地存储数据。也可以点击下方按钮，一键清除本站保存在<b>当前浏览器</b>中的本地数据并退出登录：</p>
+			<p><button hcw-button flat id="clearStorageBtn" type="button">清除本站本地数据并退出登录</button></p>
+			<p class="legal-note">请注意：此操作只影响当前浏览器，<b>不会</b>删除服务器上的账号与你已提交的时刻表数据。如需删除账号，请参阅「你的权利」一节。</p>
+		</section>
+
+		<!-- ============ 四、第三方服务 ============ -->
+		<section class="legal-section" id="thirdparty">
+			<h2>四、第三方服务</h2>
+			<p>本站依赖以下第三方服务运行：</p>
+			<ul>
+				<li><b>Cloudflare</b>（网站托管、CDN 加速、D1 数据库、KV 键值存储）：作为基础设施服务商，其可能处理访问日志等必要的技术数据。</li>
+				<li><b>Cloudflare Web Analytics</b>（访问统计，<b>仅首页</b>加载）：用于了解页面访问量。该服务不使用 Cookie、不进行设备指纹识别、不采集可识别个人身份的信息，也不进行跨网站追踪。</li>
+			</ul>
+			<p class="legal-note">除上述基础设施与统计服务外，本站未接入任何广告联盟、数据服务商或其他第三方追踪工具。</p>
+		</section>
+
+		<!-- ============ 五、未成年人保护 ============ -->
+		<section class="legal-section" id="minors">
+			<h2>五、未成年人保护</h2>
+			<p>本站主要面向学生与公共交通爱好者群体，我们格外重视未成年人个人信息保护：</p>
+			<ul>
+				<li>若你<b>未满 14 周岁</b>，请在监护人陪同下阅读本政策，并在取得监护人同意后，方可注册或使用本站；</li>
+				<li>若你<b>未满 18 周岁</b>，请在监护人指导下使用本站，并避免填写除邮箱之外的任何个人身份信息；</li>
+				<li>我们不会主动向未成年人收集本政策未列明的个人信息；</li>
+				<li>若监护人发现未成年人未经同意注册了本站账号，可通过下方联系方式告知我们，我们将在核实后协助删除账号及相关数据。</li>
+			</ul>
+		</section>
+
+		<!-- ============ 六、你的权利 ============ -->
+		<section class="legal-section" id="rights">
+			<h2>六、你的权利</h2>
+			<ul>
+				<li><b>查阅</b>：在「个人主页」查看你的邮箱、昵称、所在地、注册时间，以及你已提交的全部时刻表；</li>
+				<li><b>更正</b>：在「个人主页 → 个人设置」中修改昵称与所在地；时刻表内容如有错误，请使用「修改时刻表」提交更正；</li>
+				<li><b>删除</b>：在个人主页删除自己提交的时刻表；如需删除账号及其全部数据，请通过站内反馈或下方联系方式提出申请，我们将在核实身份后处理；</li>
+				<li><b>撤回同意</b>：你可以随时清除浏览器本地数据；若不同意本政策，请停止使用本站并申请删除账号。</li>
+			</ul>
+		</section>
+
+		<!-- ============ 七、条款更新 ============ -->
+		<section class="legal-section" id="changes">
+			<h2>七、条款更新</h2>
+			<p>我们可能根据功能调整或法律法规要求更新本文档。更新后，本页顶部的<b>版本号</b>与<b>生效日期</b>会同步变更，涉及权利变化的重大更新会在站内显著位置提示，并在必要时重新征求你的同意。</p>
+			<p>若你在条款更新后继续使用本站，即视为你接受更新后的内容；若你不同意，请停止使用本站并申请删除账号。</p>
+		</section>
+
+		<!-- ============ 八、联系我们 ============ -->
+		<section class="legal-section" id="contact">
+			<h2>八、联系我们</h2>
+			<p>如对本政策有任何疑问、意见或投诉，或需要行使上述权利，可通过以下方式联系我们：</p>
+			<ul>
+				<li>登录后使用站内「BUG 反馈」入口；</li>
+				<li>哔哩哔哩：<a href="https://space.bilibili.com/3493109946124506" target="_blank" rel="noopener">马陆梦想家</a>、<a href="https://space.bilibili.com/582594431" target="_blank" rel="noopener">LoFF_RtN</a></li>
+			</ul>
+			<p class="legal-note">本站为爱好者义务维护的公益项目，无全职客服。我们会在合理时间内尽力回复与处理，感谢理解与支持。</p>
+		</section>
+	</hcw-article>
+
+	<hcw-body-footer></hcw-body-footer>
+
+	<!-- 登录模态框 -->
+	<div id="globalLoginModal" class="modal" style="align-items: center; display: none;">
+		<div hcw-modal>
+			<div hcw-modal-title>
+				<h3>登录系统</h3>
+				<hcw-button tp icon id="closeModalBtn">&times;</hcw-button>
+			</div>
+			<div hcw-modal-body>
+				<hcw-input primary label="用户名" type="text" id="username" placeholder="邮箱/昵称" autocomplete="off"
+					required></hcw-input>
+				<hcw-input label="密码" type="password" id="password" placeholder="请输入密码" required></hcw-input>
+				<div id="ErrorLogin" class="error-msg">
+					<p>用户名或密码错误，请重新输入</p>
+				</div>
+				<hcw-button primary large id="login-btn" type="submit">登 录</hcw-button>
+				<hcw-button id='RegisterBtn' large href="register.html">
+					注册账户
+				</hcw-button>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>

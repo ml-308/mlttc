@@ -1,0 +1,190 @@
+@import url('./main.css');
+
+/* ============================================
+   法务页面（用户协议 / 隐私政策）长文排版
+   ============================================ */
+
+.legal {
+    max-width: 820px;
+    gap: 0;
+}
+
+/* ---------- 页头 ---------- */
+.legal-head {
+    padding-bottom: .5rem;
+    animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+}
+
+.legal-kicker {
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: .35rem;
+}
+
+.legal h1 {
+    font-size: clamp(1.75rem, 5vw, 2.35rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--text-primary);
+    margin-bottom: .5rem;
+}
+
+.legal-meta {
+    font-size: .82rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+}
+
+.legal-meta b {
+    color: var(--text-secondary);
+}
+
+.legal-lead {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+}
+
+/* ---------- 目录 ---------- */
+.legal-toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem .95rem;
+    padding: .85rem 1rem;
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+}
+
+.legal-toc a {
+    font-size: .85rem;
+    color: var(--link-color);
+}
+
+/* ---------- 章节 ---------- */
+.legal-section {
+    padding: 1.75rem 0;
+    border-top: 1px solid var(--border-light);
+}
+
+.legal-section h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--text-primary);
+    margin-bottom: .75rem;
+}
+
+.legal-section h3 {
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 1.15rem 0 .4rem;
+}
+
+.legal-section p,
+.legal-section li {
+    font-size: .88rem;
+    line-height: 1.8;
+    color: var(--text-secondary);
+}
+
+.legal-section p+p {
+    margin-top: .5rem;
+}
+
+.legal-section ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    margin: .35rem 0;
+}
+
+.legal-section b,
+.legal-section strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.legal-section code {
+    font-family: var(--font-mono);
+    font-size: .85em;
+    background: var(--bg-hover);
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+    word-break: break-all;
+}
+
+.legal-section a {
+    color: var(--link-color);
+}
+
+/* ---------- 表格 ---------- */
+.legal-table-wrap {
+    overflow-x: auto;
+    margin: .6rem 0;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+}
+
+.legal table {
+    width: 100%;
+    min-width: 32rem;
+    border-collapse: collapse;
+    font-size: .82rem;
+}
+
+.legal th,
+.legal td {
+    text-align: left;
+    padding: .6rem .75rem;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: top;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.legal th {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.legal tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ---------- 附注 ---------- */
+.legal-note {
+    font-size: .8rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    margin-top: .5rem;
+}
+
+.legal-section hcw-button,
+.legal-section [hcw-button] {
+    margin-top: .35rem;
+}
+
+@media (max-width: 600px) {
+    .legal-section {
+        padding: 1.4rem 0;
+    }
+
+    .legal-toc {
+        gap: .35rem .8rem;
+        padding: .7rem .8rem;
+    }
+
+    .legal-toc a {
+        font-size: .8rem;
+    }
+}

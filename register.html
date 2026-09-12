@@ -48,6 +48,21 @@
                         >
                     <p id="passwordconfirmMsg" class='LP' style="display: none;"></p>
                 </div>
+
+                <!-- 用户同意：必须勾选后方可注册 -->
+                <div class="consent-agree" id="consentAgreeBox">
+                    <label for="agreeConsent">
+                        <input type="checkbox" id="agreeConsent">
+                        <span>我已阅读并同意
+                            <a href="legal.html#terms" target="_blank" rel="noopener">《用户协议》</a>与
+                            <a href="legal.html#privacy" target="_blank" rel="noopener">《隐私政策》</a>，
+                            并了解本站会使用必要的 Cookie 与本地存储（<a href="legal.html#cookies" target="_blank"
+                                rel="noopener">Cookie 说明</a>）。
+                        </span>
+                    </label>
+                    <p id="agreeMsg" class='LP' style="display: none;"></p>
+                </div>
+
                 <br>
                 <button hcw-button primary flat style="min-width: 8rem;" type="submit" id="registerbtn">注 册</button>
                 <div class="error-msg" id="errorMsg" style="display: none;"></div>

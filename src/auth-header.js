@@ -1,5 +1,9 @@
 // js/auth-header.js
 
+// 用户同意（Cookie / 本地存储告知横幅、登录前提示、同意记录）
+// 引入后于站点全部页面自动生效
+import './consent.js';
+
 // 从 cookie 中读取指定名称的值
 function getCookie(name) {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));

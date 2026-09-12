@@ -109,7 +109,22 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    const { email, password } = body;
+    const { email, password, agree, policyVersion, agreedAt } = body;
+
+    // 必须明确同意《用户协议》与《隐私政策》后方可注册（服务端强制校验，防止绕过前端）
+    if (agree !== true) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: '请先阅读并同意《用户协议》与《隐私政策》后再注册'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // 同意留痕：记录条款版本与同意时间，便于日后核查
+    console.log(`[consent] email=${email} version=${policyVersion || 'unknown'} agreedAt=${agreedAt || new Date().toISOString()}`);
+
     if (!email || !password) {
       return new Response(JSON.stringify({ success: false, message: '邮箱和密码不能为空' }), {
         status: 400,
