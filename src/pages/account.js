@@ -91,10 +91,12 @@ function resolveRole(user) {
     return { key, label: user.roleLabel || ROLE_INFO[key].label, color: ROLE_INFO[key].color };
   }
 
+  // 兜底：后端未返回 role 时按 adm 原始值判断
+  // 注意 adm 已 toLowerCase()，所以比对值必须用小写
   const adm = String(user.adm ?? '').trim().toLowerCase();
   let fallbackKey = 'user';
   if (adm === 'adm' || adm === 'admin') fallbackKey = 'admin';
-  else if (adm === 'STATION' || adm === '站长') fallbackKey = 'STATION';
+  else if (adm === 'station' || adm === '站长') fallbackKey = 'station';
   return { key: fallbackKey, ...ROLE_INFO[fallbackKey] };
 }
 

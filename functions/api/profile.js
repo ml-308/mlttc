@@ -33,16 +33,17 @@ function setCorsHeaders(response) {
 // 数据来源：USER.adm 列。在此统一解析后随资料一起返回，
 // 前端直接使用 role / roleLabel 显示，无需再比对原始值
 // （避免大小写、前后空格导致判定失败）
+// 注意：查表前会做 toLowerCase()，所以此表的键必须全部小写
 const ROLE_INFO = {
   adm: { key: 'admin', label: '管理员' },
   admin: { key: 'admin', label: '管理员' },
-  STATION: { key: 'STATION', label: '站长' },
-  '站长': { key: 'STATION', label: '站长' }
+  station: { key: 'station', label: '站长' },
+  '站长': { key: 'station', label: '站长' }
 };
 const ROLE_USER = { key: 'user', label: '普通用户' };
 
 /**
- * 把 adm 原始值解析为标准角色
+ * 把 adm 原始值解析为标准角色（大小写、前后空格均兼容）
  * @param {string|null|undefined} adm 数据库中的身份值
  * @returns {{key:'admin'|'station'|'user', label:string}}
  */
