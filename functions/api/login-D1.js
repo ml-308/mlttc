@@ -1,4 +1,15 @@
 // functions/api/login.js
+// ⚠️ 实际文件名为 login-D1.js → 接口地址为 POST /api/login-D1
+//    （文件名中的 -D1 只是历史命名，路由以实际文件名为准）
+//
+// 用途：账号密码登录。前端 src/pages/main.js 的登录弹窗提交至此。
+// 入参：body { email, password }；输入含 "@" 时按邮箱匹配，否则按昵称 NAME 匹配
+// 出参：200 {success:true, message:'登录成功'} + Set-Cookie(auth_token, user_name)
+//       400 参数缺失 / 401 账号或密码错误
+//
+// 依赖：env.mlttcd（USER 表）、env.JWT_SECRET
+// 密码校验：PBKDF2-SHA256 / 100000 次迭代 / 256bit，与 register-D1.js 的
+//           hashPassword 配对（存储格式 "saltHex:hashHex"）
 import { signToken, setAuthCookie } from '../auth';
 
 // 密码验证函数（与注册时的 hashPassword 配对使用）

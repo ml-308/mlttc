@@ -1,3 +1,22 @@
+// functions/api/timetable-D1.js
+// 接口地址：/api/timetable-D1 —— 一个文件提供 3 个方法
+//   GET    ?id=xxx        查询单条（详情页）
+//          ?关键词/城市/线路  组合搜索（时刻表列表页、首页）
+//   POST   { id? }        新增（无 id）或更新（有 id）—— 写需求入口
+//   DELETE ?id=xxx        删除自己写入的一条
+//
+// 调用方：src/pages/{timetables, timetable-result, timetable-detail, account}.js
+// 依赖：env.mlttcd（D1）、env.mlttckv（KV 限流）、env.JWT_SECRET
+//
+// 关键约束（改动时务必保持）：
+//   1. 写操作必须登录，且只允许作者本人操作（前端删除同样按作者校验）
+//   2. POST 更新分支会强制 PASS = 0、BACK = '-'，即“任何修改都需重新审核”，
+//      客户端传入的 pass 一律忽略，防止用户自我审批
+//   3. GET 的搜索条件先各自加括号，再与权限条件用 AND 拼接：
+//      (PASS = 1 AND 城市 AND 线路) AND (关键词A OR 关键词B)
+//      缺少外层括号会让 AND 抢先结合，使城市过滤被绕过
+//   4. 接口带基于 KV 的 IP 频率限制，参数长度限制见 validateSearchParam
+
 // 生成12位安全随机数字（字符串）
 function generate12DigitString() {
     const array = new Uint32Array(3);
@@ -18,7 +37,7 @@ export async function onRequestPost({ request, env }) {
         });
     }
 
-    let { id, city, way, start, end, special, time1, time2, etime, writetime, writer, pass } = body;
+    let { id, city, way, start, end, special, time1, time2, etime, writetime, writer } = body;
 
     // ─── 更新模式（id 存在时）─────────────────────────
     if (id) {
@@ -65,17 +84,14 @@ export async function onRequestPost({ request, env }) {
             sets.push('STARTTIME = ?');
             params.push(etime.trim());
         }
-        if (pass !== undefined && pass !== null) {
-            const passVal = Number(pass);
-            if (passVal === 0 || passVal === 1) {
-                sets.push('PASS = ?');
-                params.push(passVal);
-            }
-        }
-
-        // ─── 修改后清除驳回标记：BACK 置为 '-'，重新进入待审核 ────
-        // 说明：驳回状态以 BACK 列为准（BACK = 1 表示被驳回）；
-        //       用户修改时刻表后即视为已重新提交，故将 BACK 复位为 '-'
+        // ─── 修改后重新进入待审核 ────────────────────────
+        // 1) PASS 一律由服务端重置为 0（待审核），**不接受客户端传入的 pass**：
+        //    否则任何人都能把 PASS 置为 1 自行审批通过。
+        //    审核通过/驳回属于管理员站点的能力，走 /api/admin。
+        // 2) 驳回标记以 BACK 列为准（BACK = 1 表示被驳回），
+        //    用户修改时刻表后即视为已重新提交，故将 BACK 复位为 '-'。
+        sets.push('PASS = ?');
+        params.push(0);
         sets.push('BACK = ?');
         params.push('-');
 
@@ -226,6 +242,12 @@ export async function onRequestPost({ request, env }) {
 
 // ─── 频率限制辅助 ─────────────────────────────────────────────
 // 基于 KV 的简单 IP 频率限制，防止异常流量
+
+/**
+ * 检查当前 IP 是否超出请求频率上限（默认 30 次 / 60 秒）
+ * 计数存在 KV（env.mlttckv）中，写回时不 await，避免阻塞响应
+ * @returns {Response|null} 超限时返回 429 响应，通过时返回 null
+ */
 async function checkRateLimit(request, env) {
   const MAX_REQUESTS = 30;          // 最大请求次数
   const WINDOW_SECONDS = 60;        // 时间窗口（秒）
@@ -272,6 +294,13 @@ async function checkRateLimit(request, env) {
 }
 
 // ─── 参数校验辅助 ─────────────────────────────────────────────
+
+/**
+ * 校验并规范化搜索参数（去掉首尾空白，并限制最大长度）
+ * @param {*} value 原始参数值
+ * @param {number} maxLen 允许的最大长度
+ * @returns {string|null} 合法时返回去空格后的字符串，非法时返回 null（调用方应忽略该条件）
+ */
 function validateSearchParam(value, maxLen) {
   if (!value || typeof value !== 'string') return null;
   const trimmed = value.trim();

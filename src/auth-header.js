@@ -1,8 +1,19 @@
-// js/auth-header.js
-
-// 用户同意（Cookie / 本地存储告知横幅、登录前提示、同意记录）
-// 引入后于站点全部页面自动生效
+// src/auth-header.js
+/**
+ * 页头通用模块（全站每个页面都会引入）
+ *
+ * 职责：
+ *   1. 引入「用户同意」模块（src/consent.js）—— Cookie / 本地存储告知横幅、
+ *      登录前提示、注册页勾选记录等，引入后全站自动生效
+ *   2. 页头登录态展示：读 user_name Cookie 切换「登录按钮 / 欢迎xxx + 退出」
+ *   3. 退出登录（唯一实现，见下方 logout）
+ *   4. 深浅色主题切换（localStorage: mlttc-theme，属性：html[data-theme]）
+ *   5. 点击昵称跳转个人主页
+ *
+ * 依赖：/lib/ui/message.mjs
+ */
 import './consent.js';
+import { showMessage } from '/lib/ui/message.mjs';
 
 // 从 cookie 中读取指定名称的值
 function getCookie(name) {
@@ -19,10 +30,15 @@ function checkAuth() {
   return { loggedIn: false };
 }
 
-// 退出登录
+/**
+ * 退出登录：清除服务端会话后刷新当前页（停留在原页面）
+ * 注意：本站没有独立的登录页（登录用页头弹窗），所以退出后是原地刷新，
+ *       而不是跳转到不存在的 /login.html（那会 404）
+ */
 async function logout() {
   await fetch('/api/logout-D1', { credentials: 'include' });
-  window.location.href = '/login.html';
+  showMessage('已退出登录', false);
+  setTimeout(() => window.location.reload(), 1500);
 }
 
 // 绑定退出按钮事件

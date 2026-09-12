@@ -1,6 +1,16 @@
-// ─── 修改时刻表页面 ────────────────────────────────
-
+// src/pages/timetable-result.js
+/**
+ * 修改时刻表页（timetable-result.html?id=xxx）
+ * 从个人主页「我的时刻表」的「修改」按钮进入
+ *
+ * 流程：按 ?id= 拉取原记录 → 填入表单 → 逐字段校验 → 提交修改（POST /api/timetable-D1）
+ * 注意：修改后由**服务端**把 PASS 重置为 0（重新进入待审核），客户端不传 pass
+ *
+ * 依赖：/lib/ui/popup.mjs、/lib/ui/message.mjs、/lib/timetable.mjs
+ */
 import { showPrompt } from '/lib/ui/popup.mjs';
+import { showMessage } from '/lib/ui/message.mjs';
+import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
 
 // ─── DOM 元素 ────────────────────────────────
 
@@ -38,7 +48,6 @@ const time1c = document.getElementById('cl1');
 const time2c = document.getElementById('cl2');
 
 let originalData = null;
-let currentUserEmail = null;
 
 // ─── 判断状态 ────────────────────────────────
 
@@ -55,83 +64,14 @@ let judge = {
 
 // ─── 工具函数 ────────────────────────────────
 
-function showMessage(msg, isError) {
-  const popup = document.createElement('div');
-  popup.textContent = msg;
-  popup.style.cssText = 'position:fixed; top:20px; left:50%; padding:10px 20px; border-radius:5px; z-index:9999; color:#fff; font-size:0.85rem; animation: fadeInOut 2s ease forwards; transform:translateX(-50%);';
-  popup.style.backgroundColor = isError ? '#f44336' : '#4CAF50';
-  document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 2500);
-
-  if (!document.getElementById('showMsgAnimStyles')) {
-    const styleSheet = document.createElement('style');
-    styleSheet.id = 'showMsgAnimStyles';
-    styleSheet.textContent = `
-      @keyframes fadeInOut {
-        0%   { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-        15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        85%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-      }
-    `;
-    document.head.appendChild(styleSheet);
-  }
-}
-
 function getQueryParam(name) {
   const params = new URLSearchParams(window.location.search);
   return params.get(name);
 }
 
-function Complete(value, word) {
-  value = value.replace(/\s+/g, ' ').trim();
-  if (!value) return null;
-  const a = value.indexOf(word);
-  if (a < 0) {
-    value = value + word;
-  }
-  return value;
-}
+// Complete / timejudge / timeformat / ex_timejudege
+// 已抽到 /lib/timetable.mjs（见文件顶部 import）
 
-function timejudge(time) {
-  if (time >= 2400 || time < 0 || time.length != 4 || isNaN(time) || time % 100 >= 60) {
-    return false;
-  }
-  return true;
-}
-
-function timeformat(time) {
-  time = time.replace(/\s+/g, ' ').trim();
-  let timec = time.split(' ');
-  time = '';
-  timec.sort();
-  let n = 0;
-  for (let i = 0; i < timec.length; i++) {
-    let naw = timec[i];
-    if (naw == ' ' || naw == '') continue;
-    time += naw.slice(0, 2) + ':' + naw.slice(2, 4) + '\t';
-    n += 1;
-    if (n == 5) {
-      time += '\n';
-      n = 0;
-    }
-  }
-  return time;
-}
-
-function ex_timejudege(etime) {
-  let timec = etime.split('.');
-  if (timec[0].length != 4) {
-    timec[0] = '20' + timec[0];
-  }
-  if (timec.length != 3 || timec[0] <= 0 || timec[0].length != 4 || timec[1] > 12 || timec[1] < 1 || timec[2] > 31 || timec[2] < 1 || timec[1].length > 2 || timec[2].length > 2) {
-    return false;
-  }
-  for (let i = 0; i < timec.length; i++) {
-    etime = timec[0] + '-' + timec[1] + '-' + timec[2];
-  }
-  return etime;
-}
 
 function msgout(input, test, msg, judgeVal) {
   if (judgeVal == 1) {
@@ -167,18 +107,7 @@ function cleaninput(input, inputtest, btn) {
   }
 }
 
-function show(input) {
-  input.style.display = 'flex';
-}
-
 // ─── 解析时刻表显示格式到编辑格式 ─────────────────
-
-function parseTimeForEdit(timeStr) {
-  if (!timeStr || timeStr === 'unknown') return '';
-  if (timeStr === 'Remove') return '2501';
-  // 将 "06:00\t06:30\t\n07:00" 格式转回 "0600 0630 0700"
-  return timeStr.replace(/[:：]/g, '').replace(/[\t\n\r]+/g, ' ').trim();
-}
 
 function parseDateForEdit(dateStr) {
   if (!dateStr || dateStr === '1000-1-1') return '';
@@ -420,12 +349,6 @@ function buildData() {
   };
 }
 
-function buildPreviewMsg(data, name) {
-  return '城市：' + data.city + '\n线路：' + data.way + '\n起点：' + data.start + '\n终点：' + data.end +
-    '\n主站->副站时刻表：' + data.time1 + '\n副站->主站时刻表：' + data.time2 +
-    '\n执行时间：' + data.e_time + '\n写入时间：' + data.writetime + '\n作者：' + name;
-}
-
 // ─── 提交 ────────────────────────────────────
 
 async function submitEdit() {
@@ -555,12 +478,12 @@ async function submitEdit() {
   }
 
   // 构造提交数据：id + 修改的字段
-  // 修改后需重新审核，故 PASS 重置为 0
+  // 注意：PASS（是否通过审核）由服务端在更新时统一重置为 0，客户端不传，
+  //       避免用户自行审批；审核由管理员站点通过 /api/admin 完成
   const postData = {
     id: originalData.ID,
     writer: name,
     writetime: writetime,
-    pass: 0,
     ...changes
   };
 

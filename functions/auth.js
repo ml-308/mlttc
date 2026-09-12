@@ -1,5 +1,19 @@
 // functions/auth.js
-
+// ─── 认证工具模块（非路由，不会注册成接口）──────────────────
+// 位置说明：本文件在 functions/ 根目录，而非 functions/api/，
+// 因此只作为被 import 的模块；只有 functions/api/** 才会映射成 URL。
+//
+// 导出内容：
+//   signToken(payload, secret, expiresIn)  签发 JWT（HS256，默认 30 天）
+//   verifyToken(token, secret)             校验 JWT，失败抛异常，成功返回 payload
+//   getCookie(request, name)               从请求头 Cookie 中取值
+//   setAuthCookie(response, token)         写入登录 Cookie
+//   clearAuthCookie(response)              清除登录 Cookie
+//
+// Cookie 约定：
+//   auth_token —— HttpOnly，携带 JWT，前端 JS 读不到，仅服务端校验用
+//   user_name  —— 非 HttpOnly，供页头直接显示昵称
+//
 // 安全密钥：必须使用环境变量，绝对不能硬编码
 // 在 Pages 控制台 Settings -> Environment variables 中添加 JWT_SECRET
 // 本地测试时可在 wrangler.toml 中设置

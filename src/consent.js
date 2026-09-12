@@ -57,15 +57,6 @@ export function setConsent(extra = {}) {
   return record;
 }
 
-/** 撤回同意（清除本地记录） */
-export function revokeConsent() {
-  try {
-    localStorage.removeItem(CONSENT_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
 /* ==================== Cookie / 本地存储告知横幅 ==================== */
 
 /** 是否当前页面需要展示告知横幅（仅首页，可能是 / 或 /index.html） */
@@ -133,12 +124,12 @@ function mountClearStorageButton() {
 
     // 1. 清除 localStorage 中的本站数据
     try {
-      ['mlttc_consent', 'mlttc-theme', 'snake_best_score'].forEach((k) => localStorage.removeItem(k));
+      [CONSENT_KEY, 'mlttc-theme', 'snake_best_score'].forEach((k) => localStorage.removeItem(k));
     } catch { /* ignore */ }
 
     // 2. 清除 sessionStorage 中的本站数据
     try {
-      ['account_tt_cache', 'timetable_search_state', 'admin_token', 'admin_email', 'admin_logged_in']
+      ['account_tt_cache', 'timetable_search_state']
         .forEach((k) => sessionStorage.removeItem(k));
     } catch { /* ignore */ }
 

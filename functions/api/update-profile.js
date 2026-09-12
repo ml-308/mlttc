@@ -1,3 +1,15 @@
+// functions/api/update-profile.js
+// 接口地址：POST /api/update-profile
+//
+// 用途：修改昵称 NAME / 城市 CITY（两个字段都可选，传哪个改哪个）。
+// 调用方：src/pages/account.js
+// 入参：body { name | NAME, city }（name 与 NAME 都兼容）
+// 鉴权：必须已登录（Cookie auth_token → JWT）
+// 出参：200 {success:true, name?} —— 改了昵称时回传新昵称，供前端刷新 user_name Cookie
+//       400 昵称为空 / 含 @ / 超过 6 字，或城市超过 6 字
+//       401 未登录或登录过期（过期时顺带清 Cookie）
+//       409 昵称已被他人占用
+// 注意：昵称唯一性只靠应用层查重，不依赖数据库唯一索引
 import { verifyToken, getCookie, clearAuthCookie } from '../auth';
 
 export async function onRequestPost({ request, env }) {

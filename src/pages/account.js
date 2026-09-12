@@ -1,5 +1,17 @@
-// ─── 个人信息页面逻辑 ────────────────────────────────
+// src/pages/account.js
+/**
+ * 个人主页（account.html）
+ *
+ * 职责：
+ *   1. 拉取并展示资料：昵称 / 邮箱 / 城市 / 注册时间 + 身份徽章
+ *      （身份由 /api/profile 返回的 role · roleLabel 决定，见 resolveRole）
+ *   2. 修改昵称与城市（POST /api/update-profile）
+ *   3. 「我的时刻表」列表：拉取、排序（被驳回 > 待审核 > 已通过）、修改、删除
+ *
+ * 依赖：/lib/ui/popup.mjs、/lib/ui/message.mjs
+ */
 import { showConfirm } from '/lib/ui/popup.mjs';
+import { showMessage } from '/lib/ui/message.mjs';
 
 // 验证提示（参考 timetables.js 的 msgout）
 function msgout(input, test, msg, judge) {
@@ -23,29 +35,6 @@ function msgout(input, test, msg, judge) {
     test.style.color = '#f3f30e';
     test.textContent = msg;
     test.style.display = 'block';
-  }
-}
-
-function showMessage(msg, isError) {
-  const popup = document.createElement('div');
-  popup.textContent = msg;
-  popup.style.cssText = 'position:fixed; top:20px; left:50%; padding:10px 20px; border-radius:5px; z-index:9999; color:#fff; font-size:0.85rem; animation: fadeInOut 2s ease forwards; transform:translateX(-50%);';
-  popup.style.backgroundColor = isError ? '#f44336' : '#4CAF50';
-  document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 2500);
-
-  if (!document.getElementById('showMsgAnimStyles')) {
-    const styleSheet = document.createElement('style');
-    styleSheet.id = 'showMsgAnimStyles';
-    styleSheet.textContent = `
-      @keyframes fadeInOut {
-        0%   { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-        15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        85%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-      }
-    `;
-    document.head.appendChild(styleSheet);
   }
 }
 
@@ -164,18 +153,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // 返回按钮
   document.getElementById('backBtn')?.addEventListener('click', () => window.location.href = '/index.html');
 
-  // 登录按钮
-  document.getElementById('globalLoginBtn')?.addEventListener('click', () => {
-    const modal = document.getElementById('globalLoginModal');
-    if (modal) modal.style.display = 'flex';
-    else window.location.href = '/login.html';
-  });
+  // 登录按钮由 /src/pages/main.js 统一绑定（account.html 已包含 #globalLoginModal 结构）。
+  // 原先此处也绑了一份，逻辑重复，故删除。
 
-  // 退出按钮
-  document.getElementById('globalLogoutBtn')?.addEventListener('click', async () => {
-    await fetch('/api/logout-D1', { credentials: 'include' });
-    window.location.href = '/login.html';
-  });
+  // 退出按钮由 /src/auth-header.js 统一绑定。
+  // 原先此处也绑了一份并跳转 /login.html（不存在 → 404），且与页头模块重复触发。
 
   // 实时验证：昵称（最多6字）
   const nameInput = document.getElementById('nameInput');
@@ -406,9 +388,10 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       // 查看详情按钮
+      // from=account 让详情页的「返回」按钮回到本页（详情页已合并为单页）
       card.querySelector('.detail-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        window.location.href = `/timetable-detail-result.html?id=${encodeURIComponent(item.ID)}`;
+        window.location.href = `/timetable-detail.html?id=${encodeURIComponent(item.ID)}&from=account`;
       });
 
       // 修改时刻表按钮

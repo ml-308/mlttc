@@ -1,5 +1,22 @@
-import { showConfirm, showPrompt } from '/lib/ui/popup.mjs';
+// src/pages/timetables.js
+/**
+ * 时刻表查询 / 添加页（timetable.html）—— 站点主要页面
+ *
+ * 职责：
+ *   1. 菜单切换：「查询时刻表」/「添加时刻表」两个面板
+ *   2. 查询：城市选择框（/lib/ui/city-chooser.mjs）+ 关键词 / 12 位 ID 精确查找
+ *      → GET /api/timetable-D1，结果按线路号排序后一次性全部渲染
+ *   3. 添加：逐字段校验（城市/线路/起点/终点/时刻表/执行时间）→ 确认弹窗
+ *      → POST /api/timetable-D1
+ *   4. 从详情页返回时，由 sessionStorage 恢复上一次的搜索条件与结果
+ *
+ * 依赖：/lib/ui/popup.mjs、/lib/ui/city-chooser.mjs、/lib/ui/message.mjs、
+ *       /lib/timetable.mjs
+ */
+import { showPrompt } from '/lib/ui/popup.mjs';
 import { createCityChooser } from '/lib/ui/city-chooser.mjs';
+import { showMessage } from '/lib/ui/message.mjs';
+import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
 /*
 class HcwArticle extends HTMLElement{
     constructor(){
@@ -69,84 +86,11 @@ class HcwBodyHeader extends HTMLElement{
 }
 */
 
-let time1in,time2in,name=null;
+let name=null;
 
-async function fetchUserInfo() {
-  try {
-    const res = await fetch('/api/profile', { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
-      name= data.email; 
-    }
-    else{
-        name=null;
-    }
-  } catch {
-    name= null;
-  }
-}
+//输入补全 / 时间格式判断 / 时间格式转换 / 执行时间检查
+// 已抽到 /lib/timetable.mjs（见文件顶部 import）
 
-//输入补全
-function Complete(value,word){
-    value=value.replace(/\s+/g, ' ').trim()
-    if(!value) return null;
-    const a=value.indexOf(word);
-    if(a<0){
-        value=value+word;
-    }
-    return value;
-}
-
-//时间格式判断
-function timejudge(time){
-    if(time>=2400||time<0||time.length!=4||isNaN(time)||time%100>=60||time.length!=4||isNaN(time)||time%100>=60){
-        return false;
-    }
-    return true;
-}
-
-//时间格式转换
-function timeformat(time){
-    time=time.replace(/\s+/g, ' ').trim();
-    let timec=time.split(' ');
-    time="";
-    timec.sort();
-    let n=0;
-    //let time="99999";
-    for(let i=0;i<timec.length;i++){
-        let naw=timec[i];
-        if(naw==" "||naw==""){
-            continue;
-        }
-        time+=naw.slice(0,2)+':'+naw.slice(2,4)+"\t";
-        n+=1;
-        if(n==5){
-            time+="\n";
-            n=0;
-        }
-        //next=timec[i];
-    }
-
-    return time;
-
-
-}
-
-//执行时间检查
-function ex_timejudege(etime){
-    let timec = etime.split('.');
-    if(timec[0].length!=4){
-        timec[0]="20"+timec[0];
-    }
-
-    if(timec.length!=3||timec[0]<=0||timec[0].length!=4||timec[1]>12||timec[1]<1||timec[2]>31||timec[2]<1||timec[1].length>2||timec[2].length>2){
-        return false;
-    }
-    for(let i=0;i<timec.length;i++){
-        etime=timec[0]+"-"+timec[1]+"-"+timec[2];
-    }
-    return etime;
-}
 
 //提示框 - 使用CSS类替代内联样式
 function msgout(input,test,msg,judge){
@@ -198,22 +142,6 @@ function show(input){
     input.value="";
 }
 
-//showmsg - 使用设计系统样式
-function showMessage(msg, isError) {
-  const box = document.getElementById('errormsg');
-  if (box) {
-    box.textContent = msg;
-    box.style.display = 'block';
-    box.style.color = isError ? 'var(--danger)' : 'var(--success)';
-  }
-  const popup = document.createElement('div');
-  popup.textContent = msg;
-  popup.className = 'notification-popup' + (isError ? ' notification-error' : ' notification-success');
-  document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 2500);
-}
-
-
 //按钮
 const backa=document.getElementById("back");
 const add=document.getElementById("add-btn");
@@ -241,7 +169,6 @@ const searchDiv=document.getElementById("search-form");
 const time1Div=document.getElementById("time1b");
 const time2Div=document.getElementById("time2b");
 
-const city1=document.getElementById("sp");
 const sc=document.getElementById("sc");
 
 //提示框
@@ -286,7 +213,6 @@ bc_input.addEventListener("input", bcinput);
 e_time_input.addEventListener("input", e_timeinput);
 
 const inputs=[city_input,way_input,start_input,end_input,time1_input,time2_input,bc_input,e_time_input];
-const tests=[citytest,waytest,starttest,endtest,time1test,time2test,bctest,e_timetest];
 
 addconfirm.disabled=false;
 clean.disabled=false;
@@ -435,7 +361,6 @@ function time1input(){
         judge.time1=1;
         return;
     }
-    time1in=input;
     let time=time1_input.value;
     let err="";
     time=time.replace(/\s+/g, ' ').trim();
@@ -483,7 +408,6 @@ function time2input(){     // 将函数名 time1input 改为 time2input
         judge.time2=1;
         return;
     }
-    time2in=input;       // 将 time1in 改为 time2in
     let time=time2_input.value;  // 将 time1_input 改为 time2_input
     let err="";
     time=time.replace(/\s+/g, ' ').trim();

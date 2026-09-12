@@ -1,3 +1,19 @@
+// functions/api/register-D1.js
+// 同一路径提供两个方法：
+//   GET  /api/register-D1?email=xxx   邮箱查重（注册表单失焦时调用）
+//        → 200 {success:true} / 409 {success:false, message:'邮箱已存在'} / 400 缺参
+//   POST /api/register-D1             注册新用户
+//        body { email, password, agree, policyVersion, agreedAt }
+//        → 201 成功 / 400 未同意条款、参数缺失、邮箱格式错误 / 409 邮箱已注册
+//
+// 调用方：src/pages/register.js；依赖：env.mlttcd（USER 表）
+// 关键约束：
+//   1. agree 必须严格等于 true —— 服务端强制校验，防止绕过前端直接注册
+//   2. 用户 ID 为 12 位随机数字，循环重试直到不撞库
+//   3. 密码以 PBKDF2-SHA256 / 100000 次迭代 / 16 字节随机盐 存为 "saltHex:hashHex"
+//      （本文件的 hashPassword 与 login-D1.js 的 verifyPassword 必须保持一致）
+//   4. 同意留痕：console.log 记录条款版本与同意时间，便于日后核查
+
 // 生成12位安全随机数字字符串
 function generate12DigitString() {
   const array = new Uint32Array(3);
@@ -34,32 +50,6 @@ async function hashPassword(password) {
   const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
   const hashHex = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
   return `${saltHex}:${hashHex}`;
-}
-
-// 验证密码（登录时使用）
-async function verifyPassword(password, storedHash) {
-  const [saltHex, originalHashHex] = storedHash.split(':');
-  const salt = new Uint8Array(saltHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    key,
-    256
-  );
-  const newHashHex = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
-  return newHashHex === originalHashHex;
 }
 
 // 检查邮箱是否已注册（GET 请求）

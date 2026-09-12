@@ -1,5 +1,18 @@
 // functions/api/profile.js
-import { verifyToken, getCookie, clearAuthCookie } from '../auth';
+// 接口地址：GET /api/profile
+//
+// 用途：返回当前登录用户的资料 + 已标准化的身份（角色）。
+// 鉴权：优先取 Authorization: Bearer，其次取 Cookie auth_token；
+//       令牌无效/过期时清除 Cookie 并返回 401
+// 出参：{ user: { ...原始字段, role, roleLabel }, role, roleLabel }
+//       role ∈ 'admin' | 'station' | 'user'
+// 调用方：src/auth-header.js、src/pages/account.js
+//
+// 两个易踩的坑（已修，勿回退）：
+//   1. 角色表键必须全小写 —— parseRole 查表前会 toLowerCase()，
+//      曾经把键写成 'STATION'，导致站长永远被判定为普通用户
+//   2. setCorsHeaders 只放行 https://mlttc.bond —— 需要携带 Cookie，不能用 *
+import { verifyToken, clearAuthCookie } from '../auth';
 
 // 安全版本的 getCookie（修复原版缺陷）
 function safeGetCookie(request, name) {

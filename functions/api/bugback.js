@@ -1,3 +1,15 @@
+// functions/api/bugback.js
+// 接口地址：POST /api/bugback
+//
+// 用途：首页 BUG 反馈提交。
+// 调用方：src/pages/main.js
+// 入参：body { bugback:string }（去空格后 1~2000 字）
+// 鉴权：必须已登录 —— 从 Cookie auth_token 解析 JWT 取邮箱
+// 出参：201 {success:true, message:'反馈已提交，感谢您的支持'}
+//       400 内容为空/超长/请求体无效、401 未登录或已过期、404 用户不存在
+//
+// 落库：INSERT INTO BUG (EMAIL, BUGBACK)，依赖 env.mlttcd
+// 优化点：邮箱优先取自 JWT payload，只有 payload 里没有时才回查 USER 表
 import { verifyToken, getCookie, clearAuthCookie } from '../auth';
 
 export async function onRequestPost({ request, env }) {

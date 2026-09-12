@@ -1,16 +1,27 @@
-import { showConfirm, showPrompt } from '/lib/ui/popup.mjs';
+// src/pages/main.js
+/**
+ * 全站通用交互脚本
+ *
+ * 加载它的页面：index.htmlã€乬ame.htmlã€乴egal.htmlã€亀imetable.htmlã€亂
+ *               timetable-result.htmlã€乼imetable-detail(.result).htmlã€乤ccount.html
+ *               （register.html 不加载）
+ *
+ * 职责：
+ *   1. 页头登录弹窗（打开 / 关闭 / 提交登录 → POST /api/login-D1）
+ *   2. 首页「距离高考还有…」倒计时
+ *   3. 首页 BUG 反馈入口（POST /api/bugback，仅当页面存在 #BUG 元素）
+ *
+ * 注意：退出登录由 /src/auth-header.js 统一负责，此处不再重复绑定。
+ */
+import { showPrompt } from '/lib/ui/popup.mjs';
+import { showMessage } from '/lib/ui/message.mjs';
+
 // 等待 DOM 完全加载，确保所有元素存在
 document.addEventListener('DOMContentLoaded', () => {
   // 获取元素，如果不存在则跳过（避免报错）
   const globalLoginBtn = document.getElementById('globalLoginBtn');
-  const globalLogoutBtn = document.getElementById('globalLogoutBtn');
   const loginModalBtn = document.getElementById('login-btn');      // 弹窗中的“登录”按钮
   const closeBtn = document.getElementById('closeModalBtn');
-  const usernameInput = document.getElementById('username');
-  const passwordInput = document.getElementById('password');
-  const globalLoginModal = document.getElementById('globalLoginModal');
-  const userInfoDiv = document.getElementById('globalUserInfo');
-  const displayName = document.getElementById('globalDisplayName');
 
   // 安全绑定事件（仅当元素存在时）
   if (globalLoginBtn) {
@@ -22,12 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (closeBtn) {
     closeBtn.addEventListener('click', closeLogin);
   }
-  if (globalLogoutBtn) {
-    globalLogoutBtn.addEventListener('click', logout);
-  }
+  // 退出按钮由 /src/auth-header.js 统一绑定，此处不再重复绑定
 });
-
-console.log("V0.1.2.4");
+    
+console.log("V1.2.4");
 
 // 目标时间：2028年6月7日 00:00:00（月份从0开始，5代表6月）
 const targetDate = new Date(2028, 5, 7, 8, 0, 0);
@@ -57,45 +66,6 @@ function updateCountdown() {
 updateCountdown();
 // 每秒更新
 setInterval(updateCountdown, 1000);
-
-// ================== 工具函数 ==================
-
-function showMessage(msg, isError) {
-  const box = document.getElementById('errormsg');
-  if (box) {
-    box.textContent = msg;
-    box.style.display = 'block';
-    box.style.color = isError ? 'red' : 'green';
-  }
-  const popup = document.createElement('div');
-  popup.textContent = msg;
-  popup.style = 'position:fixed; top:20px; left:50%; padding:10px 20px; border-radius:5px; z-index:9999; color:#fff; font-size:0.85rem; animation: fadeInOut 2s ease forwards;';
-  popup.style.backgroundColor = isError ? '#f44336' : '#4CAF50';
-  document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 2000);
-
-  if (!document.getElementById('showMsgAnimStyles')) {
-    const styleSheet = document.createElement('style');
-    styleSheet.id = 'showMsgAnimStyles';
-    styleSheet.textContent = `
-      @keyframes fadeInOut {
-        0%   { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-        15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        85%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-      }
-    `;
-    document.head.appendChild(styleSheet);
-  }
-}
-
-function validateEmail(value) {
-  const email = value.trim();
-  if (!email) return '邮箱不能为空';
-  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!regex.test(email)) return '邮箱格式不正确';
-  return '邮箱格式正确';
-}
 
 // ================== 界面控制 ==================
 
@@ -187,20 +157,13 @@ async function fetchUserInfo() {
   }
 }
 
-// ================== 退出登录 ==================
-
-async function logout() {
-  await fetch('/api/logout-D1', { credentials: 'include' });
-  showMessage('已退出登录', false);
-  setTimeout(() => window.location.reload(), 1500);
-}
+// 退出登录由 /src/auth-header.js 统一负责（页头模块），此处不再重复实现
 
 
 
-//BUG反馈
-const bugback=document.getElementById("BUG");
-
-bugback.addEventListener("click",bugbackf);
+// BUG 反馈（只有首页有 #BUG 元素，其它页面需跳过，否则会抛异常中断模块）
+const bugback = document.getElementById("BUG");
+if (bugback) bugback.addEventListener("click", bugbackf);
 
 async function bugbackf(){
   const inputvalue=await showPrompt({

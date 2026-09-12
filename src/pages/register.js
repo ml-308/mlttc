@@ -1,36 +1,18 @@
-// 用户同意（与 /src/auth-header.js 共用同一模块实例）
+// src/pages/register.js
+/**
+ * 注册页（register.html）—— 邀请制注册
+ *
+ * 流程：
+ *   1. 邮箱输入防抖校验：先查注册码（/api/KV），再查邮箱是否已被占用（/api/register-D1?email=）
+ *   2. 密码与确认密码一致性校验
+ *   3. 勾选同意用户协议/隐私政策（#agreeConsent），未勾选不放行
+ *   4. 提交注册（POST /api/register-D1），成功后写入本地同意记录
+ *
+ * 依赖：/src/consent.js（与 /src/auth-header.js 共用同一模块实例）、
+ *       /lib/ui/message.mjs
+ */
 import { setConsent } from '/src/consent.js';
-
-//showmsg
-function showMessage(msg, isError) {
-  const box = document.getElementById('errormsg');
-  if (box) {
-    box.textContent = msg;
-    box.style.display = 'block';
-    box.style.color = isError ? 'red' : 'green';
-  }
-  const popup = document.createElement('div');
-  popup.textContent = msg;
-  popup.style = 'position:fixed; top:20px; left:50%; padding:10px 20px; border-radius:5px; z-index:9999; color:#fff; font-size:0.85rem; animation: fadeInOut 2s ease forwards;';
-  popup.style.backgroundColor = isError ? '#f44336' : '#4CAF50';
-  document.body.appendChild(popup);
-  setTimeout(() => popup.remove(), 2000);
-  
-  // 注入动画关键帧（仅一次）
-  if (!document.getElementById('showMsgAnimStyles')) {
-    const styleSheet = document.createElement('style');
-    styleSheet.id = 'showMsgAnimStyles';
-    styleSheet.textContent = `
-      @keyframes fadeInOut {
-        0%   { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-        15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        85%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-        100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-      }
-    `;
-    document.head.appendChild(styleSheet);
-  }
-}
+import { showMessage } from '/lib/ui/message.mjs';
 
 //Msg out
 function msgout(input,inputmsg,judge,msg){
