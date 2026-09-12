@@ -941,3 +941,102 @@ html {
 .consent-login-notice a {
     color: var(--link-color);
 }
+
+/* ============ 城市选择器（lib/ui/city-chooser.mjs） ============ */
+/* 结构：.city-chooser > input + ul.city-chooser-list */
+.city-chooser {
+    position: relative;
+    width: 100%;
+}
+
+/* 输入框右侧留出箭头的位置 */
+.city-chooser > input {
+    padding-right: 2.5rem;
+}
+
+/* 输入框右端的下箭头（下拉展开时翻转向下→向上并高亮） */
+.city-chooser-arrow {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    width: 8px;
+    height: 8px;
+    margin-top: -4px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    transform: rotate(45deg);
+    pointer-events: none;
+    transition:
+        transform var(--transition-fast),
+        border-color var(--transition-fast);
+}
+
+.city-chooser:has(.city-chooser-list:not([hidden])) .city-chooser-arrow {
+    transform: rotate(-135deg);
+    border-color: var(--primary);
+}
+
+/* 下拉列表：绝对定位浮在内容之上，不推挤布局
+   默认收起（没有 JS 时绝不显示），仅当 JS 移除 hidden 属性后展开 */
+.city-chooser-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 60;
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+    max-height: 280px;
+    overflow-y: auto;
+    font-family: var(--font-family);
+    color: var(--text-primary);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+}
+
+.city-chooser-list:not([hidden]) {
+    display: block;
+}
+
+/* hidden 属性必须压过 display，否则收起状态下拉仍然可见 */
+.city-chooser-list[hidden] {
+    display: none !important;
+}
+
+.city-chooser-list > li {
+    display: block;
+    padding: 9px 12px;
+    font-size: .88rem;
+    line-height: 1.3;
+    color: var(--text-primary);
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.city-chooser-list > li:hover,
+.city-chooser-list > li.is-active {
+    background-color: var(--primary);
+    color: var(--on-primary);
+}
+
+.city-chooser-list > li[aria-selected="true"] {
+    font-weight: 600;
+}
+
+.city-chooser-list > li.is-disabled {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.city-chooser-list > li.is-disabled:hover {
+    background-color: transparent;
+    color: var(--text-muted);
+}

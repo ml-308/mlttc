@@ -1,4 +1,5 @@
 import { showConfirm, showPrompt } from '/lib/ui/popup.mjs';
+import { createCityChooser } from '/lib/ui/city-chooser.mjs';
 /*
 class HcwArticle extends HTMLElement{
     constructor(){
@@ -761,6 +762,15 @@ const searchclean = document.getElementById("clearSearchBtn");
 const searchKeyword = document.getElementById("search-keyword");
 const searchid = document.getElementById("search-id");
 
+// 城市选择器（输入 + 下拉列表），逻辑见 lib/ui/city-chooser.mjs
+// 样式在 style/main.css 的「城市选择器」区块
+const cityInput = document.getElementById("city-chooser");
+const cityChooser = createCityChooser({
+    input: cityInput,
+    list: document.getElementById("city-list"),
+    hint: document.getElementById("citytest")
+});
+
 // 结果区域元素
 const searchResult = document.getElementById("search-result");
 const resultCount = document.getElementById("result-count");
@@ -773,10 +783,21 @@ let searchResultsData = [];
 searchbtn.addEventListener("click", searchbtnClick);
 searchclean.addEventListener("click", searchcleanClick);
 
+// 回车直接搜索
+// 城市下拉展开且已高亮选项时，Enter 会被选择器消费（defaultPrevented），不会误触发搜索
+[cityInput, searchKeyword, searchid].forEach((el) => {
+    el.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" || e.isComposing || e.defaultPrevented) return;
+        e.preventDefault();
+        searchbtnClick();
+    });
+});
+
 function searchcleanClick() {
     console.log("search clean");
     searchKeyword.value = "";
     searchid.value = "";
+    cityChooser.clear();
     sessionStorage.removeItem('timetable_search_state');
     closeResults();
 }
@@ -850,8 +871,9 @@ function searchbtnClick() {
     sessionStorage.removeItem('timetable_search_state');
 
     console.log("search btn");
-    const keyword = searchKeyword.value;
+    const keyword = searchKeyword.value.trim();
     const id = searchid.value.trim();
+    const city = cityChooser.getCity();
 
     if (id) {
         if (id.length === 12) {
@@ -859,10 +881,11 @@ function searchbtnClick() {
         } else {
             showMessage("ID格式错误，需为12位数字", true);
         }
-    } else if (keyword) {
+    } else if (city || keyword) {
+        // 只选城市不填关键词 → 列出该城市下的全部线路
         searchByKeyword();
     } else {
-        showMessage("请输入搜索关键词或ID", true);
+        showMessage("请选择城市或输入搜索关键词", true);
     }
 }
 
@@ -907,9 +930,23 @@ async function searchById() {
 }
 
 async function searchByKeyword() {
-    const rawKeyword = searchKeyword.value;
-    const { city, way } = parseKeyword(rawKeyword);
-    console.log("关键词解析:", { raw: rawKeyword, city, way });
+    const rawKeyword = searchKeyword.value.trim();
+    const chosenCity = cityChooser.getCity();   // 城市选择框中的城市（选中项 / 手输文本）
+
+    let city = '';
+    let way = '';
+
+    if (chosenCity) {
+        // 城市已由专属选择框确定，不再从关键词里猜城市
+        city = chosenCity;
+        // 关键词仍按线路解析（纯数字会补「路」）；解析不出线路时靠 q 跳字段兜底
+        if (rawKeyword) way = parseKeyword(rawKeyword).way || '';
+    } else {
+        // 未填城市 → 沿用原有的「从关键词里猜城市 / 线路」逻辑
+        ({ city, way } = parseKeyword(rawKeyword));
+    }
+
+    console.log("搜索条件:", { raw: rawKeyword, city, way });
 
     if (!city && !way) {
         showMessage("请输入有效的搜索关键词", true);
@@ -920,7 +957,7 @@ async function searchByKeyword() {
     let params = [];
     if (city) params.push(`city=${encodeURIComponent(city)}`);
     if (way) params.push(`way=${encodeURIComponent(way)}`);
-    if (rawKeyword.trim()) params.push(`q=${encodeURIComponent(rawKeyword.trim())}`);
+    if (rawKeyword) params.push(`q=${encodeURIComponent(rawKeyword)}`);
     const queryString = params.join('&');
 
     setSearchLoading(true);
@@ -1048,6 +1085,7 @@ async function showDetail(item) {
     // 跳转前保存搜索状态到 sessionStorage
     sessionStorage.setItem('timetable_search_state', JSON.stringify({
         keyword: searchKeyword.value,
+        city: cityChooser.getPicked(),
         results: searchResultsData
     }));
     // 跳转到新的详情页面
@@ -1089,6 +1127,7 @@ function restoreSearchState() {
         if (state.keyword) {
             searchKeyword.value = state.keyword;
         }
+        cityChooser.setPicked(state.city || null);
         searchForm();
 
         // 恢复搜索结果

@@ -122,10 +122,23 @@
 			<div hcw-card id="search-form" class="form-card hidden">
 				<div class="grid-2col">
 					<div class="form-group full-width">
-						<label>关键词搜索 <span style="color:#e07c4c;">*</span></label>
-						<input hcw-input type="text" id="search-keyword" placeholder="输入城市或线路名称，如：无锡市 52路" >
+						<label>城市 <span class="optional">(可选，用于限定搜索范围)</span></label>
+						<div class="city-chooser">
+							<input hcw-input type="text" id="city-chooser" placeholder="输入城市名 / 拼音首字母，如：上海 / sh"
+								autocomplete="off" role="combobox" aria-expanded="false" aria-controls="city-list"
+								aria-autocomplete="list">
+							<span class="city-chooser-arrow" aria-hidden="true"></span>
+							<ul id="city-list" class="city-chooser-list" role="listbox" aria-label="可选城市" hidden></ul>
+						</div>
+						<p id="citytest" class="lp lp-hide"></p>
+					</div>
+
+					<div class="form-group full-width">
+						<label>关键词搜索 <span class="optional">(线路名称 / 站点)</span></label>
+						<input hcw-input type="text" id="search-keyword" placeholder="输入线路名称，如：52路" >
 						<p id="search-keywordtest" class="lp"></p>
 					</div>
+					
 					<div class="form-group full-width">
 						<label>时刻表ID (精确查找)</label>
 						<input hcw-input type="text" id="search-id" placeholder="输入12位ID直接精确查找">

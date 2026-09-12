@@ -399,7 +399,10 @@ export async function onRequestGet({request,env}){
                 const whereClauses = [];
                 if (conditions.length > 0) {
                     if (orGroups.length > 0) {
-                        whereClauses.push('(' + conditions.join(' AND ') + ') OR ' + orGroups.join(' OR '));
+                        // 城市/线路条件必须与关键词条件同时成立。
+                        // 括号不能省：SQL 中 AND 优先级高于 OR，写成 (条件) OR (关键词)
+                        // 会让城市过滤完全失效（只要命中关键词，其它城市的记录也会返回）
+                        whereClauses.push('(' + conditions.join(' AND ') + ') AND (' + orGroups.join(' OR ') + ')');
                     } else {
                         whereClauses.push(conditions.join(' AND '));
                     }
