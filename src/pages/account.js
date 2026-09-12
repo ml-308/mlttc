@@ -66,7 +66,7 @@ async function loadProfile() {
     }
     // 显示身份
     const typeEl = document.getElementById('profileAccountType');
-    if (user.adm && user.adm !== 'user') {
+    if (user.adm && user.adm =="adm") {
       typeEl.textContent = '管理员';
       typeEl.style.background = 'var(--danger, #e74c3c)';
     } else {
