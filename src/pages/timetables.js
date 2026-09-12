@@ -16,6 +16,7 @@
 import { showPrompt } from '/lib/ui/popup.mjs';
 import { createCityChooser } from '/lib/ui/city-chooser.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
+import { createGuard } from '/lib/ui/guard.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
 /*
 class HcwArticle extends HTMLElement{
@@ -507,7 +508,17 @@ function cleanall(){
     time2cl();
 }
 
-async function confirmAdd() {
+const addGuard = createGuard('正在提交，请稍候…');
+
+/**
+ * 「添加时刻表」按钮的入口（403/567 等多处绑定与解绑都引用这个名字，
+ * 所以防重复提交裹在里面，而不是改绑定处）
+ */
+function confirmAdd() {
+    return addGuard.run(doConfirmAdd);
+}
+
+async function doConfirmAdd() {
     const name = await fetch('/api/profile', { credentials: 'include' })
     .then(r => r.ok ? r.json() : null)
     .then(data => data?.user?.email || data?.email || '')

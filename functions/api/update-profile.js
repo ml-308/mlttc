@@ -11,9 +11,14 @@
 //       409 昵称已被他人占用
 // 注意：昵称唯一性只靠应用层查重，不依赖数据库唯一索引
 import { verifyToken, getCookie, clearAuthCookie } from '../auth';
+import { enforceRateLimit, LIMITS } from '../ratelimit';
 
 export async function onRequestPost({ request, env }) {
   try {
+    // 频率限制：防止反复提交资料修改
+    const limited = await enforceRateLimit(request, env, LIMITS.profileUpdate);
+    if (limited) return limited;
+
     const token = getCookie(request, 'auth_token');
     if (!token) {
       return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });

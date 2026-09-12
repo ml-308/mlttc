@@ -13,6 +13,10 @@
 //   3. 密码以 PBKDF2-SHA256 / 100000 次迭代 / 16 字节随机盐 存为 "saltHex:hashHex"
 //      （本文件的 hashPassword 与 login-D1.js 的 verifyPassword 必须保持一致）
 //   4. 同意留痕：console.log 记录条款版本与同意时间，便于日后核查
+//
+// 频率限制：GET 走 LIMITS.emailCheck、POST 走 LIMITS.register（见 ../ratelimit）
+
+import { enforceRateLimit, LIMITS } from '../ratelimit';
 
 // 生成12位安全随机数字字符串
 function generate12DigitString() {
@@ -54,6 +58,10 @@ async function hashPassword(password) {
 
 // 检查邮箱是否已注册（GET 请求）
 export async function onRequestGet({ request, env }) {
+  // 频率限制：防止被批量探测「哪些邮箱已注册」
+  const limited = await enforceRateLimit(request, env, LIMITS.emailCheck);
+  if (limited) return limited;
+
   const url = new URL(request.url);
   const email = url.searchParams.get('email');
 
@@ -91,6 +99,10 @@ export async function onRequestGet({ request, env }) {
 // 注册新用户（POST 请求）
 export async function onRequestPost({ request, env }) {
   try {
+    // 频率限制：注册是重操作，额度收得比较紧
+    const limited = await enforceRateLimit(request, env, LIMITS.register);
+    if (limited) return limited;
+
     const body = await request.json().catch(() => null);
     if (!body) {
       return new Response(JSON.stringify({ success: false, message: '无效的请求数据' }), {

@@ -11,6 +11,7 @@
 // 密码校验：PBKDF2-SHA256 / 100000 次迭代 / 256bit，与 register-D1.js 的
 //           hashPassword 配对（存储格式 "saltHex:hashHex"）
 import { signToken, setAuthCookie } from '../auth';
+import { enforceRateLimit, LIMITS } from '../ratelimit';
 
 // 密码验证函数（与注册时的 hashPassword 配对使用）
 async function verifyPassword(password, storedValue) {
@@ -43,6 +44,10 @@ async function verifyPassword(password, storedValue) {
 
 export async function onRequestPost({ request, env }) {
   try {
+    // 频率限制：按 IP 限制登录尝试次数（防脚本撞库 / 请求过多）
+    const limited = await enforceRateLimit(request, env, LIMITS.login);
+    if (limited) return limited;
+
     const body = await request.json().catch(() => null);
     if (!body) {
       return new Response(JSON.stringify({ success: false, message: '无效的请求数据' }), {

@@ -13,6 +13,10 @@
  */
 import { setConsent } from '/src/consent.js';
 import { showMessage } from '/lib/ui/message.mjs';
+import { createGuard } from '/lib/ui/guard.mjs';
+
+/** 注册防重复提交：连点会发出多个注册请求，很可能被服务端限流 */
+const registerGuard = createGuard('正在注册，请稍候…');
 
 //Msg out
 function msgout(input,inputmsg,judge,msg){
@@ -224,7 +228,7 @@ function refisterbtnclick(){
     }
     const emaili=email.value;
     const passwordi=password.value;
-    writeD1(emaili,passwordi);
+    registerGuard.run(() => writeD1(emaili, passwordi));
 }
 
 async function writeD1(email,password){

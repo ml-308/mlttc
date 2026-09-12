@@ -10,8 +10,15 @@
 //   404 {message:'邮箱正确但没有注册权限', way:2}
 //   400 {message:'缺少 key 参数', way:0}
 //   500 {message:'服务器错误', way:0}
+
+import { enforceRateLimit, LIMITS } from '../ratelimit';
+
 export async function onRequestGet({ request, env }) {
   try {
+    // 频率限制：防止被批量枚举白名单邮箱
+    const limited = await enforceRateLimit(request, env, LIMITS.emailCheck);
+    if (limited) return limited;
+
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
     if (!key) {

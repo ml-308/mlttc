@@ -12,6 +12,7 @@
  */
 import { showConfirm } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
+import { createGuard } from '/lib/ui/guard.mjs';
 
 // 验证提示（参考 timetables.js 的 msgout）
 function msgout(input, test, msg, judge) {
@@ -92,6 +93,11 @@ function resolveRole(user) {
 async function loadProfile() {
   try {
     const res = await fetch('/api/profile', { credentials: 'include' });
+    if (res.status === 429) {
+      // 被限流：不能当成「未登录」，否则会把已登录用户显示成游客
+      showMessage('请求过于频繁，请稍后刷新重试', true);
+      return;
+    }
     if (!res.ok) {
       document.getElementById('profileDisplayName').textContent = '未登录';
       return;
@@ -197,8 +203,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let myEmail = '';
   loadMyTimetables();
 
-  // 保存按钮
-  document.getElementById('saveBtn')?.addEventListener('click', async () => {
+  // 保存按钮（外包一层防重复提交：连点会发出多个写请求，容易触发服务端限流）
+  const saveGuard = createGuard('正在保存，请稍候…');
+  document.getElementById('saveBtn')?.addEventListener('click', () => saveGuard.run(async () => {
     const name = nameInput?.value.trim() || null;
     const city = cityInput?.value.trim() || null;
 
@@ -237,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         msgout(cityInput, cityMsg, '', 2);
       }
     }
-  });
+  }));
 
   // ─── 我的时刻表 - 渲染（一次性展示全部） ─────────
   let myTimetables = [];

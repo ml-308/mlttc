@@ -2,9 +2,11 @@
 /**
  * 全站通用交互脚本
  *
- * 加载它的页面：index.htmlã€乬ame.htmlã€乴egal.htmlã€亀imetable.htmlã€亂
- *               timetable-result.htmlã€乼imetable-detail(.result).htmlã€乤ccount.html
+ * 加载它的页面：index.html / game.html / legal.html / timetable.html /
+ *               timetable-result.html / timetable-detail(.result).html / account.html
  *               （register.html 不加载）
+ *
+ * 注意：分隔符用英文字符，不要用中文顿号 —— 曾经用过，被外部工具转换成了乱码。
  *
  * 职责：
  *   1. 页头登录弹窗（打开 / 关闭 / 提交登录 → POST /api/login-D1）
@@ -15,6 +17,10 @@
  */
 import { showPrompt } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
+import { createGuard } from '/lib/ui/guard.mjs';
+
+/** 登录防重复提交：连点会发出多个登录请求，容易撞上服务端的登录限流 */
+const loginGuard = createGuard('正在登录，请稍候…');
 
 // 等待 DOM 完全加载，确保所有元素存在
 document.addEventListener('DOMContentLoaded', () => {
@@ -36,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 退出按钮由 /src/auth-header.js 统一绑定，此处不再重复绑定
 });
     
-console.log("V1.2.4");
+console.log("V1.2.5");
 
 // 目标时间：2028年6月7日 00:00:00（月份从0开始，5代表6月）
 const targetDate = new Date(2028, 5, 7, 8, 0, 0);
@@ -97,7 +103,7 @@ function login(e) {
     showMessage('请输入账号和密码', true);
     return;
   }
-  loginread(email, password);
+  loginGuard.run(() => loginread(email, password));
 }
 
 async function loginread(email, password) {
@@ -147,6 +153,11 @@ async function updateUIAfterLogin() {
 async function fetchUserInfo() {
   try {
     const res = await fetch('/api/profile', { credentials: 'include' });
+    if (res.status === 429) {
+      // 被限流时不要误判成「未登录」，否则页头会突然变回登录按钮
+      showMessage('请求过于频繁，请稍后刷新重试', true);
+      return null;
+    }
     if (res.ok) {
       const data = await res.json();
       return data.user || data;  // 适配不同返回格式

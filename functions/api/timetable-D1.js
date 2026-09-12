@@ -15,7 +15,12 @@
 //   3. GET 的搜索条件先各自加括号，再与权限条件用 AND 拼接：
 //      (PASS = 1 AND 城市 AND 线路) AND (关键词A OR 关键词B)
 //      缺少外层括号会让 AND 抢先结合，使城市过滤被绕过
-//   4. 接口带基于 KV 的 IP 频率限制，参数长度限制见 validateSearchParam
+//   4. 参数长度限制见 validateSearchParam；频率限制统一走 ../ratelimit（见 LIMITS）
+//
+// ⚠️ 频率限制已抽到 functions/ratelimit.js，本文件只 import 使用，不再本地实现。
+//    额度：GET → LIMITS.search、POST → LIMITS.write、DELETE → LIMITS.remove
+
+import { enforceRateLimit, LIMITS } from '../ratelimit';
 
 // 生成12位安全随机数字（字符串）
 function generate12DigitString() {
@@ -29,6 +34,10 @@ function generate12DigitString() {
 }
 
 export async function onRequestPost({ request, env }) {
+    // 频率限制：新增/修改都算写操作
+    const limited = await enforceRateLimit(request, env, LIMITS.write);
+    if (limited) return limited;
+
     const body = await request.json().catch(() => null);
     if (!body) {
         return new Response(JSON.stringify({ error: '无效的请求数据' }), {
@@ -241,57 +250,7 @@ export async function onRequestPost({ request, env }) {
 }
 
 // ─── 频率限制辅助 ─────────────────────────────────────────────
-// 基于 KV 的简单 IP 频率限制，防止异常流量
-
-/**
- * 检查当前 IP 是否超出请求频率上限（默认 30 次 / 60 秒）
- * 计数存在 KV（env.mlttckv）中，写回时不 await，避免阻塞响应
- * @returns {Response|null} 超限时返回 429 响应，通过时返回 null
- */
-async function checkRateLimit(request, env) {
-  const MAX_REQUESTS = 30;          // 最大请求次数
-  const WINDOW_SECONDS = 60;        // 时间窗口（秒）
-
-  const ip = request.headers.get('CF-Connecting-IP')
-    || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
-    || 'unknown';
-
-  const now = Math.floor(Date.now() / 1000);
-  const key = `ratelimit:search:${ip}`;
-
-  // 读取当前记录
-  let record;
-  try {
-    record = await env.mlttckv.get(key, { type: 'json' });
-  } catch {
-    record = null;
-  }
-
-  if (record && record.window === now) {
-    // 同一秒内
-    record.count += 1;
-  } else if (record && now - record.window < WINDOW_SECONDS) {
-    // 仍在时间窗口内
-    record.count += 1;
-    record.window = record.window; // 保持窗口起始时间
-  } else {
-    // 新窗口
-    record = { window: now, count: 1 };
-  }
-
-  // 写回 KV（不 await，不阻塞响应）
-  env.mlttckv.put(key, JSON.stringify(record), { expirationTtl: WINDOW_SECONDS * 2 }).catch(() => {});
-
-  // 超过阈值则拒绝
-  if (record.count > MAX_REQUESTS) {
-    return new Response(JSON.stringify({
-      success: false,
-      message: '请求过于频繁，请稍后再试'
-    }), { status: 429, headers: { 'Content-Type': 'application/json' } });
-  }
-
-  return null; // 通过
-}
+// 本地实现已删除，统一使用 ../ratelimit —— 这样额度配置只有一处，改起来不会漏
 
 // ─── 参数校验辅助 ─────────────────────────────────────────────
 
@@ -311,8 +270,8 @@ function validateSearchParam(value, maxLen) {
 //Get
 export async function onRequestGet({request,env}){
     try {
-        // 1. 频率限制检查
-        const rateLimitResponse = await checkRateLimit(request, env);
+        // 1. 频率限制检查（超限直接 429）
+        const rateLimitResponse = await enforceRateLimit(request, env, LIMITS.search);
         if (rateLimitResponse) return rateLimitResponse;
 
         const url = new URL(request.url);
@@ -510,6 +469,10 @@ export async function onRequestGet({request,env}){
 // ─── 删除时刻表 ─────────────────────────────────────────────
 export async function onRequestDelete({ request, env }) {
     try {
+        // 频率限制：删除
+        const limited = await enforceRateLimit(request, env, LIMITS.remove);
+        if (limited) return limited;
+
         const body = await request.json().catch(() => null);
         if (!body) {
             return new Response(JSON.stringify({ error: '无效的请求数据' }), {

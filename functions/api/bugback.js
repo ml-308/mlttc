@@ -11,9 +11,14 @@
 // 落库：INSERT INTO BUG (EMAIL, BUGBACK)，依赖 env.mlttcd
 // 优化点：邮箱优先取自 JWT payload，只有 payload 里没有时才回查 USER 表
 import { verifyToken, getCookie, clearAuthCookie } from '../auth';
+import { enforceRateLimit, LIMITS } from '../ratelimit';
 
 export async function onRequestPost({ request, env }) {
   try {
+    // 频率限制：防灌水（每 10 分钟最多 5 条）
+    const limited = await enforceRateLimit(request, env, LIMITS.feedback);
+    if (limited) return limited;
+
     // 验证登录
     const token = getCookie(request, 'auth_token');
     if (!token) {

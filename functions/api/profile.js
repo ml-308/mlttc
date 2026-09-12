@@ -13,6 +13,7 @@
 //      曾经把键写成 'STATION'，导致站长永远被判定为普通用户
 //   2. setCorsHeaders 只放行 https://mlttc.bond —— 需要携带 Cookie，不能用 *
 import { verifyToken, clearAuthCookie } from '../auth';
+import { enforceRateLimit, LIMITS } from '../ratelimit';
 
 // 安全版本的 getCookie（修复原版缺陷）
 function safeGetCookie(request, name) {
@@ -68,6 +69,10 @@ function parseRole(adm) {
 
 export async function onRequestGet({ request, env }) {
   try {
+    // 频率限制：额度放宽（每次页面加载会调 2~4 次），只为挡住脚本抓取
+    const limited = await enforceRateLimit(request, env, LIMITS.profileRead);
+    if (limited) return limited;
+
     let token = null;
 
     // 1. 优先从 Authorization 头获取 Bearer token

@@ -10,6 +10,7 @@
  */
 import { showPrompt } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
+import { createGuard } from '/lib/ui/guard.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
 
 // ─── DOM 元素 ────────────────────────────────
@@ -351,7 +352,14 @@ function buildData() {
 
 // ─── 提交 ────────────────────────────────────
 
-async function submitEdit() {
+const submitGuard = createGuard('正在提交，请稍候…');
+
+/** 「提交修改」按钮的入口（绑定处引用 submitEdit，所以守卫裹在这里） */
+function submitEdit() {
+  return submitGuard.run(doSubmitEdit);
+}
+
+async function doSubmitEdit() {
   // 获取用户信息
   const userRes = await fetch('/api/profile', { credentials: 'include' });
   if (!userRes.ok) {
