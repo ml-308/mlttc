@@ -49,6 +49,24 @@ function showMessage(msg, isError) {
   }
 }
 
+/**
+ * 是否被驳回：以 BACK 列为准（BACK == 1 表示被管理员驳回）
+ * 说明：SPECIAL 为“备注”字段，不再用于判断驳回状态；
+ *       用户修改时刻表后，后端会将 BACK 置为 '-'（未驳回）
+ */
+function isRejected(item) {
+  if (!item) return false;
+  const back = item.BACK;
+  return back !== undefined && back !== null && String(back).trim() === '1';
+}
+
+/** 列表排序权重：被驳回 > 待审核 > 已通过 */
+function timetableLevel(item) {
+  if (isRejected(item)) return 2;
+  if (item.PASS == true) return 0;
+  return 1;
+}
+
 async function loadProfile() {
   try {
     const res = await fetch('/api/profile', { credentials: 'include' });
@@ -255,8 +273,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cached && cached.email === email && Array.isArray(cached.data)) {
       // 缓存命中，直接使用
       myTimetables = cached.data;
-      // 已通过优先排序
-      myTimetables.sort((a, b) => (b.PASS == true ? 1 : 0) - (a.PASS == true ? 1 : 0));
+      // 被驳回 > 待审核 > 已通过 排序
+      myTimetables.sort((a, b) => timetableLevel(b) - timetableLevel(a));
       ttLoading.classList.add('hidden');
 
       if (myTimetables.length === 0) {
@@ -287,16 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       myTimetables = json.data || [];
-      // 被驳回 > 已修改驳回 > 待审核 > 已通过 排序
-      myTimetables.sort((a, b) => {
-        const getLevel = (x) => {
-          if (x.SPECIAL === '时刻表被驳回') return 3;
-          if (x.SPECIAL && x.SPECIAL.includes('（已修改驳回）')) return 2;
-          if (x.PASS == true) return 0;
-          return 1;
-        };
-        return getLevel(b) - getLevel(a);
-      });
+      // 被驳回 > 待审核 > 已通过 排序
+      myTimetables.sort((a, b) => timetableLevel(b) - timetableLevel(a));
 
       // 写入缓存
       try {
@@ -346,14 +356,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
             <span>写入: ${item.WRITETIME || '未知'}</span>
             <span style="font-weight:600; ${
+              isRejected(item) ? 'color:var(--danger);' :
               item.PASS == true ? 'color:var(--success);' :
-              item.SPECIAL === '时刻表被驳回' ? 'color:var(--danger);' :
-              (item.SPECIAL && item.SPECIAL.includes('（已修改驳回）')) ? 'color:#e67e22;' :
               'color:var(--warning);'
             }">${
+              isRejected(item) ? '被驳回' :
               item.PASS == true ? '已通过' :
-              item.SPECIAL === '时刻表被驳回' ? '被驳回' :
-              (item.SPECIAL && item.SPECIAL.includes('（已修改驳回）')) ? '已修改驳回' :
               '待审核'
             }</span>
           </div>
