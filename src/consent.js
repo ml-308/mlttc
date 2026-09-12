@@ -68,7 +68,14 @@ export function revokeConsent() {
 
 /* ==================== Cookie / 本地存储告知横幅 ==================== */
 
+/** 是否当前页面需要展示告知横幅（仅首页，可能是 / 或 /index.html） */
+function isHomePage() {
+  const path = window.location.pathname;
+  return path === '/' || /\/index\.html$/.test(path);
+}
+
 function mountBanner() {
+  if (!isHomePage()) return; // 仅在首页展示
   if (hasConsented()) return;
   if (document.querySelector('.consent-banner')) return;
 

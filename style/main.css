@@ -860,9 +860,11 @@ html {
 /* ============ Cookie / 本地存储告知横幅（由 src/consent.js 动态插入） ============ */
 .consent-banner {
     position: fixed;
-    left: 50%;
+    left: 0;
+    right: 0;
     bottom: 1rem;
-    transform: translateX(-50%);
+    /* 用自动外边距水平居中：避免被入场动画的 transform 覆盖而偏离中心 */
+    margin: 0 auto;
     z-index: 900;
     width: min(720px, calc(100vw - 2rem));
     box-sizing: border-box;
