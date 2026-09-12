@@ -94,7 +94,7 @@ function resolveRole(user) {
   const adm = String(user.adm ?? '').trim().toLowerCase();
   let fallbackKey = 'user';
   if (adm === 'adm' || adm === 'admin') fallbackKey = 'admin';
-  else if (adm === 'station' || adm === '站长') fallbackKey = 'station';
+  else if (adm === 'STATION' || adm === '站长') fallbackKey = 'STATION';
   return { key: fallbackKey, ...ROLE_INFO[fallbackKey] };
 }
 

@@ -36,8 +36,8 @@ function setCorsHeaders(response) {
 const ROLE_INFO = {
   adm: { key: 'admin', label: '管理员' },
   admin: { key: 'admin', label: '管理员' },
-  station: { key: 'station', label: '站长' },
-  '站长': { key: 'station', label: '站长' }
+  STATION: { key: 'STATION', label: '站长' },
+  '站长': { key: 'STATION', label: '站长' }
 };
 const ROLE_USER = { key: 'user', label: '普通用户' };
 

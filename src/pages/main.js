@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-console.log("V0.1.2.1");
+console.log("V0.1.2.2");
 
 // 目标时间：2028年6月7日 00:00:00（月份从0开始，5代表6月）
 const targetDate = new Date(2028, 5, 7, 8, 0, 0);
