@@ -69,6 +69,19 @@
             </div>
         </hcw-card>
     </hcw-article>
+
+    <!-- 进入注册页时弹出的提示框：内容留空，后续在 #registerNoticeBody 内填写 -->
+    <div id="registerNoticeModal" class="modal">
+        <div hcw-modal>
+            <div hcw-modal-title>
+                <h3 id="registerNoticeTitle">提示</h3>
+                <button hcw-button tp icon id="registerNoticeClose" type="button" aria-label="关闭提示框">&times;</button>
+            </div>
+            <div hcw-modal-body id="registerNoticeBody">
+                <li>由于站长目前处于高二年级，没有能力支付<b>Cloudflare Pro</b>的费用，无法验证邮箱的真实性，故目前暂时采用邀请注册的方式开放部分注册权限。<br>如果您想注册账户，请联系站长<b>3082033429</b><br></li>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

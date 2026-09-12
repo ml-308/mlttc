@@ -270,3 +270,35 @@ async function writeD1(email,password){
         window.location.href='index.html';
     }
 }
+
+/* ==================== 进入注册页时的提示框 ==================== */
+/* 提示内容留空，需要填写时直接写在 register.html 的 #registerNoticeBody 内 */
+
+const noticeModal=document.getElementById('registerNoticeModal');
+const noticeCloseBtn=document.getElementById('registerNoticeClose');
+
+function openRegisterNotice(){
+    if(noticeModal) noticeModal.style.display='flex';
+}
+
+function closeRegisterNotice(){
+    if(noticeModal) noticeModal.style.display='none';
+}
+
+if(noticeModal){
+    // 进入页面即弹出
+    openRegisterNotice();
+
+    // 点击右上角 × 关闭
+    noticeCloseBtn?.addEventListener('click',closeRegisterNotice);
+
+    // 点击遮罩空白处关闭
+    noticeModal.addEventListener('click',(e)=>{
+        if(e.target===noticeModal) closeRegisterNotice();
+    });
+
+    // 按 Esc 关闭
+    document.addEventListener('keydown',(e)=>{
+        if(e.key==='Escape' && noticeModal.style.display==='flex') closeRegisterNotice();
+    });
+}
