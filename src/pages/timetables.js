@@ -4,17 +4,17 @@
  *
  * 职责：
  *   1. 菜单切换：「查询时刻表」/「添加时刻表」两个面板
- *   2. 查询：城市选择框（/lib/ui/city-chooser.mjs）+ 关键词 / 12 位 ID 精确查找
+ *   2. 查询：城市选择框（/lib/data/city-picker.mjs）+ 关键词 / 12 位 ID 精确查找
  *      → GET /api/timetable-D1，结果按线路号排序后一次性全部渲染
  *   3. 添加：逐字段校验（城市/线路/起点/终点/时刻表/执行时间）→ 确认弹窗
  *      → POST /api/timetable-D1
  *   4. 从详情页返回时，由 sessionStorage 恢复上一次的搜索条件与结果
  *
- * 依赖：/lib/ui/popup.mjs、/lib/ui/city-chooser.mjs、/lib/ui/message.mjs、
+ * 依赖：/lib/ui/popup.mjs、/lib/data/city-picker.mjs、/lib/ui/message.mjs、
  *       /lib/timetable.mjs
  */
 import { showPrompt } from '/lib/ui/popup.mjs';
-import { createCityChooser } from '/lib/ui/city-chooser.mjs';
+import { mountCityPicker } from '/lib/data/city-picker.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
@@ -697,14 +697,12 @@ const searchclean = document.getElementById("clearSearchBtn");
 const searchKeyword = document.getElementById("search-keyword");
 const searchid = document.getElementById("search-id");
 
-// 城市选择器（输入 + 下拉列表），逻辑见 lib/ui/city-chooser.mjs
-// 样式在 style/main.css 的「城市选择器」区块
-const cityInput = document.getElementById("city-chooser");
-const cityChooser = createCityChooser({
-    input: cityInput,
-    list: document.getElementById("city-list"),
-    hint: document.getElementById("citytest")
-});
+// 城市选择框：DOM（输入框 / 箭头 / 下拉 / 提示行）由 mountCityPicker 生成，
+// 数据取自 lib/data/cities.json（带缓存）。样式见 style/main.css 的「城市选择器」区块。
+// 说明：提示行现在有独立 id，不会再和新增表单的 #citytest 撞车（原来撞了，
+//       导致查询框的提示被写进隐藏的新增表单里，用户根本看不到）。
+const cityChooser = await mountCityPicker('#city-picker');
+const cityInput = cityChooser.input;
 
 // 结果区域元素
 const searchResult = document.getElementById("search-result");
