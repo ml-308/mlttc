@@ -15,7 +15,7 @@
  */
 import { showPrompt } from '/lib/ui/popup.mjs';
 import { mountCityPicker, attachCityPicker } from '/lib/data/city-picker.mjs';
-import { normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
+import { checkCityInput, describeCityInput, normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
@@ -292,17 +292,17 @@ function cityinput(){
     console.log("city write")
     const input=city_input.value;
     // 规范判断：必须能在城市库里找到
-    // 接受「无锡」「无锡市」「江苏省 无锡」「江苏省 无锡市」这几种写法
-    const city=normalizeCityInput(input);
-    if(city==null){
-        judge.city=0;
-        msgout(city_input,citytest,input.trim()?"城市库中找不到「"+input.trim()+"」，请从下拉列表中选择":"请输入城市",0,input);
+    // 接受「无锡」「无锡市」「江苏省 无锡」「江苏省 无锡市」这几种写法；
+    // 合营线路可以写两个城市，用「/」隔开（如「无锡/苏州」）
+    const result=checkCityInput(input);
+    judge.city=result.ok?1:0;
+    if(result.ok){
+        // 直接写入入库写法（带「市」；两个城市则「江苏省 无锡市/江苏省 苏州市」）
+        // ⚠️ 以「/」结尾时不会走到这里（reason==='incomplete'），
+        //    否则会把用户刚打的分隔符抹掉，第二个城市就没法输入了
+        city_input.value=result.value;
     }
-    else{
-        judge.city=1;
-        city_input.value=city;  // 直接写入「江苏省 无锡市」的入库写法
-        msgout(city_input,citytest,'"'+city+'"'+" 符合格式规范",1,input);
-    }
+    msgout(city_input,citytest,describeCityInput(result),judge.city,input);
     console.log(judge.city);
 }
 

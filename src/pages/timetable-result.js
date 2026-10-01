@@ -12,7 +12,7 @@ import { showPrompt } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
 import { attachCityPicker } from '/lib/data/city-picker.mjs';
-import { normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
+import { checkCityInput, describeCityInput, normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
 
 // ─── DOM 元素 ────────────────────────────────
@@ -123,15 +123,15 @@ function parseDateForEdit(dateStr) {
 function cityinput() {
   const input = cityInput.value;
   // 规范判断：必须能在城市库里找到
-  // 接受「无锡」「无锡市」「江苏省 无锡」「江苏省 无锡市」这几种写法
-  const city = normalizeCityInput(input);
-  if (city == null) {
-    judge.city = 0;
-    msgout(cityInput, cityTest, input.trim() ? '城市库中找不到「' + input.trim() + '」，请从下拉列表中选择' : '请输入城市', 0);
-  } else {
-    judge.city = 1;
-    msgout(cityInput, cityTest, '"' + city + '" 符合格式规范', 1);
+  // 接受「无锡」「无锡市」「江苏省 无锡」「江苏省 无锡市」这几种写法；
+  // 合营线路可以写两个城市，用「/」隔开（如「无锡/苏州」）
+  const result = checkCityInput(input);
+  judge.city = result.ok ? 1 : 0;
+  if (result.ok) {
+    // 入库写法（带「市」）；以「/」结尾时不会走到这里，免得抹掉刚打的分隔符
+    cityInput.value = result.value;
   }
+  msgout(cityInput, cityTest, describeCityInput(result), judge.city);
 }
 
 function wayinput() {
