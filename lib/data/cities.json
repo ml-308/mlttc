@@ -369,7 +369,7 @@
     {"province": "河南省", "city": "鹤壁", "plate": "豫F"},
     {"province": "河南省", "city": "新乡", "plate": "豫G"},
     {"province": "河南省", "parent": "新乡", "city": "卫辉", "plate": "豫G"},
-    {"province": "河南省", "parent": "新乡", "city": "辉县", "plate": "豫G"},
+    {"province": "河南省", "parent": "新乡", "city": "辉县", "plate": "豫G", "suffix": "县"},
     {"province": "河南省", "parent": "新乡", "city": "长垣", "plate": "豫G"},
     {"province": "河南省", "city": "焦作", "plate": "豫H"},
     {"province": "河南省", "parent": "焦作", "city": "沁阳", "plate": "豫H"},
