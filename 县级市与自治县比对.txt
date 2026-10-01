@@ -1,0 +1,168 @@
+县级市 / 自治县 全量比对报告
+========================================================================
+比对对象：lib/data/cities.json（共 727 条；带 parent 的县级条目 366 条）
+数据源：province-city-china 区划表（2846 条，覆盖全国 31 个省级单位；名称约为 2020 年口径）
+
+【一】县级市
+------------------------------------------------------------------------
+数据源县级市 332 个；文件按同名比对未收录 2 个：
+    福建省  350681  龙海市
+    河南省  410381  偃师市
+
+说明：这两个已在 2021 年撤市设区，现状为「龙海区」(漳州，350604)、「偃师区」(洛阳，410307)，
+      属市辖区而非县级市，不应补入。
+      其余县级市文件均已收录，包括省直辖的 仙桃/潜江/天门/济源、海南 琼海/文昌/万宁/东方/五指山/儋州、
+      新疆兵团 石河子/阿拉尔/图木舒克/五家渠/北屯/铁门关/双河/可克达拉/昆玉/胡杨河/新星/白杨 等。
+结论：县级市无遗漏。
+
+【二】自治县 / 自治旗
+------------------------------------------------------------------------
+数据源 120 个；文件已收录 0 个，未收录 120 个。
+结论：自治县 / 自治旗全部遗漏。文件 366 条县级条目中，349 条是县级市、17 条是县，没有一条自治县/自治旗。
+
+【三】建议补入的条目（120 条，格式与文件现有县级条目一致）
+------------------------------------------------------------------------
+  河北省（6 条）
+    {"province":"河北省","parent":"秦皇岛","city":"青龙满族自治县","plate":"冀C"},
+    {"province":"河北省","parent":"承德","city":"丰宁满族自治县","plate":"冀H"},
+    {"province":"河北省","parent":"承德","city":"宽城满族自治县","plate":"冀H"},
+    {"province":"河北省","parent":"承德","city":"围场满族蒙古族自治县","plate":"冀H"},
+    {"province":"河北省","parent":"沧州","city":"孟村回族自治县","plate":"冀J"},
+    {"province":"河北省","parent":"廊坊","city":"大厂回族自治县","plate":"冀R"},
+  内蒙古自治区（3 条）
+    {"province":"内蒙古自治区","parent":"呼伦贝尔","city":"莫力达瓦达斡尔族自治旗","plate":"蒙E"},
+    {"province":"内蒙古自治区","parent":"呼伦贝尔","city":"鄂伦春自治旗","plate":"蒙E"},
+    {"province":"内蒙古自治区","parent":"呼伦贝尔","city":"鄂温克族自治旗","plate":"蒙E"},
+  辽宁省（8 条）
+    {"province":"辽宁省","parent":"鞍山","city":"岫岩满族自治县","plate":"辽C"},
+    {"province":"辽宁省","parent":"抚顺","city":"新宾满族自治县","plate":"辽D"},
+    {"province":"辽宁省","parent":"抚顺","city":"清原满族自治县","plate":"辽D"},
+    {"province":"辽宁省","parent":"本溪","city":"本溪满族自治县","plate":"辽E"},
+    {"province":"辽宁省","parent":"本溪","city":"桓仁满族自治县","plate":"辽E"},
+    {"province":"辽宁省","parent":"丹东","city":"宽甸满族自治县","plate":"辽F"},
+    {"province":"辽宁省","parent":"阜新","city":"阜新蒙古族自治县","plate":"辽J"},
+    {"province":"辽宁省","parent":"朝阳","city":"喀喇沁左翼蒙古族自治县","plate":"辽N"},
+  吉林省（3 条）
+    {"province":"吉林省","parent":"四平","city":"伊通满族自治县","plate":"吉C"},
+    {"province":"吉林省","parent":"白山","city":"长白朝鲜族自治县","plate":"吉F"},
+    {"province":"吉林省","parent":"松原","city":"前郭尔罗斯蒙古族自治县","plate":"吉J"},
+  黑龙江省（1 条）
+    {"province":"黑龙江省","parent":"大庆","city":"杜尔伯特蒙古族自治县","plate":"黑E"},
+  浙江省（1 条）
+    {"province":"浙江省","parent":"丽水","city":"景宁畲族自治县","plate":"浙K"},
+  湖北省（2 条）
+    {"province":"湖北省","parent":"宜昌","city":"长阳土家族自治县","plate":"鄂E"},
+    {"province":"湖北省","parent":"宜昌","city":"五峰土家族自治县","plate":"鄂E"},
+  湖南省（7 条）
+    {"province":"湖南省","parent":"邵阳","city":"城步苗族自治县","plate":"湘E"},
+    {"province":"湖南省","parent":"永州","city":"江华瑶族自治县","plate":"湘M"},
+    {"province":"湖南省","parent":"怀化","city":"麻阳苗族自治县","plate":"湘N"},
+    {"province":"湖南省","parent":"怀化","city":"新晃侗族自治县","plate":"湘N"},
+    {"province":"湖南省","parent":"怀化","city":"芷江侗族自治县","plate":"湘N"},
+    {"province":"湖南省","parent":"怀化","city":"靖州苗族侗族自治县","plate":"湘N"},
+    {"province":"湖南省","parent":"怀化","city":"通道侗族自治县","plate":"湘N"},
+  广东省（3 条）
+    {"province":"广东省","parent":"韶关","city":"乳源瑶族自治县","plate":"粤F"},
+    {"province":"广东省","parent":"清远","city":"连山壮族瑶族自治县","plate":"粤R"},
+    {"province":"广东省","parent":"清远","city":"连南瑶族自治县","plate":"粤R"},
+  广西壮族自治区（12 条）
+    {"province":"广西壮族自治区","parent":"柳州","city":"融水苗族自治县","plate":"桂B"},
+    {"province":"广西壮族自治区","parent":"柳州","city":"三江侗族自治县","plate":"桂B"},
+    {"province":"广西壮族自治区","parent":"桂林","city":"龙胜各族自治县","plate":"桂C"},
+    {"province":"广西壮族自治区","parent":"桂林","city":"恭城瑶族自治县","plate":"桂C"},
+    {"province":"广西壮族自治区","parent":"百色","city":"隆林各族自治县","plate":"桂L"},
+    {"province":"广西壮族自治区","parent":"贺州","city":"富川瑶族自治县","plate":"桂J"},
+    {"province":"广西壮族自治区","parent":"河池","city":"罗城仫佬族自治县","plate":"桂M"},
+    {"province":"广西壮族自治区","parent":"河池","city":"环江毛南族自治县","plate":"桂M"},
+    {"province":"广西壮族自治区","parent":"河池","city":"巴马瑶族自治县","plate":"桂M"},
+    {"province":"广西壮族自治区","parent":"河池","city":"都安瑶族自治县","plate":"桂M"},
+    {"province":"广西壮族自治区","parent":"河池","city":"大化瑶族自治县","plate":"桂M"},
+    {"province":"广西壮族自治区","parent":"来宾","city":"金秀瑶族自治县","plate":"桂G"},
+  海南省（6 条）
+    {"province":"海南省","city":"白沙黎族自治县","plate":"琼A"},
+    {"province":"海南省","city":"昌江黎族自治县","plate":"琼A"},
+    {"province":"海南省","city":"乐东黎族自治县","plate":"琼A"},
+    {"province":"海南省","city":"陵水黎族自治县","plate":"琼A"},
+    {"province":"海南省","city":"保亭黎族苗族自治县","plate":"琼A"},
+    {"province":"海南省","city":"琼中黎族苗族自治县","plate":"琼A"},
+  重庆市（4 条）
+    {"province":"重庆市","city":"石柱土家族自治县","plate":"渝A"},
+    {"province":"重庆市","city":"秀山土家族苗族自治县","plate":"渝A"},
+    {"province":"重庆市","city":"酉阳土家族苗族自治县","plate":"渝A"},
+    {"province":"重庆市","city":"彭水苗族土家族自治县","plate":"渝A"},
+  四川省（4 条）
+    {"province":"四川省","parent":"绵阳","city":"北川羌族自治县","plate":"川B"},
+    {"province":"四川省","parent":"乐山","city":"峨边彝族自治县","plate":"川L"},
+    {"province":"四川省","parent":"乐山","city":"马边彝族自治县","plate":"川L"},
+    {"province":"四川省","parent":"凉山","city":"木里藏族自治县","plate":"川W"},
+  贵州省（11 条）
+    {"province":"贵州省","parent":"遵义","city":"道真仡佬族苗族自治县","plate":"贵C"},
+    {"province":"贵州省","parent":"遵义","city":"务川仡佬族苗族自治县","plate":"贵C"},
+    {"province":"贵州省","parent":"安顺","city":"镇宁布依族苗族自治县","plate":"贵G"},
+    {"province":"贵州省","parent":"安顺","city":"关岭布依族苗族自治县","plate":"贵G"},
+    {"province":"贵州省","parent":"安顺","city":"紫云苗族布依族自治县","plate":"贵G"},
+    {"province":"贵州省","parent":"毕节","city":"威宁彝族回族苗族自治县","plate":"贵F"},
+    {"province":"贵州省","parent":"铜仁","city":"玉屏侗族自治县","plate":"贵D"},
+    {"province":"贵州省","parent":"铜仁","city":"印江土家族苗族自治县","plate":"贵D"},
+    {"province":"贵州省","parent":"铜仁","city":"沿河土家族自治县","plate":"贵D"},
+    {"province":"贵州省","parent":"铜仁","city":"松桃苗族自治县","plate":"贵D"},
+    {"province":"贵州省","parent":"黔南","city":"三都水族自治县","plate":"贵J"},
+  云南省（29 条）
+    {"province":"云南省","parent":"昆明","city":"石林彝族自治县","plate":"云A"},
+    {"province":"云南省","parent":"昆明","city":"禄劝彝族苗族自治县","plate":"云A"},
+    {"province":"云南省","parent":"昆明","city":"寻甸回族彝族自治县","plate":"云A"},
+    {"province":"云南省","parent":"玉溪","city":"峨山彝族自治县","plate":"云F"},
+    {"province":"云南省","parent":"玉溪","city":"新平彝族傣族自治县","plate":"云F"},
+    {"province":"云南省","parent":"玉溪","city":"元江哈尼族彝族傣族自治县","plate":"云F"},
+    {"province":"云南省","parent":"丽江","city":"玉龙纳西族自治县","plate":"云P"},
+    {"province":"云南省","parent":"丽江","city":"宁蒗彝族自治县","plate":"云P"},
+    {"province":"云南省","parent":"普洱","city":"宁洱哈尼族彝族自治县","plate":"云J"},
+    {"province":"云南省","parent":"普洱","city":"墨江哈尼族自治县","plate":"云J"},
+    {"province":"云南省","parent":"普洱","city":"景东彝族自治县","plate":"云J"},
+    {"province":"云南省","parent":"普洱","city":"景谷傣族彝族自治县","plate":"云J"},
+    {"province":"云南省","parent":"普洱","city":"镇沅彝族哈尼族拉祜族自治县","plate":"云J"},
+    {"province":"云南省","parent":"普洱","city":"江城哈尼族彝族自治县","plate":"云J"},
+    {"province":"云南省","parent":"普洱","city":"孟连傣族拉祜族佤族自治县","plate":"云J"},
+    {"province":"云南省","parent":"普洱","city":"澜沧拉祜族自治县","plate":"云J"},
+    {"province":"云南省","parent":"普洱","city":"西盟佤族自治县","plate":"云J"},
+    {"province":"云南省","parent":"临沧","city":"双江拉祜族佤族布朗族傣族自治县","plate":"云S"},
+    {"province":"云南省","parent":"临沧","city":"耿马傣族佤族自治县","plate":"云S"},
+    {"province":"云南省","parent":"临沧","city":"沧源佤族自治县","plate":"云S"},
+    {"province":"云南省","parent":"红河","city":"屏边苗族自治县","plate":"云G"},
+    {"province":"云南省","parent":"红河","city":"金平苗族瑶族傣族自治县","plate":"云G"},
+    {"province":"云南省","parent":"红河","city":"河口瑶族自治县","plate":"云G"},
+    {"province":"云南省","parent":"大理","city":"漾濞彝族自治县","plate":"云L"},
+    {"province":"云南省","parent":"大理","city":"南涧彝族自治县","plate":"云L"},
+    {"province":"云南省","parent":"大理","city":"巍山彝族回族自治县","plate":"云L"},
+    {"province":"云南省","parent":"怒江","city":"贡山独龙族怒族自治县","plate":"云Q"},
+    {"province":"云南省","parent":"怒江","city":"兰坪白族普米族自治县","plate":"云Q"},
+    {"province":"云南省","parent":"迪庆","city":"维西傈僳族自治县","plate":"云R"},
+  甘肃省（7 条）
+    {"province":"甘肃省","parent":"天水","city":"张家川回族自治县","plate":"甘E"},
+    {"province":"甘肃省","parent":"武威","city":"天祝藏族自治县","plate":"甘H"},
+    {"province":"甘肃省","parent":"张掖","city":"肃南裕固族自治县","plate":"甘G"},
+    {"province":"甘肃省","parent":"酒泉","city":"肃北蒙古族自治县","plate":"甘F"},
+    {"province":"甘肃省","parent":"酒泉","city":"阿克塞哈萨克族自治县","plate":"甘F"},
+    {"province":"甘肃省","parent":"临夏","city":"东乡族自治县","plate":"甘N"},
+    {"province":"甘肃省","parent":"临夏","city":"积石山保安族东乡族撒拉族自治县","plate":"甘N"},
+  青海省（7 条）
+    {"province":"青海省","parent":"西宁","city":"大通回族土族自治县","plate":"青A"},
+    {"province":"青海省","parent":"海东","city":"民和回族土族自治县","plate":"青B"},
+    {"province":"青海省","parent":"海东","city":"互助土族自治县","plate":"青B"},
+    {"province":"青海省","parent":"海东","city":"化隆回族自治县","plate":"青B"},
+    {"province":"青海省","parent":"海东","city":"循化撒拉族自治县","plate":"青B"},
+    {"province":"青海省","parent":"海北","city":"门源回族自治县","plate":"青C"},
+    {"province":"青海省","parent":"黄南","city":"河南蒙古族自治县","plate":"青D"},
+  新疆维吾尔自治区（6 条）
+    {"province":"新疆维吾尔自治区","parent":"哈密","city":"巴里坤哈萨克自治县","plate":"新L"},
+    {"province":"新疆维吾尔自治区","parent":"昌吉","city":"木垒哈萨克自治县","plate":"新B"},
+    {"province":"新疆维吾尔自治区","parent":"巴音郭楞","city":"焉耆回族自治县","plate":"新M"},
+    {"province":"新疆维吾尔自治区","parent":"喀什","city":"塔什库尔干塔吉克自治县","plate":"新Q"},
+    {"province":"新疆维吾尔自治区","parent":"伊犁","city":"察布查尔锡伯自治县","plate":"新F"},
+    {"province":"新疆维吾尔自治区","parent":"塔城","city":"和布克赛尔蒙古自治县","plate":"新G"},
+
+【四】数据源局限（请知悉）
+------------------------------------------------------------------------
+1) 该区划表约为 2020 年口径；2021 年后的撤县设市需人工核对。文件本身已按较新口径收录了
+   祁阳/横州/会理/黔西/禄丰/旬阳/沙湾/错那/米林 等，因此本次比对不会漏报这些。
+2) 自治县名称自 2020 年以来基本未变，故【二】的 120 条结论可靠。
