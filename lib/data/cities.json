@@ -222,6 +222,7 @@
     {"province": "浙江省", "parent": "绍兴", "city": "诸暨", "plate": "浙D"},
     {"province": "浙江省", "parent": "绍兴", "city": "嵊州", "plate": "浙D"},
     {"province": "浙江省", "city": "湖州", "plate": "浙E"},
+    {"province": "浙江省", "parent": "湖州", "city": "长兴", "plate": "浙E", "suffix": "县"},
     {"province": "浙江省", "city": "嘉兴", "plate": "浙F"},
     {"province": "浙江省", "parent": "嘉兴", "city": "海宁", "plate": "浙F"},
     {"province": "浙江省", "parent": "嘉兴", "city": "平湖", "plate": "浙F"},
