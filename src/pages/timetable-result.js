@@ -124,7 +124,7 @@ function cityinput() {
   const input = cityInput.value;
   // 规范判断：必须能在城市库里找到
   // 接受「无锡」「无锡市」「江苏省 无锡」「江苏省 无锡市」这几种写法；
-  // 合营线路可以写两个城市，用「/」隔开（如「无锡/苏州」）
+  // 合营线路可以写多个城市（最多 6 个，见 city-chooser 的 MAX_CITY_COUNT），用「/」隔开
   const result = checkCityInput(input);
   judge.city = result.ok ? 1 : 0;
   if (result.ok) {

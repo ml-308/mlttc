@@ -293,11 +293,11 @@ function cityinput(){
     const input=city_input.value;
     // 规范判断：必须能在城市库里找到
     // 接受「无锡」「无锡市」「江苏省 无锡」「江苏省 无锡市」这几种写法；
-    // 合营线路可以写两个城市，用「/」隔开（如「无锡/苏州」）
+    // 合营线路可以写多个城市（最多 6 个，见 city-chooser 的 MAX_CITY_COUNT），用「/」隔开
     const result=checkCityInput(input);
     judge.city=result.ok?1:0;
     if(result.ok){
-        // 直接写入入库写法（带「市」；两个城市则「江苏省 无锡市/江苏省 苏州市」）
+        // 直接写入入库写法（带「市」；多个城市则「江苏省 无锡市/江苏省 苏州市」）
         // ⚠️ 以「/」结尾时不会走到这里（reason==='incomplete'），
         //    否则会把用户刚打的分隔符抹掉，第二个城市就没法输入了
         city_input.value=result.value;

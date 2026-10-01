@@ -985,7 +985,9 @@ html {
     margin: 0;
     padding: 6px;
     list-style: none;
-    max-height: 280px;
+    /* 默认最多 10 条候选（.88rem 行高约 36px/条）——按 10 条留高；
+       屏幕不够高时按视口收窄，列表内部滚动 */
+    max-height: min(384px, 55vh);
     overflow-y: auto;
     font-family: var(--font-family);
     color: var(--text-primary);
