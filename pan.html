@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>走迷宫 - MLTTC</title>
+    <!--
+      复用站点样式：style/index.css → main.css（导航栏 / 卡片 / 按钮 / 页脚 / 深浅色变量）。
+      本页只留「棋盘 + 状态栏 + 方向键」这点游戏专属样式，颜色一律引用站点变量，
+      所以会跟着站点主题一起变（右上角 🌙 按钮切换）。
+    -->
+    <link rel="stylesheet" href="style/index.css">
+    <script src="src/pages/main.js" type="module"></script>
+    <script src="lib/ui/init.mjs" type="module"></script>
+    <script src="/lib/ui/popup.mjs" type="module"></script>
+    <script src="/src/auth-header.js" type="module"></script>
+    <style>
+        /* ---------- 棋盘配色：深浅两套，取站点色系 ---------- */
+        body {
+            --maze-board: #f5f5f7;
+            --maze-wall: #0071e3;
+            --maze-trail: rgba(0, 113, 227, .16);
+            --maze-goal: #ff9500;
+            --maze-start: #34c759;
+            --maze-player: #0071e3;
+            --maze-overlay: rgba(245, 245, 247, .78);
+        }
+
+        [data-theme="dark"] body {
+            --maze-board: #12141d;
+            --maze-wall: #5b8cff;
+            --maze-trail: rgba(91, 140, 255, .22);
+            --maze-goal: #ffb340;
+            --maze-start: #30d158;
+            --maze-player: #66b8ff;
+            --maze-overlay: rgba(0, 0, 0, .72);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            html:not([data-theme]) body {
+                --maze-board: #12141d;
+                --maze-wall: #5b8cff;
+                --maze-trail: rgba(91, 140, 255, .22);
+                --maze-goal: #ffb340;
+                --maze-start: #30d158;
+                --maze-player: #66b8ff;
+                --maze-overlay: rgba(0, 0, 0, .72);
+            }
+        }
+
+        /* ---------- 布局 ---------- */
+        .maze-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .maze-lead {
+            margin: 0;
+            align-self: flex-start;
+            font-size: .85rem;
+            color: var(--text-secondary);
+        }
+
+        /* 设置栏 */
+        .maze-setup {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 12px 18px;
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            background: var(--bg-hover);
+            border: 1px solid var(--border-light);
+        }
+
+        .maze-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: .8rem;
+            color: var(--text-secondary);
+        }
+
+        .maze-field > label {
+            white-space: nowrap;
+        }
+
+        .maze-num {
+            min-width: 2.6rem;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-primary);
+        }
+
+        input[type="range"] {
+            width: 108px;
+            height: 5px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 2px solid var(--primary);
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 2px solid var(--primary);
+            cursor: pointer;
+        }
+
+        input[type="number"] {
+            font-family: var(--font-family);
+            font-size: .85rem;
+            color: var(--text-primary);
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            padding: 6px 8px;
+            outline: none;
+            transition: var(--transition-fast);
+            -moz-appearance: textfield;
+        }
+
+        input[type="number"] {
+            width: 62px;
+            text-align: center;
+        }
+
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type="number"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-bg);
+        }
+
+        /* 状态栏 */
+        .maze-hud {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .maze-stat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 7px 4px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-hover);
+            border: 1px solid var(--border-light);
+            font-size: .72rem;
+            color: var(--text-secondary);
+        }
+
+        .maze-stat b {
+            font-size: 1.02rem;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 棋盘 + 方向键（宽屏并排，省竖向空间） */
+        .maze-play {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+
+        .maze-stage {
+            position: relative;
+            line-height: 0;
+        }
+
+        #maze {
+            display: block;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            touch-action: none;
+        }
+
+        /* 通关遮罩 */
+        .maze-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md);
+            background: var(--maze-overlay);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--transition-slow);
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .maze-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .maze-overlay h2 {
+            margin: 0 0 .25rem;
+            font-size: 1.4rem;
+            color: var(--primary);
+        }
+
+        .maze-overlay p {
+            margin: .25rem 0;
+            font-size: .88rem;
+            color: var(--text-secondary);
+        }
+
+        .maze-overlay b {
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .maze-record {
+            display: none;
+            color: var(--success) !important;
+            font-weight: 700;
+        }
+
+        /* 方向键 */
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 54px);
+            grid-template-rows: repeat(3, 54px);
+            gap: 8px;
+            transition: var(--transition-fast);
+        }
+
+        .dpad.disabled {
+            opacity: .3;
+            pointer-events: none;
+        }
+
+        .dpad button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            font-family: var(--font-family);
+            font-size: 1rem;
+            color: var(--text-primary);
+            background: var(--button-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition-fast);
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .dpad button:hover {
+            background: var(--button-bg-hl);
+        }
+
+        .dpad button:active {
+            background: var(--primary);
+            color: var(--on-primary);
+            transform: scale(.93);
+        }
+
+        .maze-hint {
+            margin: 0;
+            font-size: .75rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        @media (max-width: 720px) {
+            .dpad {
+                grid-template-columns: repeat(3, 48px);
+                grid-template-rows: repeat(3, 48px);
+            }
+
+            input[type="range"] {
+                width: 88px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <hcw-body-header>
+        <!-- 返回按钮用 hcw-button 的 href（组件会自动原地跳转），无需额外脚本 -->
+        <hcw-button flat fill href="/tools.html" style="min-width: 5rem;">返回</hcw-button>
+        <div class="logo-area">
+            <div class="logo-text">
+                MLTTC - 走迷宫
+            </div>
+        </div>
+        <p hidden-on-mobile style="margin-left: auto; color: var(--text-muted)">Beta测试版，功能仍在完善中</p>
+        <div id="headerAuthArea">
+            <!-- 主题切换按钮 -->
+            <hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
+            <!-- 动态显示登录按钮或用户信息 -->
+            <hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem">登录</hcw-button>
+            <div id="globalUserInfo" style="display: none;">
+                <span>欢迎，<strong id="globalDisplayName">用户</strong></span>
+                <hcw-button id="globalLogoutBtn" tp flat inline style="min-width: 5rem">退出</hcw-button>
+            </div>
+        </div>
+    </hcw-body-header>
+
+    <hcw-article>
+        <hcw-card class="form-card">
+            <h3 hcw-card-title>🌀 走迷宫</h3>
+            <p class="maze-lead">从左上角绿色起点走到右下角金色终点即通关，走过的格子会留下轨迹。</p>
+
+            <!-- 设置栏 -->
+            <div class="maze-setup" style="margin-top: .75rem;">
+                <div class="maze-field">
+                    <label for="sizeRange">大小</label>
+                    <input type="range" id="sizeRange" min="10" max="150" value="20" step="1">
+                    <input type="number" id="sizeInput" min="10" max="150" value="20" step="1" aria-label="迷宫大小">
+                </div>
+                <div class="maze-field">
+                    <label for="loopRange">环路</label>
+                    <input type="range" id="loopRange" min="0" max="40" value="15" step="5">
+                    <span class="maze-num" id="loopValue">15%</span>
+                </div>
+                <hcw-button primary id="startBtn">开始游戏</hcw-button>
+            </div>
+
+            <!-- 状态栏 -->
+            <div class="maze-hud" style="margin-top: .75rem;">
+                <div class="maze-stat"><span>⏱ 用时</span><b id="mazeTime">0.0s</b></div>
+                <div class="maze-stat"><span>👣 步数</span><b id="steps">0</b></div>
+                <div class="maze-stat"><span>🎯 最短</span><b id="shortest">--</b></div>
+                <div class="maze-stat"><span>🏆 最佳</span><b id="best">--</b></div>
+            </div>
+
+            <!-- 棋盘 + 方向键 -->
+            <div class="maze-play" style="margin-top: .9rem;">
+                <div class="maze-stage">
+                    <canvas id="maze" width="300" height="300" aria-label="迷宫棋盘"></canvas>
+                    <div class="maze-overlay" id="overlay">
+                        <hcw-card class="form-card">
+                            <h2>🎉 通关啦！</h2>
+                            <p>用时 <b id="finalTime">0.0s</b></p>
+                            <p>走了 <b id="finalSteps">0</b> 步（最短 <b id="finalShortest">--</b> 步）</p>
+                            <p class="maze-record" id="record">✨ 新纪录！</p>
+                            <hcw-button primary id="again" style="margin-top: .6rem;">再来一局</hcw-button>
+                        </hcw-card>
+                    </div>
+                </div>
+
+                <div class="dpad" id="dpad">
+                    <button data-dir="up" style="grid-area:1/2" aria-label="上">▲</button>
+                    <button data-dir="left" style="grid-area:2/1" aria-label="左">◀</button>
+                    <button data-dir="right" style="grid-area:2/3" aria-label="右">▶</button>
+                    <button data-dir="down" style="grid-area:3/2" aria-label="下">▼</button>
+                </div>
+            </div>
+
+            <p class="maze-hint" style="margin-top: .75rem;">方向键 / WASD 移动 · 手机可滑动屏幕或点方向键</p>
+        </hcw-card>
+    </hcw-article>
+
+    <hcw-body-footer></hcw-body-footer>
+
+    <!-- 登录模态框 -->
+    <div id="globalLoginModal" class="modal" style="align-items: center; display: none;">
+        <div hcw-modal>
+            <div hcw-modal-title>
+                <h3>登录系统</h3>
+                <hcw-button tp icon id="closeModalBtn">&times;</hcw-button>
+            </div>
+            <div hcw-modal-body>
+                <hcw-input primary label="用户名" type="text" id="username" placeholder="邮箱/昵称" autocomplete="off" required></hcw-input>
+                <hcw-input label="密码" type="password" id="password" placeholder="请输入密码" required></hcw-input>
+                <div id="ErrorLogin" class="error-msg">
+                    <p>用户名或密码错误，请重新输入</p>
+                </div>
+                <hcw-button primary large id="login-btn" type="submit">登 录</hcw-button>
+                <hcw-button id='RegisterBtn' large href="register.html">
+                    注册账户
+                </hcw-button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            /* ================= 常量 ================= */
+            // 四个方向与「格子四个面」的索引一一对应：0 上 / 1 右 / 2 下 / 3 左
+            const DIRS = [
+                { dx: 0, dy: -1, i: 0, opp: 2 },
+                { dx: 1, dy: 0, i: 1, opp: 3 },
+                { dx: 0, dy: 1, i: 2, opp: 0 },
+                { dx: -1, dy: 0, i: 3, opp: 1 }
+            ];
+            const DIR_INDEX = { up: 0, right: 1, down: 2, left: 3 };
+            const KEYMAP = {
+                ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+                w: 'up', s: 'down', a: 'left', d: 'right',
+                W: 'up', S: 'down', A: 'left', D: 'right'
+            };
+            const MIN_SIZE = 10;
+            const MAX_SIZE = 150;
+            // 起点 / 终点固定：左上角 → 右下角（和最初那版一致，不给选择）
+
+            /* ================= DOM ================= */
+            const canvas = document.getElementById('maze');
+            const ctx = canvas.getContext('2d');
+            const overlay = document.getElementById('overlay');
+            // ⚠️ 不要用 id="time"：站点 main.js 会往里写高考倒计时
+            const timeEl = document.getElementById('mazeTime');
+            const stepsEl = document.getElementById('steps');
+            const shortestEl = document.getElementById('shortest');
+            const bestEl = document.getElementById('best');
+            const finalTime = document.getElementById('finalTime');
+            const finalSteps = document.getElementById('finalSteps');
+            const finalShortest = document.getElementById('finalShortest');
+            const recordEl = document.getElementById('record');
+            const sizeRange = document.getElementById('sizeRange');
+            const sizeInput = document.getElementById('sizeInput');
+            const loopRange = document.getElementById('loopRange');
+            const loopValue = document.getElementById('loopValue');
+            const startBtn = document.getElementById('startBtn');
+            const againBtn = document.getElementById('again');
+            const dpad = document.getElementById('dpad');
+
+            /* ================= 状态 ================= */
+            let cols = 20, rows = 20;
+            let cell = 20, canvasSize = 300, dpr = 1;
+            let walls = null;                       // Uint8Array：每格 4 面墙，1 = 有墙
+            let start = { x: 0, y: 0 };
+            let goal = { x: cols - 1, y: rows - 1 };
+            let player = { x: 0, y: 0 };
+            let vis = { x: 0, y: 0 };               // 平滑插值用的视觉坐标
+            let trailCells = [];
+            let trailPad = 0;
+            let shortest = -1;                      // 起点到终点的最短步数（BFS 算的）
+            let steps = 0;
+            let won = false;
+            let started = false;
+            let startTime = null;
+            let elapsed = 0;
+            let lastMoveTime = 0;
+            let prevFrame = performance.now();
+            let lastGenMs = 0;                      // 上一次生成迷宫耗时（调试用）
+            let staticLayer = null, staticCtx = null;
+            let trailLayer = null, trailCtx = null;
+            let palette = readPalette();
+
+            /* ================= 配色（跟着站点主题走） ================= */
+            function readPalette() {
+                const cs = getComputedStyle(document.body);
+                const v = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
+                return {
+                    board: v('--maze-board', '#f5f5f7'),
+                    wall: v('--maze-wall', '#0071e3'),
+                    trail: v('--maze-trail', 'rgba(0,113,227,.16)'),
+                    goal: v('--maze-goal', '#ff9500'),
+                    start: v('--maze-start', '#34c759'),
+                    player: v('--maze-player', '#0071e3')
+                };
+            }
+
+            // 主题切换（html[data-theme] 由 src/auth-header.js 负责写）后重画
+            new MutationObserver(() => {
+                palette = readPalette();
+                if (started) {
+                    buildStatic();
+                    buildTrail();
+                    redrawTrail();
+                } else {
+                    showPlaceholder();
+                }
+            }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+            /* ================= 迷宫生成 ================= */
+            /**
+             * 迭代式回溯（DFS）挖墙：生成「完美迷宫」——
+             * 任意两格之间恰好一条路，所以整个迷宫天然全连通（不存在走不到的格子）。
+             * 用 TypedArray + 显式栈，150×150（22500 格）也是毫秒级。
+             *
+             * @param {number} c 列数
+             * @param {number} r 行数
+             * @param {number} loopRatio 环路比例 0~0.4（见 braid）
+             * @returns {Uint8Array} 每格 4 个面（0 上 / 1 右 / 2 下 / 3 左），1 = 有墙
+             */
+            function genMaze(c, r, loopRatio) {
+                const total = c * r;
+                const w = new Uint8Array(total * 4).fill(1);
+                const visited = new Uint8Array(total);
+                const stack = new Int32Array(total);
+                const nbrs = new Int32Array(4);
+                const ndirs = new Int32Array(4);
+
+                let sp = 0, cur = 0, vc = 1;
+                visited[0] = 1;
+
+                while (vc < total) {
+                    const cx = cur % c;
+                    const cy = (cur / c) | 0;
+                    let n = 0;
+
+                    if (cy > 0 && !visited[cur - c]) { nbrs[n] = cur - c; ndirs[n++] = 0; }
+                    if (cx < c - 1 && !visited[cur + 1]) { nbrs[n] = cur + 1; ndirs[n++] = 1; }
+                    if (cy < r - 1 && !visited[cur + c]) { nbrs[n] = cur + c; ndirs[n++] = 2; }
+                    if (cx > 0 && !visited[cur - 1]) { nbrs[n] = cur - 1; ndirs[n++] = 3; }
+
+                    if (n > 0) {
+                        const k = (Math.random() * n) | 0;
+                        w[cur * 4 + ndirs[k]] = 0;
+                        w[nbrs[k] * 4 + DIRS[ndirs[k]].opp] = 0;
+                        stack[sp++] = cur;
+                        cur = nbrs[k];
+                        visited[cur] = 1;
+                        vc++;
+                    } else if (sp > 0) {
+                        cur = stack[--sp];
+                    } else {
+                        break;   // 理论上到不了这里：total 格全部会被访问到
+                    }
+                }
+
+                braid(w, c, r, loopRatio);
+                return w;
+            }
+
+            /**
+             * 编织：按比例在死胡同（只有一面开口）上再拆一面墙。
+             * 纯 DFS 的迷宫死路特别多、走起来很憋；拆出环路后有明显「多条路可选」的感觉。
+             * ⚠️ 只拆墙不加墙，所以「全连通」这个性质不会被破坏，可通行性有保证。
+             */
+            function braid(w, c, r, ratio) {
+                if (!(ratio > 0)) return;
+                for (let y = 0; y < r; y++) {
+                    for (let x = 0; x < c; x++) {
+                        const i = y * c + x;
+                        let open = 0;
+                        let closedCount = 0;
+                        let pickD = -1, pickNI = -1;
+
+                        for (let d = 0; d < 4; d++) {
+                            if (!w[i * 4 + d]) { open++; continue; }
+                            const nx = x + DIRS[d].dx;
+                            const ny = y + DIRS[d].dy;
+                            if (nx < 0 || ny < 0 || nx >= c || ny >= r) continue;   // 边框不动
+                            // 蓄水池抽样：等概率挑一个「内部封闭面」（不额外分配数组）
+                            closedCount++;
+                            if (Math.random() < 1 / closedCount) {
+                                pickD = d;
+                                pickNI = ny * c + nx;
+                            }
+                        }
+
+                        if (open === 1 && pickD >= 0 && Math.random() < ratio) {
+                            w[i * 4 + pickD] = 0;
+                            w[pickNI * 4 + DIRS[pickD].opp] = 0;
+                        }
+                    }
+                }
+            }
+
+            /**
+             * 从某一格洪水填充（BFS，按步数一层层扩散）。
+             * 三个用途：① 校验终点可达（保证有解）② 算最短步数 ③ 还原路径
+             *
+             * @returns {{dist: Int32Array, prev: Int32Array}} dist[i] = 步数（-1 = 到不了）
+             */
+            function bfs(w, c, r, from) {
+                const total = c * r;
+                const dist = new Int32Array(total).fill(-1);
+                const prev = new Int32Array(total).fill(-1);
+                const queue = new Int32Array(total);
+                const src = from.y * c + from.x;
+
+                dist[src] = 0;
+                let head = 0, tail = 0;
+                queue[tail++] = src;
+
+                while (head < tail) {
+                    const cur = queue[head++];
+                    const cx = cur % c;
+                    const cy = (cur / c) | 0;
+                    for (let d = 0; d < 4; d++) {
+                        if (w[cur * 4 + d]) continue;               // 这一面有墙
+                        const nx = cx + DIRS[d].dx;
+                        const ny = cy + DIRS[d].dy;
+                        if (nx < 0 || ny < 0 || nx >= c || ny >= r) continue;
+                        const ni = ny * c + nx;
+                        if (dist[ni] !== -1) continue;
+                        dist[ni] = dist[cur] + 1;
+                        prev[ni] = cur;
+                        queue[tail++] = ni;
+                    }
+                }
+                return { dist: dist, prev: prev };
+            }
+
+            /** 还原 from → to 的格子路径；不可达返回 null */
+            function solvePath(w, c, r, from, to) {
+                const res = bfs(w, c, r, from);
+                const dst = to.y * c + to.x;
+                if (res.dist[dst] < 0) return null;
+
+                const path = [];
+                for (let i = dst; i !== -1; i = res.prev[i]) {
+                    path.push({ x: i % c, y: (i / c) | 0 });
+                }
+                return path.reverse();
+            }
+
+            /** 拆掉相邻两格之间的那面墙 */
+            function openWall(w, c, a, b) {
+                const dx = b.x - a.x, dy = b.y - a.y;
+                const d = dx === 1 ? 1 : dx === -1 ? 3 : dy === 1 ? 2 : 0;
+                w[(a.y * c + a.x) * 4 + d] = 0;
+                w[(b.y * c + b.x) * 4 + DIRS[d].opp] = 0;
+            }
+
+            /**
+             * 兜底：万一起点到终点不连通（生成逻辑改坏时才可能），沿 L 形强行拆墙打通。
+             * 正常流程里走不到这里 —— 它只是「可通行性」的最后一道保险。
+             */
+            function carveFallback(w, c, r, from, to) {
+                let x = from.x, y = from.y;
+                while (x !== to.x) {
+                    const nx = x + Math.sign(to.x - x);
+                    openWall(w, c, { x: x, y: y }, { x: nx, y: y });
+                    x = nx;
+                }
+                while (y !== to.y) {
+                    const ny = y + Math.sign(to.y - y);
+                    openWall(w, c, { x: x, y: y }, { x: x, y: ny });
+                    y = ny;
+                }
+            }
+
+            /* ================= 起点 / 终点（固定） ================= */
+            /**
+             * 起点永远在左上角、终点永远在右下角。
+             * 只有 1x1 那种极端尺寸才会重合，其余情况天然不会「开局即通关」。
+             */
+            function pickEndpoints(c, r) {
+                return {
+                    start: { x: 0, y: 0 },
+                    goal: { x: c - 1, y: r - 1 }
+                };
+            }
+
+            /* ================= 画布尺寸 ================= */
+            function setupCanvas(sizeCss) {
+                dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.style.width = sizeCss + 'px';
+                canvas.style.height = sizeCss + 'px';
+                canvas.width = Math.round(sizeCss * dpr);
+                canvas.height = Math.round(sizeCss * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+
+            function layout() {
+                const maxW = Math.min(window.innerWidth - 48, 620);
+                // 宽屏时方向键在棋盘右侧，不用占竖向空间
+                const narrow = window.innerWidth < 720;
+                const chrome = narrow ? 480 : 350;
+                const maxH = Math.max(200, window.innerHeight - chrome);
+                const avail = Math.max(200, Math.min(maxW, maxH));
+
+                cell = Math.max(2, Math.floor(avail / cols));
+                canvasSize = cell * cols;
+                setupCanvas(canvasSize);
+            }
+
+            /* ================= 静态层（棋盘 + 墙 + 端点底色） ================= */
+            function buildStatic() {
+                const W = canvasSize;
+
+                staticLayer = document.createElement('canvas');
+                staticLayer.width = Math.round(W * dpr);
+                staticLayer.height = Math.round(W * dpr);
+                staticCtx = staticLayer.getContext('2d');
+                staticCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                staticCtx.fillStyle = palette.board;
+                staticCtx.fillRect(0, 0, W, W);
+
+                // 起点 / 终点底色
+                staticCtx.fillStyle = palette.start;
+                staticCtx.globalAlpha = .14;
+                staticCtx.fillRect(start.x * cell, start.y * cell, cell, cell);
+                staticCtx.fillStyle = palette.goal;
+                staticCtx.fillRect(goal.x * cell, goal.y * cell, cell, cell);
+                staticCtx.globalAlpha = 1;
+
+                // 墙：每面墙只画一次（每格只画上墙和左墙，最右列画右墙、最下行画下墙）
+                staticCtx.strokeStyle = palette.wall;
+                staticCtx.lineWidth = Math.max(0.5, Math.min(cell * 0.16, 2.5));
+                const round = cell > 7;
+                staticCtx.lineCap = round ? 'round' : 'butt';
+                staticCtx.lineJoin = round ? 'round' : 'miter';
+                staticCtx.beginPath();
+
+                for (let y = 0; y < rows; y++) {
+                    const rowBase = y * cols * 4;
+                    const py = y * cell;
+                    for (let x = 0; x < cols; x++) {
+                        const i = rowBase + x * 4;
+                        const px = x * cell;
+
+                        if (walls[i]) {                       // 上墙
+                            staticCtx.moveTo(px, py);
+                            staticCtx.lineTo(px + cell, py);
+                        }
+                        if (walls[i + 3]) {                   // 左墙
+                            staticCtx.moveTo(px, py);
+                            staticCtx.lineTo(px, py + cell);
+                        }
+                        if (x === cols - 1 && walls[i + 1]) {  // 最右列
+                            staticCtx.moveTo(px + cell, py);
+                            staticCtx.lineTo(px + cell, py + cell);
+                        }
+                        if (y === rows - 1 && walls[i + 2]) {  // 最下行
+                            staticCtx.moveTo(px, py + cell);
+                            staticCtx.lineTo(px + cell, py + cell);
+                        }
+                    }
+                }
+                staticCtx.stroke();
+            }
+
+            /* ================= 轨迹层 ================= */
+            function buildTrail() {
+                trailLayer = document.createElement('canvas');
+                trailLayer.width = staticLayer.width;
+                trailLayer.height = staticLayer.height;
+                trailCtx = trailLayer.getContext('2d');
+                trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                trailPad = cell > 6 ? cell * 0.1 : (cell > 3 ? 0.5 : 0);
+                trailCtx.fillStyle = palette.trail;
+            }
+
+            function addTrail(x, y) {
+                const s = cell - trailPad * 2;
+                if (s <= 0) return;
+                trailCtx.fillRect(x * cell + trailPad, y * cell + trailPad, s, s);
+            }
+
+            function redrawTrail() {
+                for (let i = 0; i < trailCells.length; i++) {
+                    addTrail(trailCells[i].x, trailCells[i].y);
+                }
+            }
+
+            /* ================= 占位画面 ================= */
+            function showPlaceholder() {
+                const size = Math.min(Math.max(window.innerWidth - 80, 220), 320);
+                setupCanvas(size);
+
+                ctx.fillStyle = palette.board;
+                ctx.fillRect(0, 0, size, size);
+
+                ctx.strokeStyle = palette.wall;
+                ctx.globalAlpha = .35;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([7, 7]);
+                ctx.strokeRect(11, 11, size - 22, size - 22);
+                ctx.setLineDash([]);
+                ctx.globalAlpha = 1;
+
+                ctx.fillStyle = palette.wall;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '600 15px ' + getComputedStyle(document.body).fontFamily;
+                ctx.fillText('选好大小与环路', size / 2, size / 2 - 16);
+                ctx.font = '13px ' + getComputedStyle(document.body).fontFamily;
+                ctx.fillText('然后点「开始游戏」', size / 2, size / 2 + 14);
+            }
+
+            /* ================= 纪录（按大小分开记；起点终点都固定，不用进 key） ================= */
+            function bestKey() {
+                return ['maze-best', cols].join('-');
+            }
+
+            function getBest() {
+                try {
+                    const v = parseFloat(localStorage.getItem(bestKey()));
+                    return isNaN(v) ? null : v;
+                } catch (e) { return null; }
+            }
+
+            function setBest(v) {
+                try { localStorage.setItem(bestKey(), v.toFixed(2)); } catch (e) { /* 隐私模式忽略 */ }
+            }
+
+            function updateHUD() {
+                stepsEl.textContent = steps;
+                shortestEl.textContent = shortest >= 0 ? shortest : '--';
+                const b = getBest();
+                bestEl.textContent = (b === null) ? '--' : b.toFixed(1) + 's';
+            }
+
+            /* ================= 开局 ================= */
+            /** 重新生成迷宫（大小 / 环路变了，或点「开始游戏」/「再来一局」） */
+            function newBoard(size) {
+                if (size) cols = rows = size;
+                const loopRatio = clampLoop(parseInt(loopRange.value, 10)) / 100;
+
+                const t0 = performance.now();
+                walls = genMaze(cols, rows, loopRatio);
+                lastGenMs = performance.now() - t0;
+
+                placeEndpoints();
+
+                started = true;
+                resetRun();
+                layout();
+                buildStatic();
+                buildTrail();
+                addTrail(start.x, start.y);
+                draw(performance.now());
+
+                overlay.classList.remove('show');
+                dpad.classList.remove('disabled');
+            }
+
+            /** 定起点 / 终点（固定位置，迷宫不动） */
+            function placeEndpoints() {
+                const picked = pickEndpoints(cols, rows);
+                start = picked.start;
+                goal = picked.goal;
+
+                // 「可通行性」校验：BFS 走不到就强行打通（正常不会触发）
+                let res = bfs(walls, cols, rows, start);
+                const gi = goal.y * cols + goal.x;
+                if (res.dist[gi] < 0) {
+                    carveFallback(walls, cols, rows, start, goal);
+                    res = bfs(walls, cols, rows, start);
+                }
+                shortest = res.dist[gi];
+            }
+
+            /** 把进度清零（玩家回到起点，计时 / 步数归零） */
+            function resetRun() {
+                player = { x: start.x, y: start.y };
+                vis = { x: start.x, y: start.y };
+                trailCells = [{ x: start.x, y: start.y }];
+                steps = 0;
+                won = false;
+                startTime = null;
+                elapsed = 0;
+                lastMoveTime = 0;
+                prevFrame = performance.now();
+
+                timeEl.textContent = '0.0s';
+                updateHUD();
+            }
+
+            /* ================= 移动 ================= */
+            function move(dir, force) {
+                if (!started || won || !walls) return;
+
+                const now = performance.now();
+                if (!force && now - lastMoveTime < 55) return;   // 长按连发限速
+                lastMoveTime = now;
+
+                const d = DIRS[DIR_INDEX[dir]];
+                if (!d) return;
+
+                const cx = player.x, cy = player.y;
+                if (walls[(cy * cols + cx) * 4 + d.i]) return;   // 撞墙
+
+                const nx = cx + d.dx, ny = cy + d.dy;
+                if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
+
+                player.x = nx;
+                player.y = ny;
+                steps++;
+
+                trailCells.push({ x: nx, y: ny });
+                addTrail(nx, ny);
+
+                if (startTime === null) startTime = performance.now();
+
+                updateHUD();
+                checkWin();
+            }
+
+            function checkWin() {
+                if (player.x !== goal.x || player.y !== goal.y) return;
+
+                won = true;
+                if (startTime !== null) elapsed = (performance.now() - startTime) / 1000;
+                timeEl.textContent = elapsed.toFixed(1) + 's';
+
+                const b = getBest();
+                const isNew = (b === null || elapsed < b);
+                if (isNew) setBest(elapsed);
+
+                finalTime.textContent = elapsed.toFixed(1) + 's';
+                finalSteps.textContent = steps;
+                finalShortest.textContent = shortest >= 0 ? shortest : '--';
+                recordEl.style.display = isNew ? 'block' : 'none';
+                overlay.classList.add('show');
+
+                updateHUD();
+            }
+
+            /* ================= 绘制 ================= */
+            function draw(now) {
+                const W = canvasSize;
+
+                ctx.clearRect(0, 0, W, W);
+                if (staticLayer) ctx.drawImage(staticLayer, 0, 0, W, W);
+                if (trailLayer) ctx.drawImage(trailLayer, 0, 0, W, W);
+                if (!started) return;
+
+                // 终点光晕（呼吸感）
+                const gx = goal.x * cell + cell / 2;
+                const gy = goal.y * cell + cell / 2;
+                const pulse = 1 + 0.13 * Math.sin(now / 260);
+                const glowR = Math.max(5, cell * 0.62 * pulse);
+
+                const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
+                gg.addColorStop(0, palette.goal);
+                gg.addColorStop(0.45, palette.goal);
+                gg.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.save();
+                ctx.globalAlpha = .85;
+                ctx.fillStyle = gg;
+                ctx.beginPath();
+                ctx.arc(gx, gy, glowR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // 玩家
+                const px = vis.x * cell + cell / 2;
+                const py = vis.y * cell + cell / 2;
+                const r = Math.max(2, cell * 0.3);
+
+                const pg = ctx.createRadialGradient(
+                    px - r * 0.35, py - r * 0.35, r * 0.1,
+                    px, py, r
+                );
+                pg.addColorStop(0, '#ffffff');
+                pg.addColorStop(0.45, palette.player);
+                pg.addColorStop(1, palette.player);
+
+                ctx.save();
+                ctx.shadowColor = palette.player;
+                ctx.shadowBlur = Math.max(4, cell * 0.55);
+                ctx.fillStyle = pg;
+                ctx.beginPath();
+                ctx.arc(px, py, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            /* ================= 主循环 ================= */
+            function loop(now) {
+                requestAnimationFrame(loop);
+
+                const dt = Math.min(now - prevFrame, 100);
+                prevFrame = now;
+
+                if (!started) return;
+
+                if (startTime !== null && !won) {
+                    elapsed = (now - startTime) / 1000;
+                    const t = elapsed.toFixed(1) + 's';
+                    if (timeEl.textContent !== t) timeEl.textContent = t;
+                }
+
+                const a = 1 - Math.exp(-dt / 55);        // 平滑插值
+                vis.x += (player.x - vis.x) * a;
+                vis.y += (player.y - vis.y) * a;
+                if (Math.abs(vis.x - player.x) < 0.002) vis.x = player.x;
+                if (Math.abs(vis.y - player.y) < 0.002) vis.y = player.y;
+
+                draw(now);
+            }
+
+            /* ================= 键盘 ================= */
+            window.addEventListener('keydown', function (e) {
+                const dir = KEYMAP[e.key];
+                if (!dir) return;
+                e.preventDefault();
+                move(dir);
+            }, { passive: false });
+
+            /* ================= 方向键（支持长按连发） ================= */
+            let holdTimer = null, holdInterval = null;
+
+            function stopHold() {
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+                if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
+            }
+
+            function startHold(dir) {
+                move(dir, true);
+                stopHold();
+                holdTimer = setTimeout(function () {
+                    holdInterval = setInterval(function () { move(dir, true); }, 95);
+                }, 300);
+            }
+
+            Array.prototype.forEach.call(dpad.querySelectorAll('[data-dir]'), function (btn) {
+                const dir = btn.dataset.dir;
+                btn.addEventListener('pointerdown', function (e) {
+                    e.preventDefault();
+                    startHold(dir);
+                });
+                ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) {
+                    btn.addEventListener(ev, stopHold);
+                });
+            });
+
+            window.addEventListener('blur', stopHold);
+
+            /* ================= 触摸滑动 ================= */
+            let touchStart = null;
+
+            canvas.addEventListener('touchstart', function (e) {
+                const t = e.touches[0];
+                touchStart = { x: t.clientX, y: t.clientY };
+            }, { passive: true });
+
+            canvas.addEventListener('touchmove', function (e) {
+                e.preventDefault();
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', function (e) {
+                if (!touchStart) return;
+                const t = e.changedTouches[0];
+                const dx = t.clientX - touchStart.x;
+                const dy = t.clientY - touchStart.y;
+                touchStart = null;
+
+                if (Math.hypot(dx, dy) < 22) return;
+
+                if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left', true);
+                else move(dy > 0 ? 'down' : 'up', true);
+            }, { passive: true });
+
+            canvas.addEventListener('dragstart', function (e) { e.preventDefault(); });
+
+            /* ================= 设置栏 ================= */
+            function clampSize(val) {
+                let s = parseInt(val, 10);
+                if (isNaN(s)) s = 20;
+                return Math.max(MIN_SIZE, Math.min(MAX_SIZE, s));
+            }
+
+            function clampLoop(val) {
+                if (isNaN(val)) return 15;
+                return Math.max(0, Math.min(40, val));
+            }
+
+            function syncSize(s) {
+                sizeInput.value = s;
+                sizeRange.value = s;
+            }
+
+            sizeRange.addEventListener('input', function () {
+                // 拖动过程中只同步数字，松手（change）再重新生成，免得拖一次生成几十张
+                sizeInput.value = sizeRange.value;
+            });
+
+            sizeRange.addEventListener('change', function () {
+                sizeInput.value = sizeRange.value;   // 兜底同步（正常拖动时 input 事件已经同步过了）
+                if (started) newBoard(clampSize(sizeRange.value));
+            });
+
+            sizeInput.addEventListener('input', function () {
+                const s = parseInt(sizeInput.value, 10);
+                if (!isNaN(s) && s >= MIN_SIZE && s <= MAX_SIZE) sizeRange.value = s;
+            });
+
+            sizeInput.addEventListener('change', function () {
+                const s = clampSize(sizeInput.value);
+                syncSize(s);
+                if (started) newBoard(s);
+            });
+
+            sizeInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    newBoard(clampSize(sizeInput.value));
+                }
+            });
+
+            loopRange.addEventListener('input', function () {
+                const v = clampLoop(parseInt(loopRange.value, 10));
+                loopValue.textContent = v + '%';
+                if (started) newBoard();
+            });
+
+            function startFromUI() {
+                const s = clampSize(sizeInput.value);
+                syncSize(s);
+                newBoard(s);
+            }
+
+            startBtn.addEventListener('click', startFromUI);
+            againBtn.addEventListener('click', function () { newBoard(); });
+
+            /* ================= 窗口变化 ================= */
+            let resizeTimer = null;
+            window.addEventListener('resize', function () {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    if (!started) { showPlaceholder(); return; }
+                    layout();
+                    buildStatic();
+                    buildTrail();
+                    redrawTrail();
+                    vis.x = player.x;
+                    vis.y = player.y;
+                }, 150);
+            });
+
+            /* ================= 调试 / 自动化（控制台可用） ================= */
+            window.mazeGame = {
+                newBoard: function (size) { newBoard(size); },
+                move: function (dir) { move(dir, true); },
+                /** 当前状态快照 */
+                state: function () {
+                    return {
+                        cols: cols, rows: rows, start: start, goal: goal, player: player,
+                        steps: steps, won: won, shortest: shortest, started: started,
+                        genMs: lastGenMs
+                    };
+                },
+                /** 起点 → 终点的最短路径（null = 不可达，正常永远不会是 null） */
+                solve: function (from) {
+                    return solvePath(walls, cols, rows, from || player, goal);
+                },
+                /** 校验任意两格是否连通（可通行性自测用） */
+                connected: function (a, b) {
+                    return solvePath(walls, cols, rows, a, b) !== null;
+                },
+                /** 墙壁数据指纹：用来判断「迷宫有没有被重新生成」（FNV-1a） */
+                checksum: function () {
+                    let h = 2166136261;
+                    for (let i = 0; i < walls.length; i++) {
+                        h ^= walls[i];
+                        h = Math.imul(h, 16777619);
+                    }
+                    return h >>> 0;
+                }
+            };
+
+            /* ================= 启动 ================= */
+            showPlaceholder();
+            updateHUD();
+            requestAnimationFrame(loop);
+        })();
+    </script>
+</body>
+
+</html>
