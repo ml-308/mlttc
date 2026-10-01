@@ -14,7 +14,8 @@
  *       /lib/timetable.mjs
  */
 import { showPrompt } from '/lib/ui/popup.mjs';
-import { mountCityPicker } from '/lib/data/city-picker.mjs';
+import { mountCityPicker, attachCityPicker } from '/lib/data/city-picker.mjs';
+import { normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
@@ -290,15 +291,17 @@ function searchForm(){
 function cityinput(){
     console.log("city write")
     const input=city_input.value;
-    let city=city_input.value;
-    city=Complete(city,"市");
+    // 规范判断：必须能在城市库里找到
+    // 接受「无锡」「无锡市」「江苏省 无锡」「江苏省 无锡市」这几种写法
+    const city=normalizeCityInput(input);
     if(city==null){
         judge.city=0;
-        msgout(city_input,citytest,"请输入城市",0,input);
+        msgout(city_input,citytest,input.trim()?"城市库中找不到「"+input.trim()+"」，请从下拉列表中选择":"请输入城市",0,input);
     }
     else{
         judge.city=1;
-        msgout(city_input,citytest,'"'+city+'"'+" 符合格式规范",1);
+        city_input.value=city;  // 直接写入「江苏省 无锡市」的入库写法
+        msgout(city_input,citytest,'"'+city+'"'+" 符合格式规范",1,input);
     }
     console.log(judge.city);
 }
@@ -597,7 +600,8 @@ async function doConfirmAdd() {
 
 
 function write(choose,name){
-    const city=Complete(city_input.value,"市");
+    // 入库统一成城市库里的写法（校验已保证能命中；真命中不了就退回原输入，不至于传出空值）
+    const city=Complete(normalizeCityInput(city_input.value)??city_input.value,"市");
     let way=way_input.value;
     if(!isNaN(way)){
         way=Complete(way,"路");
@@ -703,6 +707,16 @@ const searchid = document.getElementById("search-id");
 //       导致查询框的提示被写进隐藏的新增表单里，用户根本看不到）。
 const cityChooser = await mountCityPicker('#city-picker');
 const cityInput = cityChooser.input;
+
+// 新增表单的城市框：在页面已有的 <input id="city"> 外面套上同样的下拉
+// （输入框连 id / name 一起保留，所以本文件原有取值、校验代码都不用改）
+//   hint: false   —— 该框的提示由既有的 citytest 校验逻辑负责，别让两者互相覆盖
+//   formatPicked  —— 选中就直接写库里的入库写法「江苏省 无锡市」（带市）
+const cityWritePicker = await attachCityPicker('#city', {
+    hint: false,
+    formatPicked: (item) => formatCityForStorage(item),
+    onPick() { cityinput(); }   // 选中后立刻跑一次既有校验，让提示同步
+});
 
 // 结果区域元素
 const searchResult = document.getElementById("search-result");

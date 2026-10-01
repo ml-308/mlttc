@@ -6,11 +6,13 @@
  * 流程：按 ?id= 拉取原记录 → 填入表单 → 逐字段校验 → 提交修改（POST /api/timetable-D1）
  * 注意：修改后由**服务端**把 PASS 重置为 0（重新进入待审核），客户端不传 pass
  *
- * 依赖：/lib/ui/popup.mjs、/lib/ui/message.mjs、/lib/timetable.mjs
+ * 依赖：/lib/ui/popup.mjs、/lib/ui/message.mjs、/lib/timetable.mjs、/lib/data/city-picker.mjs
  */
 import { showPrompt } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
+import { attachCityPicker } from '/lib/data/city-picker.mjs';
+import { normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
 
 // ─── DOM 元素 ────────────────────────────────
@@ -120,11 +122,12 @@ function parseDateForEdit(dateStr) {
 
 function cityinput() {
   const input = cityInput.value;
-  let city = cityInput.value;
-  city = Complete(city, '市');
+  // 规范判断：必须能在城市库里找到
+  // 接受「无锡」「无锡市」「江苏省 无锡」「江苏省 无锡市」这几种写法
+  const city = normalizeCityInput(input);
   if (city == null) {
     judge.city = 0;
-    msgout(cityInput, cityTest, '请输入城市', 0);
+    msgout(cityInput, cityTest, input.trim() ? '城市库中找不到「' + input.trim() + '」，请从下拉列表中选择' : '请输入城市', 0);
   } else {
     judge.city = 1;
     msgout(cityInput, cityTest, '"' + city + '" 符合格式规范', 1);
@@ -315,7 +318,7 @@ function cleanall() {
 // ─── 构建提交数据 ────────────────────────────
 
 function buildData() {
-  const city = Complete(cityInput.value, '市');
+  const city = Complete(normalizeCityInput(cityInput.value) ?? cityInput.value, '市');
   let way = wayInput.value;
   if (!isNaN(way)) {
     way = Complete(way, '路');
@@ -393,10 +396,13 @@ async function doSubmitEdit() {
 
   const changes = {};
 
-  // 城市
-  const newCity = Complete(cityInput.value, '市');
+  // 城市：入库写法统一成城市库里的形态（如「江苏省 无锡市」）
+  const newCity = Complete(normalizeCityInput(cityInput.value) ?? cityInput.value, '市');
   if (newCity && judge.city === 1) {
-    const origCity = Complete(originalData.CITY, '市');
+    // 原值可能是旧写法（「无锡市」），也过一遍库再比，
+    // 免得「根本没改城市」却被判定成改过、白白提交一次
+    const origRaw = originalData.CITY || '';
+    const origCity = Complete(normalizeCityInput(origRaw) ?? origRaw, '市');
     if (newCity !== origCity) changes.city = newCity;
   }
 
@@ -625,6 +631,16 @@ time1Input.addEventListener('input', time1input);
 time2Input.addEventListener('input', time2input);
 bcInput.addEventListener('input', bcinput);
 eTimeInput.addEventListener('input', e_timeinput);
+
+// 城市框：在已有的 <input id="city"> 外面套上同样的下拉（逻辑见 lib/data/city-picker.mjs）
+// 输入框本身会被原样保留（id / name / required 不变），所以取值与校验代码不用改
+//   hint: false   —— 提示交给既有的 citytest 校验
+//   formatPicked  —— 选中就直接写库里的入库写法「江苏省 无锡市」（带市）
+const cityPicker = await attachCityPicker('#city', {
+  hint: false,
+  formatPicked: (item) => formatCityForStorage(item),
+  onPick() { cityinput(); }
+});
 
 // ─── 启动 ────────────────────────────────────
 
