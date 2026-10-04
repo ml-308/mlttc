@@ -5,7 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>游戏与工具 - MLTTC</title>
-    <!-- 复用首页那套样式：卡片网格 .button-grid 与 hcw-card 都在其中 -->
+    <!-- 复用已有样式表，不新建 CSS：
+         timetable.css 提供 .form-panel（分区）/.form-group/.menu-bar 等类；
+         index.css 在后加载，其 .button-grid 基础与媒体查询规则会覆盖 timetable.css 中的同名媒体查询，
+         从而保持本页原有的卡片网格响应式表现 -->
+    <link rel="stylesheet" href="style/timetable.css">
     <link rel="stylesheet" href="style/index.css">
     <script src="src/pages/main.js" type="module"></script>
     <script src="lib/ui/init.mjs" type="module"></script>
@@ -35,58 +39,171 @@
         </div>
     </hcw-body-header>
 
-    <!-- 小游戏与实用工具入口 -->
+    <!-- 小游戏与实用工具入口：按用途分区，每张卡片直达对应页面（新工具页支持 #锚点 直达具体工具） -->
     <hcw-article>
-        <div class="button-grid">
-            <hcw-card>
-                <h3 hcw-card-title>贪吃蛇</h3>
-                <p>经典贪吃蛇，支持键盘方向键 / WASD 与手机按键</p>
-                <br>
-                <hcw-button primary href="game.html">立即使用</hcw-button>
-            </hcw-card>
-            <hcw-card>
-                <h3 hcw-card-title>走迷宫</h3>
-                <p>随机生成的迷宫，可选起点 / 调节环路，记录轨迹与最佳成绩</p>
-                <br>
-                <hcw-button primary href="pan.html">立即使用</hcw-button>
-            </hcw-card>
-            <hcw-card>
-                <h3 hcw-card-title>文本工具箱</h3>
-                <p>字数统计、去重排序、JSON / Base64 / URL 编解码一键处理</p>
-                <br>
-                <hcw-button primary href="tool-text.html">立即使用</hcw-button>
-            </hcw-card>
-            <hcw-card>
-                <h3 hcw-card-title>密码生成器</h3>
-                <p>自定义长度与字符集，纯本地生成并预估强度</p>
-                <br>
-                <hcw-button primary href="tool-password.html">立即使用</hcw-button>
-            </hcw-card>
-            <hcw-card>
-                <h3 hcw-card-title>时间与日期</h3>
-                <p>时间戳互转、日期差计算与高考倒计时</p>
-                <br>
-                <hcw-button primary href="tool-time.html">立即使用</hcw-button>
-            </hcw-card>
-            <hcw-card>
-                <h3 hcw-card-title>单位换算</h3>
-                <p>长度 / 面积 / 体积 / 重量 / 温度 / 速度 / 时间 / 数据</p>
-                <br>
-                <hcw-button primary href="tool-convert.html">立即使用</hcw-button>
-            </hcw-card>
-            <hcw-card>
-                <h3 hcw-card-title>随机与抽签</h3>
-                <p>随机整数、名单抽签、随机排序，点名抽奖都好用</p>
-                <br>
-                <hcw-button primary href="tool-random.html">立即使用</hcw-button>
-            </hcw-card>
-            <hcw-card>
-                <h3 hcw-card-title>敬请期待</h3>
-                <p>更多小工具制作中</p>
-                <br>
-                <hcw-button disabled>敬请期待</hcw-button>
-            </hcw-card>
-        </div>
+
+        <!-- 游戏 -->
+        <section class="form-panel">
+            <h2>游戏</h2>
+            <div class="button-grid">
+                <hcw-card>
+                    <h3 hcw-card-title>贪吃蛇</h3>
+                    <p>经典贪吃蛇，支持键盘方向键 / WASD 与手机按键</p>
+                    <br>
+                    <hcw-button primary href="game.html">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>走迷宫</h3>
+                    <p>随机生成的迷宫，可选起点 / 调节环路，记录轨迹与最佳成绩</p>
+                    <br>
+                    <hcw-button primary href="pan.html">立即使用</hcw-button>
+                </hcw-card>
+            </div>
+        </section>
+
+        <!-- 文本与随机 -->
+        <section class="form-panel">
+            <h2>文本与随机</h2>
+            <div class="button-grid">
+                <hcw-card>
+                    <h3 hcw-card-title>文本工具箱</h3>
+                    <p>字数统计、去重排序、JSON / Base64 / URL 编解码一键处理</p>
+                    <br>
+                    <hcw-button primary href="tool-text.html">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>随机与抽签</h3>
+                    <p>随机整数、名单抽签、随机排序，点名抽奖都好用</p>
+                    <br>
+                    <hcw-button primary href="tool-random.html">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>密码生成器</h3>
+                    <p>自定义长度与字符集，纯本地生成并预估强度</p>
+                    <br>
+                    <hcw-button primary href="tool-password.html">立即使用</hcw-button>
+                </hcw-card>
+            </div>
+        </section>
+
+        <!-- 时间与日期 -->
+        <section class="form-panel">
+            <h2>时间与日期</h2>
+            <div class="button-grid">
+                <hcw-card>
+                    <h3 hcw-card-title>时间与日期</h3>
+                    <p>时间戳互转、日期差计算与高考倒计时</p>
+                    <br>
+                    <hcw-button primary href="tool-time.html">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>秒表</h3>
+                    <p>毫秒级计时，支持分段计次记录</p>
+                    <br>
+                    <hcw-button primary href="tool-life.html#stopwatch">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>倒计时</h3>
+                    <p>自定义时长倒计时，到点提示并响铃</p>
+                    <br>
+                    <hcw-button primary href="tool-life.html#countdown">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>月历</h3>
+                    <p>按月生成日历，周一起头、标注 ISO 周次与今天</p>
+                    <br>
+                    <hcw-button primary href="tool-life.html#calendar">立即使用</hcw-button>
+                </hcw-card>
+            </div>
+        </section>
+
+        <!-- 计算与换算 -->
+        <section class="form-panel">
+            <h2>计算与换算</h2>
+            <div class="button-grid">
+                <hcw-card>
+                    <h3 hcw-card-title>单位换算</h3>
+                    <p>长度 / 面积 / 体积 / 重量 / 温度 / 速度 / 时间 / 数据</p>
+                    <br>
+                    <hcw-button primary href="tool-convert.html">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>科学计算器</h3>
+                    <p>支持三角函数、对数、幂运算，角度 / 弧度切换</p>
+                    <br>
+                    <hcw-button primary href="tool-calc.html#calc">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>房贷计算</h3>
+                    <p>等额本息 / 等额本金，月供与逐年还款计划</p>
+                    <br>
+                    <hcw-button primary href="tool-calc.html#loan">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>个税计算</h3>
+                    <p>按月估算应纳税额与到手收入，含专项附加扣除</p>
+                    <br>
+                    <hcw-button primary href="tool-calc.html#tax">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>BMI 健康自测</h3>
+                    <p>体质指数、标准体重范围与基础代谢率估算</p>
+                    <br>
+                    <hcw-button primary href="tool-calc.html#bmi">立即使用</hcw-button>
+                </hcw-card>
+            </div>
+        </section>
+
+        <!-- 开发者工具 -->
+        <section class="form-panel">
+            <h2>开发者工具</h2>
+            <div class="button-grid">
+                <hcw-card>
+                    <h3 hcw-card-title>JSON 格式化</h3>
+                    <p>美化 / 压缩 / 校验 JSON，显示深度与节点数</p>
+                    <br>
+                    <hcw-button primary href="tool-dev.html#json">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>进制转换</h3>
+                    <p>二 / 八 / 十 / 十六进制互转，超大整数不丢精度</p>
+                    <br>
+                    <hcw-button primary href="tool-dev.html#radix">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>正则测试</h3>
+                    <p>实时匹配并列出位置、内容与分组捕获</p>
+                    <br>
+                    <hcw-button primary href="tool-dev.html#regex">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>颜色转换</h3>
+                    <p>HEX / RGB / HSL 互转，实时预览与随机取色</p>
+                    <br>
+                    <hcw-button primary href="tool-dev.html#color">立即使用</hcw-button>
+                </hcw-card>
+            </div>
+        </section>
+
+        <!-- 生活常用 -->
+        <section class="form-panel">
+            <h2>生活常用</h2>
+            <div class="button-grid">
+                <hcw-card>
+                    <h3 hcw-card-title>人民币金额大写</h3>
+                    <p>数字金额一键转会计大写，精确到分</p>
+                    <br>
+                    <hcw-button primary href="tool-life.html#rmb">立即使用</hcw-button>
+                </hcw-card>
+                <hcw-card>
+                    <h3 hcw-card-title>身份证号校验</h3>
+                    <p>校验 18 位校验码，解析生日 / 年龄 / 性别 / 省份</p>
+                    <br>
+                    <hcw-button primary href="tool-life.html#idcard">立即使用</hcw-button>
+                </hcw-card>
+            </div>
+        </section>
+
     </hcw-article>
 
     <hcw-body-footer></hcw-body-footer>
