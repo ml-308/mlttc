@@ -25,10 +25,6 @@
 			<!-- 主题切换按钮 -->
 			<hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
 			<hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem">登录</hcw-button>
-			<div id="globalUserInfo" style="display: none;">
-				<span>欢迎，<strong id="globalDisplayName">用户</strong></span>
-				<hcw-button id="globalLogoutBtn" tp flat inline style="min-width: 5rem">退出</hcw-button>
-			</div>
 		</div>
 	</hcw-body-header>
 
@@ -116,7 +112,7 @@
 						<tr>
 							<td>个人资料</td>
 							<td>昵称（最多 6 字）、所在地（最多 6 字）</td>
-							<td>在页头与个人主页展示，并用于区分同名用户</td>
+							<td>在「个人主页」展示，并用于区分同名用户</td>
 						</tr>
 						<tr>
 							<td>提交时刻表</td>
@@ -244,7 +240,7 @@
 							<td>直到你清除浏览器数据</td>
 						</tr>
 						<tr>
-							<td><code>account_tt_cache</code></td>
+							<td><code>my_timetable_cache</code></td>
 							<td>sessionStorage</td>
 							<td>临时缓存「我的时刻表」列表，减少重复请求</td>
 							<td>关闭标签页后自动清除</td>
@@ -292,9 +288,9 @@
 		<section class="legal-section" id="rights">
 			<h2>六、你的权利</h2>
 			<ul>
-				<li><b>查阅</b>：在「个人主页」查看你的邮箱、昵称、所在地、注册时间，以及你已提交的全部时刻表；</li>
+				<li><b>查阅</b>：在「个人主页」查看你的邮箱、昵称、所在地、注册时间；在「我的时刻表」查看你已提交的全部时刻表；</li>
 				<li><b>更正</b>：在「个人主页 → 个人设置」中修改昵称与所在地；时刻表内容如有错误，请使用「修改时刻表」提交更正；</li>
-				<li><b>删除</b>：在个人主页删除自己提交的时刻表；如需删除账号及其全部数据，请通过站内反馈或下方联系方式提出申请，我们将在核实身份后处理；</li>
+				<li><b>删除</b>：在「我的时刻表」删除自己提交的时刻表；如需删除账号及其全部数据，请通过站内反馈或下方联系方式提出申请，我们将在核实身份后处理；</li>
 				<li><b>撤回同意</b>：你可以随时清除浏览器本地数据；若不同意本政策，请停止使用本站并申请删除账号。</li>
 			</ul>
 		</section>

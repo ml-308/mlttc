@@ -5,15 +5,17 @@
  * 职责：
  *   1. 引入「用户同意」模块（src/consent.js）—— Cookie / 本地存储告知横幅、
  *      登录前提示、注册页勾选记录等，引入后全站自动生效
- *   2. 页头登录态展示：读 user_name Cookie 切换「登录按钮 / 欢迎xxx + 退出」
- *   3. 退出登录（唯一实现，见下方 logout）
+ *   2. 引入左侧收拉式导航栏（src/nav.js）—— ☰ 按钮 + 抽屉导航，全站统一入口
+ *   3. 页头登录态展示：读 user_name Cookie 切换「登录按钮 / 已登录」
+ *      （页头不再放「退出」按钮：退出已移入个人主页与抽屉底部；
+ *        「欢迎，xxx + 退出」容器由 /src/nav.js 的 tidyHeader() 统一移除，
+ *        已登录时的入口在左侧抽屉导航「其它 · 个人主页」）
  *   4. 深浅色主题切换（localStorage: mlttc-theme，属性：html[data-theme]）
- *   5. 点击昵称跳转个人主页
  *
- * 依赖：/lib/ui/message.mjs
+ * 依赖：/lib/ui/message.mjs、/src/nav.js
  */
 import './consent.js';
-import { showMessage } from '/lib/ui/message.mjs';
+import './nav.js';
 
 // 从 cookie 中读取指定名称的值
 function getCookie(name) {
@@ -31,46 +33,24 @@ function checkAuth() {
 }
 
 /**
- * 退出登录：清除服务端会话后刷新当前页（停留在原页面）
- * 注意：本站没有独立的登录页（登录用页头弹窗），所以退出后是原地刷新，
- *       而不是跳转到不存在的 /login.html（那会 404）
+ * 退出登录已从页头移出，现由两处负责（两处都调用 GET /api/logout-D1）：
+ *   - 左侧抽屉底部「退出登录」（src/nav.js，全站可用）
+ *   - 个人主页 account.html 的账户卡片（src/pages/account.js）
+ * 页头此处只负责「登录按钮 / 欢迎xxx」的切换。
  */
-async function logout() {
-  await fetch('/api/logout-D1', { credentials: 'include' });
-  showMessage('已退出登录', false);
-  setTimeout(() => window.location.reload(), 1500);
-}
 
-// 绑定退出按钮事件
-function bindLogoutButton() {
-  const logoutBtn = document.getElementById('globalLogoutBtn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', logout);
-  }
-}
-
-// 根据登录状态切换头部 UI
+// 根据登录状态切换头部 UI：未登录显示「登录」按钮，已登录则隐藏按钮
+// （页头右侧只保留登录按钮 / 主题按钮；用户名与个人主页入口在左侧抽屉导航里）
 function updateHeaderAuth() {
   const loginBtn = document.getElementById('globalLoginBtn');
-  const userInfoDiv = document.getElementById('globalUserInfo');
-  const displayName = document.getElementById('globalDisplayName');
 
-  // 确保元素都存在（有的页面可能没有这个头部）
-  if (!loginBtn || !userInfoDiv || !displayName) return;
+  // 确保元素存在（有的页面可能没有这个头部）
+  if (!loginBtn) return;
 
-  const { loggedIn, displayName: name } = checkAuth();
+  const { loggedIn } = checkAuth();
 
-  if (loggedIn) {
-    // 已登录：显示用户信息，隐藏登录按钮
-    loginBtn.style.display = 'none';
-    userInfoDiv.style.display = 'block';
-    displayName.textContent = name;
-    bindLogoutButton();
-  } else {
-    // 未登录：显示登录按钮，隐藏用户信息
-    loginBtn.style.display = 'inline-block'; // 或原来 hcw-button 的 display
-    userInfoDiv.style.display = 'none';
-  }
+  // 未登录：显示「登录」按钮；已登录：隐藏（点击弹窗由 /src/pages/main.js 负责）
+  loginBtn.style.display = loggedIn ? 'none' : 'inline-block';
 }
 
 // ========== 深色/浅色主题切换 ==========
@@ -146,23 +126,14 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
   }
 });
 
-/**
- * 绑定用户名点击跳转到个人主页
- */
-function bindUsernameClick() {
-  const displayName = document.getElementById('globalDisplayName');
-  if (displayName) {
-    displayName.style.cursor = 'pointer';
-    displayName.addEventListener('click', () => {
-      window.location.href = '/account.html';
-    });
-  }
-}
+// 个人主页的入口在左侧抽屉导航中（见 /src/nav.js 的「其它 · 个人主页」），
+// 页头不再有可点击的「欢迎，昵称」文本。
 
 // 页面加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   bindThemeToggle();
-  bindUsernameClick();
   updateHeaderAuth();
+  // 通知导航模块：页头已就绪（nav.js 在此之后精简页头 / 刷新登录态相关 UI）
+  window.dispatchEvent(new CustomEvent('mlttc:header-ready'));
 });

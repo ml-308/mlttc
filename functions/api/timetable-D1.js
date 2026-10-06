@@ -5,7 +5,7 @@
 //   POST   { id? }        新增（无 id）或更新（有 id）—— 写需求入口
 //   DELETE ?id=xxx        删除自己写入的一条
 //
-// 调用方：src/pages/{timetables, timetable-result, timetable-detail, account}.js
+// 调用方：src/pages/{timetables, timetable-result, timetable-detail, my-timetable, account}.js
 // 依赖：env.mlttcd（D1）、env.mlttckv（KV 限流）、env.JWT_SECRET
 //
 // 关键约束（改动时务必保持）：

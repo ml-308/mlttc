@@ -6,11 +6,13 @@
  *   1. 拉取并展示资料：昵称 / 邮箱 / 城市 / 注册时间 + 身份徽章
  *      （身份由 /api/profile 返回的 role · roleLabel 决定，见 resolveRole）
  *   2. 修改昵称与城市（POST /api/update-profile）
- *   3. 「我的时刻表」列表：拉取、排序（被驳回 > 待审核 > 已通过）、修改、删除
+ *   3. 提供退出登录入口（GET /api/logout-D1）
  *
- * 依赖：/lib/ui/popup.mjs、/lib/ui/message.mjs
+ * 注意：「我的时刻表」列表已拆分为独立页面 my-timetable.html / src/pages/my-timetable.js，
+ *       本页不再拉取时刻表数据（showConfirm 也随之下移，此处不再引入 popup.mjs）。
+ *
+ * 依赖：/lib/ui/message.mjs、/lib/ui/guard.mjs
  */
-import { showConfirm } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
 
@@ -37,24 +39,6 @@ function msgout(input, test, msg, judge) {
     test.textContent = msg;
     test.style.display = 'block';
   }
-}
-
-/**
- * 是否被驳回：以 BACK 列为准（BACK == 1 表示被管理员驳回）
- * 说明：SPECIAL 为“备注”字段，不再用于判断驳回状态；
- *       用户修改时刻表后，后端会将 BACK 置为 '-'（未驳回）
- */
-function isRejected(item) {
-  if (!item) return false;
-  const back = item.BACK;
-  return back !== undefined && back !== null && String(back).trim() === '1';
-}
-
-/** 列表排序权重：被驳回 > 待审核 > 已通过 */
-function timetableLevel(item) {
-  if (isRejected(item)) return 2;
-  if (item.PASS == true) return 0;
-  return 1;
 }
 
 /**
@@ -162,8 +146,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // 登录按钮由 /src/pages/main.js 统一绑定（account.html 已包含 #globalLoginModal 结构）。
   // 原先此处也绑了一份，逻辑重复，故删除。
 
-  // 退出按钮由 /src/auth-header.js 统一绑定。
-  // 原先此处也绑了一份并跳转 /login.html（不存在 → 404），且与页头模块重复触发。
+  // ─── 退出登录 ───────────────────────────────────
+  // 退出入口已从页头移入本页「账户」卡片（页头只保留登录按钮）。
+  // 抽屉导航底部另有一份全站可用的入口（/src/nav.js）。
+  // 原先此处调用 /api/logout（清理用户信息）并跳转 /login.html（该页面不存在 → 404），
+  // 与 /src/api/logout-D1 的 cookie 清理链路不一致，故一并删除。
+  const logoutMsg = document.getElementById('accountLogoutMsg');
+  const logoutGuard = createGuard('正在退出…');
+  document.getElementById('accountLogoutBtn')?.addEventListener('click', () => logoutGuard.run(async () => {
+    try {
+      // 与 src/auth-header.js / src/nav.js 使用同一个退出接口：清 auth_token 与 user_name
+      await fetch('/api/logout-D1', { credentials: 'include' });
+      showMessage('已退出登录', false);
+      if (logoutMsg) {
+        logoutMsg.textContent = '已退出登录，即将返回首页…';
+        logoutMsg.style.display = 'block';
+        logoutMsg.style.color = 'var(--success, #34c759)';
+      }
+      // 回到首页（个人主页在退出后已无内容可看）
+      setTimeout(() => { window.location.href = '/index.html'; }, 1200);
+    } catch {
+      showMessage('退出失败，请稍后重试', true);
+      if (logoutMsg) {
+        logoutMsg.textContent = '退出失败，请检查网络后重试';
+        logoutMsg.style.display = 'block';
+        logoutMsg.style.color = 'var(--danger)';
+      }
+    }
+  }));
 
   // 实时验证：昵称（最多6字）
   const nameInput = document.getElementById('nameInput');
@@ -198,10 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-
-  // ─── 加载我的时刻表 ─────────────────────────────
-  let myEmail = '';
-  loadMyTimetables();
 
   // 保存按钮（外包一层防重复提交：连点会发出多个写请求，容易触发服务端限流）
   const saveGuard = createGuard('正在保存，请稍候…');
@@ -246,215 +252,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }));
 
-  // ─── 我的时刻表 - 渲染（一次性展示全部） ─────────
-  let myTimetables = [];
-
-  const ttList = document.getElementById('timetable-list');
-  const ttLoading = document.getElementById('timetable-loading');
-  const ttEmpty = document.getElementById('timetable-empty');
-  const ttError = document.getElementById('timetable-error');
-
-  async function loadMyTimetables() {
-    // 先获取用户邮箱
-    let email = '';
-    myEmail = '';
-    try {
-      const res = await fetch('/api/profile', { credentials: 'include' });
-      if (!res.ok) {
-        ttLoading.classList.add('hidden');
-        ttError.classList.remove('hidden');
-        ttError.textContent = '请先登录';
-        return;
-      }
-      const data = await res.json();
-      const user = data.user || data;
-      email = user.email || '';
-      if (!email) {
-        ttLoading.classList.add('hidden');
-        ttError.classList.remove('hidden');
-        ttError.textContent = '无法获取用户信息';
-        return;
-      }
-    } catch (e) {
-      ttLoading.classList.add('hidden');
-      ttError.classList.remove('hidden');
-      ttError.textContent = '获取用户信息失败';
-      return;
-    }
-    myEmail = email;
-
-    // 尝试从 sessionStorage 读取缓存
-    const CACHE_KEY = 'account_tt_cache';
-    let cached = null;
-    try {
-      const raw = sessionStorage.getItem(CACHE_KEY);
-      if (raw) cached = JSON.parse(raw);
-    } catch { /* ignore */ }
-
-    if (cached && cached.email === email && Array.isArray(cached.data)) {
-      // 缓存命中，直接使用
-      myTimetables = cached.data;
-      // 被驳回 > 待审核 > 已通过 排序
-      myTimetables.sort((a, b) => timetableLevel(b) - timetableLevel(a));
-      ttLoading.classList.add('hidden');
-
-      if (myTimetables.length === 0) {
-        ttEmpty.classList.remove('hidden');
-      } else {
-        ttEmpty.classList.add('hidden');
-        renderMyPage();
-      }
-      return;
-    }
-
-    // 缓存未命中，从 D1 查询
-    try {
-      const res = await fetch(`/api/timetable-D1?writer=${encodeURIComponent(email)}`, {
-        credentials: 'include'
-      });
-      if (!res.ok) {
-        ttLoading.classList.add('hidden');
-        ttError.classList.remove('hidden');
-        ttError.textContent = '获取时刻表失败';
-        return;
-      }
-      const json = await res.json();
-      if (!json.success) {
-        ttLoading.classList.add('hidden');
-        ttEmpty.classList.remove('hidden');
-        return;
-      }
-
-      myTimetables = json.data || [];
-      // 被驳回 > 待审核 > 已通过 排序
-      myTimetables.sort((a, b) => timetableLevel(b) - timetableLevel(a));
-
-      // 写入缓存
-      try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ email, data: myTimetables }));
-      } catch { /* ignore */ }
-
-      ttLoading.classList.add('hidden');
-
-      if (myTimetables.length === 0) {
-        ttEmpty.classList.remove('hidden');
-        return;
-      }
-
-      ttEmpty.classList.add('hidden');
-      renderMyPage();
-    } catch (e) {
-      ttLoading.classList.add('hidden');
-      ttError.classList.remove('hidden');
-      ttError.textContent = '网络错误';
-    }
-  }
-
-  function renderMyPage() {
-    // 一次性渲染全部时刻表
-    ttList.innerHTML = '';
-    myTimetables.forEach((item, idx) => {
-      const card = document.createElement('div');
-      card.className = 'result-item';
-      card.style.animationDelay = `${idx * 0.05}s`;
-
-      const time1Display = formatTimeDisplay(item.TIMEONE);
-      const time2Display = formatTimeDisplay(item.TIMETWO);
-
-      card.innerHTML = `
-        <div class="result-item-header">
-          <span class="result-item-id">#${item.ID}</span>
-          <span class="result-item-route">${item.CITY} · ${item.WAY}</span>
-        </div>
-        <div class="result-item-body">
-          <div class="result-item-stations">
-            <span class="station-name">${item.START}</span>
-            <span class="station-arrow">↔</span>
-            <span class="station-name">${item.END}</span>
-          </div>
-          ${item.SPECIAL && item.SPECIAL !== '无' ? `<div class="result-item-note">${item.SPECIAL}</div>` : ''}
-          <div class="result-item-meta">
-            <span>执行: ${(!item.STARTTIME || item.STARTTIME === '1000-1-1') ? '未知执行时间' : item.STARTTIME}</span>
-            <span>写入: ${item.WRITETIME || '未知'}</span>
-            <span style="font-weight:600; ${
-              isRejected(item) ? 'color:var(--danger);' :
-              item.PASS == true ? 'color:var(--success);' :
-              'color:var(--warning);'
-            }">${
-              isRejected(item) ? '被驳回' :
-              item.PASS == true ? '已通过' :
-              '待审核'
-            }</span>
-          </div>
-        </div>
-        <div class="result-item-actions">
-          <hcw-button class="detail-btn" flat style="min-width:5rem; font-size:0.82rem;">查看详情</hcw-button>
-          <hcw-button class="edit-btn" flat style="min-width:5rem; font-size:0.82rem;">修改时刻表</hcw-button>
-          <hcw-button class="delete-btn" flat style="min-width:5rem; font-size:0.82rem; color:var(--danger);">删除</hcw-button>
-        </div>
-      `;
-
-      // 查看详情按钮
-      // from=account 让详情页的「返回」按钮回到本页（详情页已合并为单页）
-      card.querySelector('.detail-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.location.href = `/timetable-detail.html?id=${encodeURIComponent(item.ID)}&from=account`;
-      });
-
-      // 修改时刻表按钮
-      card.querySelector('.edit-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.location.href = `/timetable-result.html?id=${encodeURIComponent(item.ID)}`;
-      });
-
-      // 删除按钮
-      card.querySelector('.delete-btn').addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const confirmed = await showConfirm({
-          text: `确定要删除 #${item.ID} 时刻表吗？此操作不可恢复。`,
-          buttons: ['确定删除', '取消'],
-          button_style: ['danger', '']
-        });
-        if (!confirmed) return;
-
-        try {
-          const res = await fetch('/api/timetable-D1', {
-            method: 'DELETE',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: item.ID, writer: myEmail })
-          });
-          const data = await res.json();
-          if (data.success) {
-            showMessage('删除成功', false);
-            // 清除缓存并重新加载
-            sessionStorage.removeItem('account_tt_cache');
-            loadMyTimetables();
-          } else {
-            showMessage(data.error || '删除失败', true);
-          }
-        } catch (err) {
-          showMessage('删除失败: 网络错误', true);
-        }
-      });
-
-      ttList.appendChild(card);
-    });
-  }
-
-  // 刷新按钮
-  document.getElementById('tt-refresh-btn')?.addEventListener('click', () => {
-    sessionStorage.removeItem('account_tt_cache');
-    loadMyTimetables();
-    showMessage('已刷新', false);
-  });
-
-  function formatTimeDisplay(timeStr) {
-    if (!timeStr || timeStr === 'unknown') return '未知';
-    const parts = timeStr.split(/[\t\n\r]+/).filter(t => t.trim());
-    if (parts.length <= 6) {
-      return parts.join(' ');
-    }
-    return parts.slice(0, 6).join(' ') + ` ... (+${parts.length - 6}个)`;
-  }
 });

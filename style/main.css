@@ -1109,3 +1109,338 @@ html {
         max-width: 95vw;
     }
 }
+
+/* ============ 左侧收拉式导航栏（src/nav.js） ============ */
+/* 结构：
+   hcw-body-header > button#navToggleBtn.nav-toggle（☰）—— game.html 无该页头，
+   退回到顶部登录条 #headerAuthArea.game-auth-header
+   body > #mlttcNavOverlay.nav-overlay + #mlttcNavDrawer.nav-drawer
+   —— 全部复用 main.css 既有变量（--nav-bg / --nav-text / --glass-bg / --shadow-* / --transition-*），
+      浅色与深色主题自动跟随，无需单独配色 */
+
+/* 页头容纳 ☰ 按钮：仅在页头确实含有 ☰ 按钮时为其留出固定空间，避免与 logo 重叠
+   （用 :has 限定，未注入导航的页面保持原有内边距不变） */
+hcw-body-header:has(> #navToggleBtn),
+[hcw-body-header]:has(> #navToggleBtn) {
+    padding-left: 4.1rem;
+}
+
+/* game.html 的顶部登录条不是 hcw-body-header（且页面内联 <style> 里的 .game-auth-header
+   带 padding，故这里用 #headerAuthArea 提升优先级）：给 ☰ 按钮定位上下文并留出空间 */
+#headerAuthArea.game-auth-header:has(#navToggleBtn) {
+    position: relative;
+    padding-left: 3.4rem;
+}
+
+/* ☰ 按钮：绝对定位在页头左内边距内，与右侧主题按钮同为圆形磨砂玻璃按钮 */
+.nav-toggle {
+    appearance: none;
+    border: none;
+    position: absolute;
+    top: 50%;
+    left: 1.1rem;
+    transform: translateY(-50%);
+    width: 2.4rem;
+    height: 2.4rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.12);
+    color: var(--nav-text);
+    cursor: pointer;
+    flex-shrink: 0;
+    z-index: 2;
+    -webkit-tap-highlight-color: transparent;
+    transition: var(--transition-fast);
+    transition-property: transform, background-color, color, box-shadow;
+}
+
+.nav-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.nav-toggle:active {
+    transform: translateY(-50%) scale(0.94);
+}
+
+.nav-toggle:focus-visible {
+    outline: 2px solid var(--primary-light);
+    outline-offset: 2px;
+}
+
+/* 三横线图标（纯 CSS，颜色跟随 --nav-text） */
+.nav-toggle-bars {
+    width: 18px;
+    height: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.nav-toggle-bars > span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    border-radius: 2px;
+    background-color: currentColor;
+    transition: var(--transition-fast);
+}
+
+/* 抽屉标题：不受页头 .logo-text 的窄屏缩小规则影响 */
+.nav-drawer-head .logo-text {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--nav-text);
+}
+
+/* 抽屉标题下的当前页面名（页头副标题精简后，页面名在这里保留） */
+.nav-drawer-sub {
+    font-size: .7rem;
+    line-height: 1.4;
+    color: var(--nav-text);
+    opacity: .6;
+    margin-top: .1rem;
+}
+
+/* 遮罩 */
+.nav-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    background: rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.nav-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* 抽屉本体：默认收起在屏幕左侧之外 */
+.nav-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 160;
+    width: min(84vw, 19rem);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: var(--glass-bg);
+    color: var(--glass-text);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+    transform: translateX(-102%);
+    visibility: hidden;
+    transition: transform var(--transition-normal), visibility var(--transition-normal);
+}
+
+.nav-drawer.open {
+    transform: translateX(0);
+    visibility: visible;
+}
+
+/* 抽屉头部：logo + 关闭按钮 */
+.nav-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .6rem .5rem .6rem 1.1rem;
+    flex-shrink: 0;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.nav-close {
+    appearance: none;
+    border: none;
+    width: 2.2rem;
+    height: 2.2rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.12);
+    color: var(--nav-text);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: var(--transition-fast);
+    transition-property: background-color, color, transform;
+}
+
+.nav-close:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+    color: #ffffff;
+}
+
+.nav-close:active {
+    transform: scale(0.94);
+}
+
+/* 抽屉主体：分组 + 链接，内部滚动 */
+.nav-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: .7rem .55rem 1rem;
+}
+
+.nav-section + .nav-section {
+    margin-top: .55rem;
+}
+
+.nav-section-title {
+    padding: .45rem .7rem .3rem;
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--glass-text);
+    opacity: .5;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* 导航条目 */
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    box-sizing: border-box;
+    padding: .5rem .7rem;
+    border-radius: var(--radius-sm);
+    color: var(--glass-text);
+    font-size: .88rem;
+    line-height: 1.3;
+    text-decoration: none;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    transition-property: background-color, color;
+}
+
+.nav-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.nav-item.is-active {
+    background-color: var(--primary);
+    color: var(--on-primary);
+    font-weight: 600;
+}
+
+.nav-item.is-active:hover {
+    background-color: var(--primary-hl);
+    color: var(--on-primary-hl);
+}
+
+.nav-item-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 子项：缩进以体现层级 */
+.nav-item--sub {
+    padding-left: 1.55rem;
+    font-size: .84rem;
+}
+
+/* 底部退出登录 */
+.nav-drawer-foot {
+    flex-shrink: 0;
+    padding: .45rem .55rem .6rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.nav-drawer-foot .nav-item:hover {
+    background-color: rgba(255, 69, 58, 0.22);
+    color: #ffffff;
+}
+
+/* hidden 属性必须压过 display: flex */
+.nav-item[hidden] {
+    display: none !important;
+}
+
+/* 个人主页「账户」卡片内的退出登录区（account.html） */
+.account-actions {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    align-items: flex-start;
+    margin-top: .35rem;
+}
+
+.account-actions-desc {
+    margin: 0;
+    font-size: .75rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+/* 抽屉打开时锁住页面滚动 */
+body.nav-open {
+    overflow: hidden;
+}
+
+/* 页头副标题（Beta 提示等）在窄屏隐藏，与既有 [hidden-on-mobile] 行为一致 */
+@media (max-width: 768px) {
+    .nav-toggle {
+        left: .6rem;
+        width: 2.2rem;
+        height: 2.2rem;
+    }
+
+    hcw-body-header:has(> #navToggleBtn),
+    [hcw-body-header]:has(> #navToggleBtn) {
+        padding-left: 3.3rem;
+    }
+
+    #headerAuthArea.game-auth-header:has(#navToggleBtn) {
+        padding-left: 2.9rem;
+    }
+
+    .nav-drawer {
+        width: min(88vw, 17.5rem);
+    }
+}
+
+@media (max-width: 480px) {
+    .nav-toggle {
+        left: .35rem;
+        width: 2.1rem;
+        height: 2.1rem;
+    }
+
+    hcw-body-header:has(> #navToggleBtn),
+    [hcw-body-header]:has(> #navToggleBtn) {
+        padding-left: 2.75rem;
+    }
+
+    #headerAuthArea.game-auth-header:has(#navToggleBtn) {
+        padding-left: 2.6rem;
+    }
+
+    .nav-item {
+        font-size: .85rem;
+    }
+}

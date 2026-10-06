@@ -1,7 +1,7 @@
 // src/pages/timetable-result.js
 /**
  * 修改时刻表页（timetable-result.html?id=xxx）
- * 从个人主页「我的时刻表」的「修改」按钮进入
+ * 从「我的时刻表」（my-timetable.html）列表里的「修改」按钮进入
  *
  * 流程：按 ?id= 拉取原记录 → 填入表单 → 逐字段校验 → 提交修改（POST /api/timetable-D1）
  * 注意：修改后由**服务端**把 PASS 重置为 0（重新进入待审核），客户端不传 pass
@@ -517,10 +517,10 @@ async function doSubmitEdit() {
     }
 
     showMessage('修改成功', false);
-    // 清除个人主页缓存，确保下次加载最新数据
-    sessionStorage.removeItem('account_tt_cache');
+    // 清除「我的时刻表」页缓存，确保下次加载最新数据
+    sessionStorage.removeItem('my_timetable_cache');
     setTimeout(() => {
-      window.location.href = '/account.html';
+      window.location.href = '/my-timetable.html';
     }, 1200);
   } catch (err) {
     console.error(err);
@@ -611,7 +611,7 @@ function fillForm(item) {
 // ─── 事件绑定 ────────────────────────────────
 
 backBtn.addEventListener('click', () => {
-  window.location.href = '/account.html';
+  window.location.href = '/my-timetable.html';
 });
 
 editRetryBtn.addEventListener('click', loadData);

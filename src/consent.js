@@ -129,7 +129,7 @@ function mountClearStorageButton() {
 
     // 2. 清除 sessionStorage 中的本站数据
     try {
-      ['account_tt_cache', 'timetable_search_state']
+      ['my_timetable_cache', 'timetable_search_state']
         .forEach((k) => sessionStorage.removeItem(k));
     } catch { /* ignore */ }
 

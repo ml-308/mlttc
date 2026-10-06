@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>个人主页 - MLTTC</title>
     <link rel="stylesheet" href="style/index.css">
     <link rel="stylesheet" href="style/timetable.css">
     <script src="/src/pages/main.js" type="module"></script>
@@ -29,10 +29,6 @@
             <hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
             <!-- 动态显示登录按钮或用户信息 -->
             <hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem">登录</hcw-button>
-            <div id="globalUserInfo" style="display: none;">
-                <span><strong id="globalDisplayName">用户</strong></span>
-                <hcw-button id="globalLogoutBtn" tp flat inline style="min-width: 5rem">退出</hcw-button>
-            </div>
         </div>
     </hcw-body-header>
 
@@ -80,19 +76,24 @@
                 </div>
                 <hcw-button id="saveBtn" primary flat style="align-self: flex-end; min-width: 5rem; font-size: 0.82rem;">保存</hcw-button>
             </div>
+            <!-- 我的时刻表已拆分为独立页面（my-timetable.html） -->
+            <div style="margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; gap: .6rem;">
+                <span style="font-size: 0.78rem; color: var(--text-secondary);">查询、修改或删除你写入的时刻表</span>
+                <hcw-button id="myTimetableBtn" flat style="min-width: 6.5rem; font-size: 0.82rem;" href="my-timetable.html">我的时刻表</hcw-button>
+            </div>
         </hcw-card>
 
-        <!-- 我的时刻表 -->
+        <!-- 账户：退出登录（退出入口已从页头移到这里，页头只保留登录按钮） -->
         <hcw-card style="margin-top: 1rem;">
-            <hcw-card-title style="font-size: 1.1rem; display:flex; align-items:center; justify-content:space-between;">
-                <span>我的时刻表</span>
-                <hcw-button id="tt-refresh-btn" flat icon style="height:1.8rem;width:1.8rem; font-size:0.9rem;" aria-label="刷新">⟳</hcw-button>
-            </hcw-card-title>
-            <div id="myTimetableArea">
-                <div id="timetable-loading" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">加载中...</div>
-                <div id="timetable-empty" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">暂未写入时刻表</div>
-                <div id="timetable-error" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--danger);"></div>
-                <div id="timetable-list" class="result-area result-list" style="margin-top: 0.5rem;"></div>
+            <hcw-card-title style="font-size: 1.1rem;">账户</hcw-card-title>
+            <div class="account-actions">
+                <p class="account-actions-desc">
+                    退出后需要重新登录才能使用时刻表写入等需要身份的功能；在其它设备上的登录状态不受影响。
+                </p>
+                <hcw-button id="accountLogoutBtn" variant="danger" flat style="min-width: 7rem; font-size: 0.85rem;">
+                    退出登录
+                </hcw-button>
+                <p id="accountLogoutMsg" class="LP" style="display: none; font-size: 0.75rem; margin: 0;"></p>
             </div>
         </hcw-card>
     </hcw-article>

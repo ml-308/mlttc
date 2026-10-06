@@ -3,7 +3,7 @@
  * 全站通用交互脚本
  *
  * 加载它的页面：index.html / game.html / legal.html / timetable.html /
- *               timetable-result.html / timetable-detail(.result).html / account.html
+ *               timetable-result.html / timetable-detail(.result).html / account.html / my-timetable.html
  *               （register.html 不加载）
  *
  * 注意：分隔符用英文字符，不要用中文顿号 —— 曾经用过，被外部工具转换成了乱码。
@@ -13,7 +13,8 @@
  *   2. 首页「距离高考还有…」倒计时
  *   3. 首页 BUG 反馈入口（POST /api/bugback，仅当页面存在 #BUG 元素）
  *
- * 注意：退出登录由 /src/auth-header.js 统一负责，此处不再重复绑定。
+ * 注意：退出登录不在页头 —— 由 /src/nav.js（抽屉底部）与 /src/pages/account.js（个人主页）负责，
+ *       此处不再重复绑定。登录成功后派发 mlttc:auth-changed 通知导航模块刷新。
  */
 import { showPrompt } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
@@ -75,22 +76,19 @@ setInterval(updateCountdown, 1000);
 
 // ================== 界面控制 ==================
 
+// 关闭登录弹窗后恢复页头按钮（页头已无「退出」按钮，退出见 /src/nav.js 与个人主页）
 function loginshow() {
   const modal = document.getElementById('globalLoginModal');
   const loginBtn = document.getElementById('globalLoginBtn');
-  const logoutBtn = document.getElementById('globalLogoutBtn');
   if (modal) modal.style.display = 'flex';
   if (loginBtn) loginBtn.style.display = 'none';
-  if (logoutBtn) logoutBtn.style.display = 'none';
 }
 
 function closeLogin() {
   const modal = document.getElementById('globalLoginModal');
   const loginBtn = document.getElementById('globalLoginBtn');
-  const logoutBtn = document.getElementById('globalLogoutBtn');
   if (modal) modal.style.display = 'none';
   if (loginBtn) loginBtn.style.display = 'inline-block';
-  if (logoutBtn) logoutBtn.style.display = 'none';
 }
 
 // ================== 登录逻辑 ==================
@@ -137,16 +135,12 @@ async function updateUIAfterLogin() {
   const user = await fetchUserInfo();
   if (user) {
     const loginBtn = document.getElementById('globalLoginBtn');
-    const logoutBtn = document.getElementById('globalLogoutBtn');
-    const userInfoDiv = document.getElementById('globalUserInfo');
-    const displayName = document.getElementById('globalDisplayName');
 
-    const loggedName = user.NAME || '未设置昵称';
-    if (displayName) displayName.textContent = loggedName;
     document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=3600; SameSite=Lax`;
+    // 登录成功：隐藏页头「登录」按钮；个人主页入口在左侧抽屉导航中
     if (loginBtn) loginBtn.style.display = 'none';
-    if (logoutBtn) logoutBtn.style.display = 'inline-block';
-    if (userInfoDiv) userInfoDiv.style.display = 'block';
+    // 抽屉底部「退出登录」的显示状态随登录态变化
+    window.dispatchEvent(new CustomEvent('mlttc:auth-changed'));
   }
 }
 

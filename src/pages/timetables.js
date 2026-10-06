@@ -589,8 +589,8 @@ async function doConfirmAdd() {
     console.log("pass");
     showMessage("添加成功", false);
     showAddResult(true, '时刻表已成功添加至数据库');
-    // 清除个人主页缓存，使其下次加载最新时刻表
-    sessionStorage.removeItem('account_tt_cache');
+    // 清除「我的时刻表」页缓存，使其下次加载最新时刻表
+    sessionStorage.removeItem('my_timetable_cache');
     write(2,name);
     cleanall();
     addDiv.classList.add("hidden");

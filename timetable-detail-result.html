@@ -9,19 +9,19 @@
 		旧地址兼容页（无实际内容）。
 		本页与 timetable-detail.html 原本是两份几乎逐字相同的页面，现已合并为单页，
 		实现见 /lib/ui/timetable-detail.mjs。这里只负责把老链接（收藏夹 / 外部引用）
-		带到新地址，并补上 from=account，让「返回」按钮仍然回到个人主页。
+		带到新地址，并补上 from=mine，让「返回」按钮回到「我的时刻表」。
 		用 location.replace 而非 href，避免用户点「后退」又被弹回本页。
 	-->
 	<script>
 		(function () {
 			var params = new URLSearchParams(window.location.search);
-			params.set('from', 'account');
+			params.set('from', 'mine');
 			window.location.replace('/timetable-detail.html?' + params.toString());
 		})();
 	</script>
 	<noscript>
-		<!-- 未启用 JS 时的兜底：直接回个人主页 -->
-		<meta http-equiv="refresh" content="0; url=/account.html">
+		<!-- 未启用 JS 时的兜底：直接回「我的时刻表」 -->
+		<meta http-equiv="refresh" content="0; url=/my-timetable.html">
 	</noscript>
 </head>
 
