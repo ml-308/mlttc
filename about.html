@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<meta name="description" content="关于 MLTTC：由学生与公共交通爱好者义务维护的公交、班车时刻表公益项目">
+	<title>关于我们 - MLTTC</title>
+	<link rel="stylesheet" href="style/legal.css">
+	<script src="src/pages/main.js" type="module"></script>
+	<script src="lib/ui/init.mjs" type="module"></script>
+	<script src="/lib/ui/popup.mjs" type="module"></script>
+	<script src="/src/auth-header.js" type="module"></script>
+</head>
+
+<body>
+	<hcw-body-header>
+		<a hcw-button flat fill href="/index.html" style="min-width: 5rem;">返回</a>
+		<div class="logo-area">
+			<div class="logo-text">
+				MLTTC - 关于我们
+			</div>
+		</div>
+		<div id="headerAuthArea">
+			<!-- 主题切换按钮 -->
+			<hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
+			<hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem">登录</hcw-button>
+		</div>
+	</hcw-body-header>
+
+	<hcw-article class="legal">
+		<header class="legal-head">
+			<p class="legal-kicker">关于我们</p>
+			<h1>关于 MLTTC</h1>
+			<p class="legal-meta">马陆梦想家时刻表项目　·　最后更新：2026 年 11 月 1 日</p>
+			<p class="legal-lead">
+				MLTTC 是一个由学生与公共交通爱好者共同维护的<b>公益时刻表项目</b>。我们把散落在站牌、线路公告和车迷记录里的公交、班车时刻，
+				整理成一份可以搜索、可以纠错的电子时刻表，免费提供给每一个需要它的人。
+				这里没有广告位，没有付费会员，也没有会员墙后面的「完整时刻」。
+			</p>
+			<nav class="legal-toc" aria-label="页面目录">
+				<a href="#who">一、我们是谁</a>
+				<a href="#what">二、我们做什么</a>
+				<a href="#data">三、数据从哪来</a>
+				<a href="#tech">四、技术与原则</a>
+				<a href="#team">五、认识我们</a>
+				<a href="#join">六、参与共建</a>
+				<a href="#contact">七、联系我们</a>
+			</nav>
+		</header>
+
+		<!-- ============ 一、我们是谁 ============ -->
+		<section class="legal-section" id="who">
+			<h2>一、我们是谁</h2>
+			<p>
+				MLTTC 由「马陆梦想家」与「LoFF_RtN」共同发起和维护。我们不是在运营一家公司：没有办公室，没有编辑部，也没有排班表——
+				只有一群在课余和业余时间里改代码、对时刻、审数据的爱好者。
+			</p>
+			<p>
+				做这件事的理由很朴素：很多公交与班车线路的时刻信息只出现在站牌和纸质公告上，错过一班车，往往就要在风里多等二十分钟。
+				如果「几点几分有车」能被更快地查到，上学和通勤就能少一点不确定。
+			</p>
+			<p>
+				所以我们希望它保持简单：打开网页，输入城市和线路，看到时刻；想补充数据，注册后提交；发现错误，直接告诉我们。
+				注册只是为了让你能提交和修改自己的时刻表，查询功能对所有人开放。
+			</p>
+
+			<h3>目前的状态</h3>
+			<p>
+				站点仍处于 <b>Beta</b> 阶段，功能还在持续完善；时刻表数据由大家共同补充，覆盖范围也在一点点扩大。
+				如果某个页面在你的手机或浏览器上显示不正常，欢迎反馈——那对我们来说也是有用的数据。
+			</p>
+		</section>
+
+		<!-- ============ 二、我们做什么 ============ -->
+		<section class="legal-section" id="what">
+			<h2>二、我们做什么</h2>
+			<p>目前站点主要提供以下几类功能：</p>
+			<div class="legal-table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>功能</th>
+							<th>说明</th>
+							<th>入口</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>时刻表查询</td>
+							<td>按城市、线路、起点与终点检索已收录的公交、班车时刻表，并查看每条线路的完整时刻</td>
+							<td><a href="/timetable.html">时刻表查询</a></td>
+						</tr>
+						<tr>
+							<td>我的时刻表</td>
+							<td>登录后查看、修改、删除自己提交的时刻表，回顾每一条的记录时间</td>
+							<td><a href="/my-timetable.html">我的时刻表</a></td>
+						</tr>
+						<tr>
+							<td>个人主页</td>
+							<td>查看账号信息，修改昵称与所在地</td>
+							<td><a href="/account.html">个人主页</a></td>
+						</tr>
+						<tr>
+							<td>游戏与工具</td>
+							<td>贪吃蛇、走迷宫两个小游戏；文本、随机、密码、时间、计算、开发、生活等若干实用小工具</td>
+							<td><a href="/tools.html">游戏与工具</a></td>
+						</tr>
+						<tr>
+							<td>法律条款</td>
+							<td>用户协议、隐私政策与 Cookie / 本地存储说明</td>
+							<td><a href="/legal.html">用户协议与隐私</a></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+			<p class="legal-note">以上入口也都可以从页面左上角的「☰ 菜单」进入。</p>
+		</section>
+
+		<!-- ============ 三、数据从哪来 ============ -->
+		<section class="legal-section" id="data">
+			<h2>三、数据从哪来</h2>
+
+			<h3>1. 大家提交，管理员审核</h3>
+			<p>
+				站内时刻表由用户自发提交：城市、线路、起点站、终点站、发车时刻、备注与执行时间等，提交后经管理员审核，再公开展示。
+				你提交的内容会作为公开的公益数据保留，也可以在「我的时刻表」中自行修改或删除。
+			</p>
+
+			<h3>2. 数据会变，我们尽量跟上</h3>
+			<p>
+				线路调整、临时改点、节假日方案……时刻表是最容易过期的信息之一。我们会持续跟进，但<b>无法保证每一条都及时、完整、准确</b>。
+				出行前请以公交运营企业、站牌等官方渠道发布的信息为准。
+			</p>
+
+			<h3>3. 发现错误怎么办</h3>
+			<ul>
+				<li>在「我的时刻表」里修改自己提交的内容；</li>
+				<li>登录后使用站内「BUG 反馈」，告诉我们哪条线路、哪个时刻有问题；</li>
+				<li>或者直接通过下方的联系方式找我们。</li>
+			</ul>
+			<p class="legal-note">
+				时刻表数据仅供查询参考。因依赖本站信息造成的误车、绕路等损失，我们无法承担，但仍会尽力把数据做准。
+			</p>
+		</section>
+
+		<!-- ============ 四、技术与原则 ============ -->
+		<section class="legal-section" id="tech">
+			<h2>四、技术与原则</h2>
+			<p>站点的技术栈不复杂，原则也很简单。</p>
+
+			<h3>我们坚持的几件事</h3>
+			<ul>
+				<li><b>最小必要</b>：只收集实现功能必需的信息，不要求真实姓名、手机号或精确地理位置；</li>
+				<li><b>不投放广告、不做用户画像、不出售或出租个人信息</b>；</li>
+				<li><b>能静态就静态</b>：能用一段 HTML 与 CSS 解决的问题，不额外加载框架和脚本；</li>
+				<li><b>错误提示说人话</b>：接口超限或网络异常时，尽量告诉你发生了什么、多少秒后可以再试。</li>
+			</ul>
+
+			<h3>站点是怎么跑起来的</h3>
+			<ul>
+				<li>全站托管在 <b>Cloudflare</b>，接口运行于 Cloudflare Functions，数据存放于 <b>D1</b>（关系型数据库）与 <b>KV</b>（键值存储）；</li>
+				<li>前端使用原生 HTML / CSS / JavaScript，配合 Web Components 组织页头、按钮、卡片等组件，没有引入前端框架；</li>
+				<li>密码使用 <b>PBKDF2-SHA256</b> 加随机盐、迭代 100,000 次后哈希保存，数据库中不保存明文；</li>
+				<li>登录凭证存放在带 <code>HttpOnly</code>、<code>Secure</code>、<code>SameSite</code> 属性的 Cookie 中，接口按 IP 做频率限制，超限返回 429。</li>
+			</ul>
+			<p class="legal-note">更详细的说明见 <a href="/legal.html#privacy">《用户协议与隐私政策》</a>。</p>
+		</section>
+
+		<!-- ============ 五、认识我们 ============ -->
+		<section class="legal-section" id="team">
+			<h2>五、认识我们</h2>
+			<p>
+				项目由「马陆梦想家」与「LoFF_RtN」共同发起和维护。你可以在哔哩哔哩找到我们：
+				<a href="https://space.bilibili.com/3493109946124506" target="_blank" rel="noopener">马陆梦想家</a>、
+				<a href="https://space.bilibili.com/582594431" target="_blank" rel="noopener">LoFF_RtN</a>；
+				在站内，你也能看到彼此提交的时刻表。
+			</p>
+			<p>
+				除了我们，还有不少同学提交过自己熟悉的线路、指出过错误的时刻、提过功能建议。
+				这些名字未必出现在页面上，但每一条可用数据的背后都有他们——所以这一节其实也属于所有提交者。
+			</p>
+			<p class="legal-note">
+				如果你在站牌下拍到了一张新贴的时刻表，欢迎把它变成这里的一条数据。
+			</p>
+		</section>
+
+		<!-- ============ 六、参与共建 ============ -->
+		<section class="legal-section" id="join">
+			<h2>六、参与共建</h2>
+			<p>如果你想一起把这份时刻表做得更完整，有几种方式：</p>
+			<ul>
+				<li><b>提交时刻表</b>：注册采用邀请制，需要与邮箱匹配的有效注册码；拿到账号后即可提交你熟悉的线路；</li>
+				<li><b>纠错</b>：发现时刻、站名或线路信息有误，用「修改时刻表」或「BUG 反馈」告诉我们；</li>
+				<li><b>提建议</b>：工具不好用、页面在某个设备上错位、想要某个新功能，都欢迎反馈；</li>
+				<li><b>分享</b>：把站点转给需要它的人，是最简单的支持。</li>
+			</ul>
+			<p class="legal-note">
+				请勿使用爬虫或脚本批量抓取、高频请求接口——这类流量会挤占正常查询，也会触发站点的频率限制。
+			</p>
+		</section>
+
+		<!-- ============ 七、联系我们 ============ -->
+		<section class="legal-section" id="contact">
+			<h2>七、联系我们</h2>
+			<p>对项目有疑问、建议，或希望删除自己提交的内容，可以通过以下方式找到我们：</p>
+			<ul>
+				<li>站长 QQ：<b>3082033429</b></li>
+				<li>哔哩哔哩：<a href="https://space.bilibili.com/3493109946124506" target="_blank" rel="noopener">马陆梦想家</a>、<a href="https://space.bilibili.com/582594431" target="_blank" rel="noopener">LoFF_RtN</a></li>
+				<li>站内反馈：登录后使用「BUG 反馈」入口</li>
+			</ul>
+			<p class="legal-note">
+				本站由爱好者义务维护，没有全职客服。我们会在合理时间内尽力回复与处理，感谢理解与支持。
+			</p>
+			<p>
+				<a hcw-button primary inline href="/timetable.html">去查一班车</a>
+				<a hcw-button inline href="/tools.html">逛逛工具</a>
+			</p>
+			<p class="legal-note">最后，谢谢每一位在站牌下抬头看时刻、又愿意把它分享出来的人。—— MLTTC</p>
+		</section>
+	</hcw-article>
+
+	<hcw-body-footer></hcw-body-footer>
+
+	<!-- 登录模态框 -->
+	<div id="globalLoginModal" class="modal" style="align-items: center; display: none;">
+		<div hcw-modal>
+			<div hcw-modal-title>
+				<h3>登录系统</h3>
+				<hcw-button tp icon id="closeModalBtn">&times;</hcw-button>
+			</div>
+			<div hcw-modal-body>
+				<hcw-input primary label="用户名" type="text" id="username" placeholder="邮箱/昵称" autocomplete="off"
+					required></hcw-input>
+				<hcw-input label="密码" type="password" id="password" placeholder="请输入密码" required></hcw-input>
+				<div id="ErrorLogin" class="error-msg">
+					<p>用户名或密码错误，请重新输入</p>
+				</div>
+				<hcw-button primary large id="login-btn" type="submit">登 录</hcw-button>
+				<hcw-button id='RegisterBtn' large href="register.html">
+					注册账户
+				</hcw-button>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>
