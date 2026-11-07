@@ -64,6 +64,19 @@
         <hcw-card style="margin-top: 1rem;">
             <hcw-card-title style="font-size: 1.1rem;">个人设置</hcw-card-title>
             <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.25rem;">
+                <!-- 主题颜色选择 -->
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">主题颜色</span>
+                    <div id="accentSwatches" style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;">
+                        <!-- 预设色块由 account.js 注入 -->
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="color" id="accentCustom" value="#1db954" aria-label="自定义主题颜色"
+                            style="width: 2.4rem; height: 2.4rem; padding: 0; border: none; border-radius: 50%; background: none; cursor: pointer;">
+                        <span style="font-size: 0.72rem; color: var(--text-muted);">或点击左侧取色器自定义任意颜色</span>
+                    </div>
+                    <p id="accentMsg" class="LP" style="display: none; font-size: 0.72rem;"></p>
+                </div>
                 <div style="display: flex; flex-direction: column; gap: 0.3rem;">
                     <label for="nameInput" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">修改昵称（最多6字）</label>
                     <input hcw-input id="nameInput" type="text" placeholder="输入新昵称" style="font-size: 0.85rem; padding: 0.5rem 0.4rem;">

@@ -137,8 +137,135 @@ async function saveProfile(name, city) {
   return true;
 }
 
+// ========== 主题颜色（accent color） ==========
+// 全站主题色应用与持久化由 src/auth-header.js 的 window.MLTTC_ACCENT 桥接完成；
+// 本页只负责渲染预设色块、选中态，以及读取/写入。
+
+// 预设颜色（Spotify 绿为默认，另附若干常用主色）
+const ACCENT_PRESETS = [
+  { hex: '#1db954', label: 'Spotify 绿' },
+  { hex: '#0071e3', label: '苹果蓝' },
+  { hex: '#e8541f', label: '活力橙' },
+  { hex: '#e91e63', label: '玫红' },
+  { hex: '#9c27b0', label: '紫' },
+  { hex: '#ffcc00', label: '明黄' },
+  { hex: '#00bcd4', label: '青' },
+  { hex: '#ff3b30', label: '红' }
+];
+
+function getAccent() {
+  return (window.MLTTC_ACCENT && window.MLTTC_ACCENT.get()) || null;
+}
+
+function setAccent(hex) {
+  if (window.MLTTC_ACCENT) window.MLTTC_ACCENT.set(hex);
+}
+
+function clearAccent() {
+  if (window.MLTTC_ACCENT) window.MLTTC_ACCENT.clear();
+}
+
+// 归一化颜色，便于比较是否命中预设
+function normalizeHex(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  return m ? '#' + m[1].toLowerCase() : null;
+}
+
+// 渲染预设色块，并标出当前选中态
+function renderAccentSwatches() {
+  const wrap = document.getElementById('accentSwatches');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+
+  const current = normalizeHex(getAccent());
+
+  ACCENT_PRESETS.forEach((p) => {
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'accent-swatch';
+    dot.setAttribute('aria-label', p.label);
+    dot.title = p.label;
+    dot.style.width = '2rem';
+    dot.style.height = '2rem';
+    dot.style.borderRadius = '50%';
+    dot.style.border = '2px solid var(--border)';
+    dot.style.background = p.hex;
+    dot.style.cursor = 'pointer';
+    dot.style.padding = '0';
+    dot.style.flexShrink = '0';
+    dot.style.transition = 'transform var(--transition-fast), box-shadow var(--transition-fast)';
+    dot.dataset.hex = p.hex;
+
+    if (current && normalizeHex(p.hex) === current) {
+      dot.style.boxShadow = '0 0 0 2px var(--bg-card), 0 0 0 4px ' + p.hex;
+    }
+
+    dot.addEventListener('click', () => {
+      setAccent(p.hex);
+      flashAccentMsg('已应用「' + p.label + '」', false);
+      renderAccentSwatches();
+    });
+
+    wrap.appendChild(dot);
+  });
+
+  // 末尾附一个「恢复默认」小按钮（仅在有自定义色时显示）
+  const reset = document.createElement('button');
+  reset.type = 'button';
+  reset.textContent = '恢复默认';
+  reset.style.fontSize = '0.72rem';
+  reset.style.color = 'var(--link-color)';
+  reset.style.background = 'none';
+  reset.style.border = 'none';
+  reset.style.cursor = 'pointer';
+  reset.style.padding = '0';
+  reset.addEventListener('click', () => {
+    clearAccent();
+    document.getElementById('accentCustom').value = '#1db954';
+    flashAccentMsg('已恢复默认主题色', false);
+    renderAccentSwatches();
+  });
+  wrap.appendChild(reset);
+
+  // 同步取色器当前值
+  const picker = document.getElementById('accentCustom');
+  if (picker && current) picker.value = current;
+}
+
+function flashAccentMsg(text, isError) {
+  const msg = document.getElementById('accentMsg');
+  if (!msg) return;
+  msg.textContent = text;
+  msg.style.color = isError ? 'var(--danger)' : 'var(--success)';
+  msg.style.display = 'block';
+  clearTimeout(flashAccentMsg._t);
+  flashAccentMsg._t = setTimeout(() => { msg.style.display = 'none'; }, 1800);
+}
+
+// 绑定自定义取色器
+function bindAccentPicker() {
+  const picker = document.getElementById('accentCustom');
+  if (!picker) return;
+  picker.addEventListener('input', () => {
+    const hex = picker.value;
+    if (/^#[0-9a-f]{6}$/i.test(hex)) {
+      setAccent(hex);
+      renderAccentSwatches();
+    }
+  });
+  picker.addEventListener('change', () => {
+    flashAccentMsg('已应用自定义颜色 ' + picker.value, false);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadProfile();
+
+  // 主题颜色（依赖 auth-header.js 的 window.MLTTC_ACCENT 桥接）
+  // auth-header.js 与 account.js 均为 module，加载顺序由 HTML 中 <script> 顺序决定，
+  // 但 DOMContentLoaded 触发时两个模块的顶层代码都已执行完毕，桥接必然就绪。
+  renderAccentSwatches();
+  bindAccentPicker();
 
   // 返回按钮
   document.getElementById('backBtn')?.addEventListener('click', () => window.location.href = '/index.html');

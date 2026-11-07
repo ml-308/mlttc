@@ -8,6 +8,7 @@
     </title>
     <link rel="stylesheet" href="style/index.css">
     <script src="src/pages/main.js" type="module"></script>
+    <script src="src/pages/home-stats.js" type="module"></script>
     <script src="lib/ui/init.mjs" type="module"></script>
     <script src="/lib/ui/popup.mjs" type="module"></script>
     <script src="/src/auth-header.js" type="module"></script>
@@ -32,60 +33,58 @@
         </div>
     </hcw-body-header>
 
-    <!-- 主内容区域：标题+8个大按钮 -->
+    <!-- 主内容区域：hero + 数据速览 + 核心功能卡片墙 -->
     <hcw-article>
         <hcw-hero>
             <h1>MLTTC</h1>
-            <p>点击<b>昵称</b>进入个人页面！</p>
+            <p class="hero-sub">把散落在站牌上的公交、班车时刻，整理成一份可以搜索、可以纠错的电子时刻表</p>
             <p id="time"></p>
-            <p id="BUG" >点我<b style="color:brown">BUG</b>反馈</p>
-            <p>管理员页面：https://admin.mlttc.bond</p>
-            <p>Version:1.2.6</p>
+            <p id="BUG">点我<b style="color:brown">BUG</b>反馈</p>
+            <p class="hero-meta">管理员页面：https://admin.mlttc.bond　·　Version:1.2.6</p>
         </hcw-hero>
-        <div class="button-grid" id="buttonGridContainer">
+
+        <!-- 数据速览：真实接口统计 -->
+        <section class="stat-grid" id="statGrid">
+            <hcw-card class="stat-card">
+                <h3 hcw-card-title>已收录线路</h3>
+                <p class="stat-value" id="statLines">—</p>
+                <p class="stat-label">条公交 / 班车线路</p>
+            </hcw-card>
+            <hcw-card class="stat-card">
+                <h3 hcw-card-title>覆盖城市</h3>
+                <p class="stat-value" id="statCities">—</p>
+                <p class="stat-label">座城市</p>
+            </hcw-card>
+            <hcw-card class="stat-card">
+                <h3 hcw-card-title>数据更新</h3>
+                <p class="stat-value" id="statUpdated">—</p>
+                <p class="stat-label">持续补充中</p>
+            </hcw-card>
+        </section>
+
+        <!-- 核心功能卡片墙 -->
+        <section class="feature-grid" id="buttonGridContainer">
             <hcw-card data-action="timetable" data-idx="1">
                 <h3 hcw-card-title>时刻表查询</h3>
-                <p>添加查询时刻表</p>
-                <br>
+                <p>按城市、线路、起点终点检索已收录的公交与班车时刻</p>
                 <hcw-button primary href="timetable.html">立即使用</hcw-button>
             </hcw-card>
-            <hcw-card data-action="comming" data-idx="3">
-                <h3 hcw-card-title>敬请期待</h3>
-                <p>敬请期待</p>
-                <br>
-                <hcw-button disabled>敬请期待</hcw-button>
+            <hcw-card data-action="my-timetable" data-idx="2">
+                <h3 hcw-card-title>我的时刻表</h3>
+                <p>登录后查看、修改、删除自己提交的时刻表</p>
+                <hcw-button primary href="my-timetable.html">立即使用</hcw-button>
             </hcw-card>
-            <hcw-card data-action="tools" data-idx="4">
+            <hcw-card data-action="tools" data-idx="3">
                 <h3 hcw-card-title>游戏与工具</h3>
-                <p>小游戏与实用小工具</p>
-                <br>
+                <p>贪吃蛇、走迷宫两个小游戏，以及文本、随机、时间、计算等实用工具</p>
                 <hcw-button primary href="tools.html">立即使用</hcw-button>
             </hcw-card>
-            <!-- <hcw-card data-action="comming" data-idx="5">
-                <h3 hcw-card-title>敬请期待</h3>
-                <p>敬请期待</p>
-                <br>
-                <hcw-button disabled>敬请期待</hcw-button>
+            <hcw-card data-action="about" data-idx="4">
+                <h3 hcw-card-title>关于我们</h3>
+                <p>了解这个公益时刻表项目，以及如何参与共建</p>
+                <hcw-button primary href="about.html">了解更多</hcw-button>
             </hcw-card>
-            <hcw-card data-action="comming" data-idx="6">
-                <h3 hcw-card-title>敬请期待</h3>
-                <p>敬请期待</p>
-                <br>
-                <hcw-button disabled>敬请期待</hcw-button>
-            </hcw-card>
-            <hcw-card data-action="comming" data-idx="7">
-                <h3 hcw-card-title>敬请期待</h3>
-                <p>敬请期待</p>
-                <br>
-                <hcw-button disabled>敬请期待</hcw-button>
-            </hcw-card>
-            <hcw-card data-action="comming" data-idx="8">
-                <h3 hcw-card-title>敬请期待</h3>
-                <p>敬请期待</p>
-                <br>
-                <hcw-button disabled>敬请期待</hcw-button>
-            </hcw-card> -->
-        </div>
+        </section>
     </hcw-article>
 
     <hcw-body-footer id="hcw-footer-replace">

@@ -19,32 +19,32 @@
         /* ---------- 棋盘配色：深浅两套，取站点色系 ---------- */
         body {
             --maze-board: #f5f5f7;
-            --maze-wall: #0071e3;
-            --maze-trail: rgba(0, 113, 227, .16);
+            --maze-wall: #1db954;
+            --maze-trail: rgba(29, 185, 84, .16);
             --maze-goal: #ff9500;
-            --maze-start: #34c759;
-            --maze-player: #0071e3;
+            --maze-start: #169c46;
+            --maze-player: #1db954;
             --maze-overlay: rgba(245, 245, 247, .78);
         }
 
         [data-theme="dark"] body {
-            --maze-board: #12141d;
-            --maze-wall: #5b8cff;
-            --maze-trail: rgba(91, 140, 255, .22);
+            --maze-board: #121212;
+            --maze-wall: #1db954;
+            --maze-trail: rgba(29, 185, 84, .22);
             --maze-goal: #ffb340;
-            --maze-start: #30d158;
-            --maze-player: #66b8ff;
+            --maze-start: #1ed760;
+            --maze-player: #1ed760;
             --maze-overlay: rgba(0, 0, 0, .72);
         }
 
         @media (prefers-color-scheme: dark) {
             html:not([data-theme]) body {
-                --maze-board: #12141d;
-                --maze-wall: #5b8cff;
-                --maze-trail: rgba(91, 140, 255, .22);
+                --maze-board: #121212;
+                --maze-wall: #1db954;
+                --maze-trail: rgba(29, 185, 84, .22);
                 --maze-goal: #ffb340;
-                --maze-start: #30d158;
-                --maze-player: #66b8ff;
+                --maze-start: #1ed760;
+                --maze-player: #1ed760;
                 --maze-overlay: rgba(0, 0, 0, .72);
             }
         }
@@ -481,11 +481,11 @@
                 const v = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
                 return {
                     board: v('--maze-board', '#f5f5f7'),
-                    wall: v('--maze-wall', '#0071e3'),
-                    trail: v('--maze-trail', 'rgba(0,113,227,.16)'),
+                    wall: v('--maze-wall', '#1db954'),
+                    trail: v('--maze-trail', 'rgba(29,185,84,.16)'),
                     goal: v('--maze-goal', '#ff9500'),
-                    start: v('--maze-start', '#34c759'),
-                    player: v('--maze-player', '#0071e3')
+                    start: v('--maze-start', '#169c46'),
+                    player: v('--maze-player', '#1db954')
                 };
             }
 

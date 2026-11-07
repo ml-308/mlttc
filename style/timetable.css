@@ -54,7 +54,7 @@ hcw-article,
 .menu-btn[primary] {
     background-color: var(--primary);
     border-color: var(--primary);
-    color: #fff;
+    color: var(--on-primary);
 }
 
 .menu-btn:hover {
@@ -331,9 +331,9 @@ footer::before {
 }
 
 .result-item:hover {
+    background: var(--bg-hover);
     box-shadow: var(--shadow-md);
     border-color: var(--primary);
-    transform: translateY(-2px);
 }
 
 .result-item-header {

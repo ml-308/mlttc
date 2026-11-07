@@ -21,6 +21,7 @@
 //    额度：GET → LIMITS.search、POST → LIMITS.write、DELETE → LIMITS.remove
 
 import { enforceRateLimit, LIMITS } from '../ratelimit';
+import { statsOnInsert, statsOnDelete } from '../stats-helper';
 
 // 生成12位安全随机数字（字符串）
 function generate12DigitString() {
@@ -231,6 +232,9 @@ export async function onRequestPost({ request, env }) {
             '-',
             0
         ).run();
+
+        // 维护首页统计（线路 +1、城市并入），失败不影响主流程
+        statsOnInsert(env, city.trim()).catch((e) => console.warn('统计维护失败:', e));
 
         return new Response(JSON.stringify({
             success: true,
@@ -491,7 +495,7 @@ export async function onRequestDelete({ request, env }) {
 
         // 验证该记录存在且作者匹配
         const existing = await env.mlttcd.prepare(
-            'SELECT ID, WRITER FROM TIMETABLE WHERE ID = ?'
+            'SELECT ID, WRITER, CITY FROM TIMETABLE WHERE ID = ?'
         ).bind(id).first();
 
         if (!existing) {
@@ -510,6 +514,9 @@ export async function onRequestDelete({ request, env }) {
 
         await env.mlttcd.prepare('DELETE FROM TIMETABLE WHERE ID = ? AND WRITER = ?')
             .bind(id, writer).run();
+
+        // 维护首页统计（线路 -1、城市回收），失败不影响主流程
+        statsOnDelete(env, existing.CITY).catch((e) => console.warn('统计维护失败:', e));
 
         return new Response(JSON.stringify({
             success: true,

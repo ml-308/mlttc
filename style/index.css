@@ -6,7 +6,16 @@
     gap: 14px;
 }
 
-/* ---------- 按钮网格 ---------- */
+/* 首页：让内容区在桌面端撑满视口高度，避免下半屏空悬 */
+@media (min-width: 1024px) {
+    hcw-article:has(.feature-grid),
+    [hcw-article]:has(.feature-grid) {
+        min-height: calc(100vh - 12rem);
+        justify-content: center;
+    }
+}
+
+/* ---------- 按钮网格（通用，保留兼容） ---------- */
 .button-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(15rem, 90vw), 1fr));
@@ -14,15 +23,115 @@
     margin-top: .25rem;
 }
 
-@media(max-width: 768px) {
-    .button-grid {
-        grid-template-columns: repeat(auto-fill, minmax(min(12rem, 90vw), 1fr));
+/* ---------- 数据速览：三张统计卡 ---------- */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+    margin-top: .5rem;
+}
+
+.stat-card {
+    text-align: center;
+    align-items: center;
+}
+
+.stat-card [hcw-card-title] {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--text-secondary);
+    margin-bottom: .5rem;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--primary);
+    margin: 0;
+}
+
+.stat-label {
+    font-size: .82rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* ---------- hero 顶部化：加大高度与呼吸感，撑满首屏 ---------- */
+hcw-hero {
+    margin-bottom: .5rem;
+    min-height: 22rem;
+    display: flex;
+    align-items: center;
+}
+
+hcw-hero h1 {
+    font-size: clamp(2.75rem, 8vw, 4.5rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    margin: 0.5rem 0;
+}
+
+.hero-sub {
+    font-size: 1.15rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    max-width: 42rem;
+    margin: 0.75rem 0;
+}
+
+.hero-meta {
+    font-size: .8rem;
+    color: var(--text-muted);
+    margin-top: 1.25rem;
+}
+
+/* ---------- 核心功能卡片墙 ---------- */
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
+    gap: 1.5rem;
+    margin-top: .5rem;
+}
+
+.feature-grid hcw-card,
+.feature-grid [hcw-card] {
+    min-height: 14rem;
+}
+
+.feature-grid hcw-card h3,
+.feature-grid [hcw-card] h3 {
+    font-size: 1.25rem;
+    margin-bottom: .5rem;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 768px) {
+    .stat-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: .75rem;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
     }
 }
 
-@media(max-width: 480px) {
+@media (max-width: 480px) {
     .button-grid {
         grid-template-columns: 1fr;
+    }
+
+    .stat-grid {
+        grid-template-columns: 1fr;
+        gap: .6rem;
+    }
+
+    .stat-value {
+        font-size: 1.6rem;
     }
 }
 

@@ -1,198 +1,202 @@
 
 :root {
-    /* 主色调 —— Apple 蓝 */
-    --primary: #0071e3;
-    --on-primary: #ffffff;
-    --primary-hl: #0077ed;
-    --on-primary-hl: #ffffff;
-    --primary-light: #2997ff;
-    --primary-dark: #0040dd;
-    --primary-bg: rgba(0, 113, 227, 0.08);
-    --primary-surface: rgba(0, 113, 227, 0.05);
+    /* ===== Spotify 风格配色（浅色主题，默认） =====
+       绿 #1DB954 作唯一强调 · 浅色画布 · 近白分层表面 */
 
-    /* 强调色 —— 系统橙 */
-    --accent: #ff9500;
-    --accent-hover: #ffb340;
-    --accent-light: rgba(255, 149, 0, 0.12);
+    /* 主色调 —— Spotify 绿 */
+    --primary: #1db954;
+    --on-primary: #000000;   /* 绿底配黑字，Spotify 的高对比做法 */
+    --primary-hl: #1ed760;
+    --on-primary-hl: #000000;
+    --primary-light: #1ed760;
+    --primary-dark: #169c46; /* 按压态更深的绿 */
+    --primary-bg: rgba(29, 185, 84, 0.12);
+    --primary-surface: rgba(29, 185, 84, 0.07);
 
-    /* 功能色 —— 系统绿/红/黄 */
-    --success: #34c759;
+    /* 强调色 —— 保留一点暖橙用于「备注」等次要高亮（远离绿色系，避免混淆） */
+    --accent: #e8541f;
+    --accent-hover: #f06a35;
+    --accent-light: rgba(232, 84, 31, 0.12);
+
+    /* 功能色 */
+    --success: #169c46;
     --success-light: #ffffff;
-    --danger: #ff3b30;
+    --danger: #d93025;
     --danger-light: #ffffff;
-    --warning: #ff9500;
-    --warning-light: #ffffff;
+    --warning: #e8900a;
+    --warning-light: #000000;
 
-    /* 中性色 —— Apple 灰阶 */
-    --text-primary: #1d1d1f;
-    --text-secondary: #6e6e73;
-    --text-muted: #86868b;
-    --text-placeholder: #6e6e73;
-    --border: #d2d2d7;
-    --border-light: #e8e8ed;
+    /* 中性色 —— 浅色画布上的文字层级 */
+    --text-primary: #111111;
+    --text-secondary: #535353;
+    --text-muted: #7a7a7a;
+    --text-placeholder: #8a8a8a;
+    --border: #d9d9d9;
+    --border-light: #ececec;
 
-    --link-color: #0066cc; /* Apple 链接蓝 #06c */
+    --link-color: #169c46; /* 链接用稍深的绿，保证浅底对比度 */
 
     /* 按钮 */
-    --button-bg: rgba(0, 0, 0, 0.08);
-    --button-color: #1d1d1f;
-    --button-fill-bg: #1d1d1f;
+    --button-bg: rgba(0, 0, 0, 0.06);
+    --button-color: #111111;
+    --button-fill-bg: #111111;      /* 实底按钮 = 黑底白字 */
     --button-fill-color: #ffffff;
-    --button-bg-hl: rgba(0, 0, 0, 0.12);
+    --button-bg-hl: rgba(0, 0, 0, 0.10);
     --button-color-hl: #000000;
-    --button-color-disabled: #c7c7cc;
+    --button-color-disabled: #b3b3b3;
 
     /* 输入框 */
     --input-bg: rgba(0, 0, 0, 0.04);
-    --input-color: #1d1d1f;
+    --input-color: #111111;
     --input-bg-hl: rgba(0, 0, 0, 0.07);
     --input-color-hl: #000000;
 
-    /* 页面背景 */
+    /* 页面背景 —— 浅色分层 */
     --bg-page: #ffffff;
-    --on-bg-page: #1d1d1f;
-    --bg-card: #ffffff;
+    --on-bg-page: #111111;
+    --bg-card: #ffffff;             /* 卡片 */
     --bg-input: rgba(0, 0, 0, 0.04);
-    --bg-hover: #f5f5f7;
+    --bg-hover: #f2f2f2;            /* 悬停表面 */
 
-    /* 导航栏磨砂玻璃 —— Apple 深色导航 */
-    --glass-bg: rgba(22, 22, 23, 0.8);
-    --glass-text: #f5f5f7;
+    /* 导航栏磨砂玻璃 */
+    --glass-bg: rgba(255, 255, 255, 0.82);
+    --glass-text: #111111;
     --glass-inner-hl: transparent;
     --glass-inner-dl: transparent;
 
     /* 页脚 */
-    --footer-bg: #f5f5f7;
-    --footer-text: #6e6e73;
+    --footer-bg: #f2f2f2;
+    --footer-text: #535353;
 
     /* 导航栏专用 */
-    --nav-bg: rgba(22, 22, 23, 0.8);
-    --nav-text: #f5f5f7;
+    --nav-bg: rgba(255, 255, 255, 0.85);
+    --nav-text: #111111;
 }
 
-/* 深色主题变量（通过 data-theme 属性或系统偏好） */
+/* 深色主题变量（通过 data-theme 属性或系统偏好）
+   默认主题已即 Spotify 深色；这里让显式深色模式与默认一致、仅微调分层 */
 [data-theme="dark"] {
-    --primary: #2997ff;
-    --on-primary: #ffffff;
-    --primary-hl: #66b8ff;
+    --primary: #1db954;
+    --on-primary: #000000;
+    --primary-hl: #1ed760;
     --on-primary-hl: #000000;
-    --primary-light: #66b8ff;
-    --primary-dark: #0071e3;
-    --primary-bg: rgba(41, 151, 255, 0.14);
-    --primary-surface: rgba(41, 151, 255, 0.08);
+    --primary-light: #1ed760;
+    --primary-dark: #169c46;
+    --primary-bg: rgba(29, 185, 84, 0.16);
+    --primary-surface: rgba(29, 185, 84, 0.10);
 
-    --accent: #ffb340;
-    --accent-hover: #ffd18f;
-    --accent-light: rgba(255, 179, 64, 0.14);
+    --accent: #ff7a45;
+    --accent-hover: #ff986e;
+    --accent-light: rgba(255, 122, 69, 0.18);
 
-    --success: #30d158;
-    --success-light: #ffffff;
-    --danger: #ff453a;
-    --danger-light: #ffffff;
-    --warning: #ff9f0a;
-    --warning-light: #ffffff;
+    --success: #1db954;
+    --success-light: #000000;
+    --danger: #f15e6c;
+    --danger-light: #000000;
+    --warning: #ffb020;
+    --warning-light: #000000;
 
-    --text-primary: #f5f5f7;
-    --text-secondary: #a1a1a6;
-    --text-muted: #86868b;
-    --text-placeholder: #86868b;
-    --border: #424245;
-    --border-light: #3a3a3c;
+    --text-primary: #ffffff;
+    --text-secondary: #b3b3b3;
+    --text-muted: #7a7a7a;
+    --text-placeholder: #7a7a7a;
+    --border: #2a2a2a;
+    --border-light: #1f1f1f;
 
-    --link-color: #2997ff;
+    --link-color: #1ed760;
 
-    --button-bg: rgba(255, 255, 255, 0.16);
-    --button-color: #f5f5f7;
-    --button-fill-bg: #f5f5f7;
-    --button-fill-color: #1d1d1f;
-    --button-bg-hl: rgba(255, 255, 255, 0.24);
+    --button-bg: rgba(255, 255, 255, 0.12);
+    --button-color: #ffffff;
+    --button-fill-bg: #ffffff;
+    --button-fill-color: #000000;
+    --button-bg-hl: rgba(255, 255, 255, 0.20);
     --button-color-hl: #ffffff;
-    --button-color-disabled: #6e6e73;
+    --button-color-disabled: #5a5a5a;
 
-    --input-bg: rgba(255, 255, 255, 0.12);
-    --input-color: #f5f5f7;
-    --input-bg-hl: rgba(255, 255, 255, 0.18);
+    --input-bg: rgba(255, 255, 255, 0.10);
+    --input-color: #ffffff;
+    --input-bg-hl: rgba(255, 255, 255, 0.16);
     --input-color-hl: #ffffff;
 
     --bg-page: #000000;
-    --on-bg-page: #f5f5f7;
-    --bg-card: #1d1d1f;
-    --bg-input: rgba(255, 255, 255, 0.08);
-    --bg-hover: #2c2c2e;
+    --on-bg-page: #ffffff;
+    --bg-card: #181818;
+    --bg-input: rgba(255, 255, 255, 0.10);
+    --bg-hover: #242424;
 
-    --glass-bg: rgba(22, 22, 23, 0.72);
-    --glass-text: #f5f5f7;
+    --glass-bg: #121212;
+    --glass-text: #ffffff;
     --glass-inner-hl: transparent;
     --glass-inner-dl: transparent;
 
-    --footer-bg: #1d1d1f;
-    --footer-text: #a1a1a6;
+    --footer-bg: #121212;
+    --footer-text: #b3b3b3;
 
-    --nav-bg: rgba(0, 0, 0, 0.8);
-    --nav-text: #f5f5f7;
+    --nav-bg: #121212;
+    --nav-text: #ffffff;
 }
 
-/* 系统深色偏好（仅在未设置 data-theme 时生效） */
+/* 系统深色偏好（仅在未设置 data-theme 时生效）—— 默认主题已为深色，此块与 :root 保持一致 */
 @media(prefers-color-scheme: dark) {
     :root:not([data-theme]) {
-        --primary: #2997ff;
-        --on-primary: #ffffff;
-        --primary-hl: #66b8ff;
+        --primary: #1db954;
+        --on-primary: #000000;
+        --primary-hl: #1ed760;
         --on-primary-hl: #000000;
-        --primary-light: #66b8ff;
-        --primary-dark: #0071e3;
-        --primary-bg: rgba(41, 151, 255, 0.14);
-        --primary-surface: rgba(41, 151, 255, 0.08);
+        --primary-light: #1ed760;
+        --primary-dark: #169c46;
+        --primary-bg: rgba(29, 185, 84, 0.16);
+        --primary-surface: rgba(29, 185, 84, 0.10);
 
-        --accent: #ffb340;
-        --accent-hover: #ffd18f;
-        --accent-light: rgba(255, 179, 64, 0.14);
+        --accent: #ff7a45;
+        --accent-hover: #ff986e;
+        --accent-light: rgba(255, 122, 69, 0.18);
 
-        --success: #30d158;
-        --success-light: #ffffff;
-        --danger: #ff453a;
-        --danger-light: #ffffff;
-        --warning: #ff9f0a;
-        --warning-light: #ffffff;
+        --success: #1db954;
+        --success-light: #000000;
+        --danger: #f15e6c;
+        --danger-light: #000000;
+        --warning: #ffb020;
+        --warning-light: #000000;
 
-        --text-primary: #f5f5f7;
-        --text-secondary: #a1a1a6;
-        --text-muted: #86868b;
-        --text-placeholder: #86868b;
-        --border: #424245;
-        --border-light: #3a3a3c;
+        --text-primary: #ffffff;
+        --text-secondary: #b3b3b3;
+        --text-muted: #7a7a7a;
+        --text-placeholder: #7a7a7a;
+        --border: #2a2a2a;
+        --border-light: #1f1f1f;
 
-        --link-color: #2997ff;
+        --link-color: #1ed760;
 
-        --button-bg: rgba(255, 255, 255, 0.16);
-        --button-color: #f5f5f7;
-        --button-fill-bg: #f5f5f7;
-        --button-fill-color: #1d1d1f;
-        --button-bg-hl: rgba(255, 255, 255, 0.24);
+        --button-bg: rgba(255, 255, 255, 0.12);
+        --button-color: #ffffff;
+        --button-fill-bg: #ffffff;
+        --button-fill-color: #000000;
+        --button-bg-hl: rgba(255, 255, 255, 0.20);
         --button-color-hl: #ffffff;
-        --button-color-disabled: #6e6e73;
+        --button-color-disabled: #5a5a5a;
 
-        --input-bg: rgba(255, 255, 255, 0.12);
-        --input-color: #f5f5f7;
-        --input-bg-hl: rgba(255, 255, 255, 0.18);
+        --input-bg: rgba(255, 255, 255, 0.10);
+        --input-color: #ffffff;
+        --input-bg-hl: rgba(255, 255, 255, 0.16);
         --input-color-hl: #ffffff;
 
         --bg-page: #000000;
-        --on-bg-page: #f5f5f7;
-        --bg-card: #1d1d1f;
-        --bg-input: rgba(255, 255, 255, 0.08);
-        --bg-hover: #2c2c2e;
+        --on-bg-page: #ffffff;
+        --bg-card: #181818;
+        --bg-input: rgba(255, 255, 255, 0.10);
+        --bg-hover: #242424;
 
-        --glass-bg: rgba(22, 22, 23, 0.72);
-        --glass-text: #f5f5f7;
+        --glass-bg: #121212;
+        --glass-text: #ffffff;
         --glass-inner-hl: transparent;
         --glass-inner-dl: transparent;
 
-        --footer-bg: #1d1d1f;
-        --footer-text: #a1a1a6;
+        --footer-bg: #121212;
+        --footer-text: #b3b3b3;
 
-        --nav-bg: rgba(0, 0, 0, 0.8);
-        --nav-text: #f5f5f7;
+        --nav-bg: #121212;
+        --nav-text: #ffffff;
     }
 }hcw-card, [hcw-card] {
     position: relative;
@@ -209,9 +213,9 @@
     transition-property: transform, box-shadow, border-color;
 
     &>:is(hcw-card-title, [hcw-card-title]) {
-        font-size: 1.4rem;
-        font-weight: 700;
-        letter-spacing: -0.015em;
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
         text-align: left;
         position: relative;
         margin: 0;
@@ -222,10 +226,23 @@
         }
     }
 
-    /* 非表单卡片悬停微浮起（Apple 风格） */
+    /* 描述段落：占据弹性空间，把按钮统一压到卡片底部（等高对齐的关键） */
+    &>p {
+        margin-bottom: auto;
+    }
+
+    /* 卡片内的按钮：沉底，与其它卡片对齐 */
+    &>hcw-button,
+    &>[hcw-button] {
+        margin-top: 1rem;
+        align-self: flex-start;
+    }
+
+    /* 非表单卡片悬停：背景微亮 + 阴影浮现（Spotify 风格，不做位移） */
     &:not(.form-card):hover {
+        background: var(--bg-hover);
         box-shadow: var(--shadow-md);
-        transform: translateY(-2px);
+        transform: none;
     }
 
     animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
@@ -247,7 +264,9 @@
     transition-property: transform, background-color, color, box-shadow, opacity;
     text-align: center;
     cursor: pointer;
-    font-size: 1rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
     -webkit-user-select: none;
@@ -330,6 +349,7 @@
         &:hover {
             background-color: var(--primary-hl);
             color: var(--on-primary-hl);
+            transform: scale(1.04);
         }
     }
 
@@ -349,15 +369,15 @@
         transform: scale(0.97);
     }
 
-    /* 导航栏内的按钮：白色半透明 + 文字反白 */
+    /* 导航栏内的按钮：随主题的半透明底 + 反色文字 */
     hcw-body-header &,
     [hcw-body-header] & {
-        background-color: rgba(255, 255, 255, 0.14);
+        background-color: var(--button-bg);
         color: var(--nav-text);
 
         &:hover {
-            background-color: rgba(255, 255, 255, 0.24);
-            color: #ffffff;
+            background-color: var(--button-bg-hl);
+            color: var(--nav-text);
         }
 
         &[tp] {
@@ -366,11 +386,11 @@
 
         &[primary] {
             background-color: var(--primary);
-            color: #ffffff;
+            color: var(--on-primary);
 
             &:hover {
                 background-color: var(--primary-hl);
-                color: #ffffff;
+                color: var(--on-primary-hl);
             }
         }
     }
@@ -473,9 +493,9 @@ textarea[hcw-input]:focus {
 }
 
 .logo-text {
-    font-size: 1.15rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
     color: var(--nav-text);
     background: none;
     -webkit-background-clip: initial;
@@ -510,12 +530,18 @@ textarea[hcw-input]:focus {
 }hcw-article,
 [hcw-article] {
     width: 100%;
-    max-width: 980px;   /* Apple 内容宽度 */
+    max-width: 1200px;   /* 内容区放宽，减少桌面端两侧留白 */
     margin: 0 auto;
-    padding: min(2rem, 6vw);
+    padding: min(2.5rem, 6vw);
     display: flex;
     flex-direction: column;
     gap: 1.75rem;
+}
+
+/* 长文页（法务/关于）保持较窄行宽，利于阅读 */
+hcw-article.legal,
+[hcw-article].legal {
+    max-width: 860px;
 }hcw-body-footer,
 [hcw-body-footer] {
     margin-top: auto;
@@ -630,29 +656,33 @@ a:hover {
     --transition-normal: 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     --transition-slow: 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
-    /* Apple SF Pro 字体栈 */
-    --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+    /* Spotify 字体栈：优先 Circular / 系统黑体，中文回退 PingFang / 微软雅黑 */
+    --font-family: "Circular Std", "Circular", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
     --font-mono: "SF Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", "Courier New", monospace;
 
-    /* Apple 柔和阴影 */
-    --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.08);
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
-    --shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.12);
-    --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
-    --shadow-focus: 0 0 0 4px rgba(0, 113, 227, 0.25);
+    /* Spotify 阴影：更实、更克制，强调卡片浮出而非大弥散 */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+    --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.34);
+    --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.42);
+    --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.50);
+    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.58);
+    --shadow-focus: 0 0 0 3px rgba(29, 185, 84, 0.45);
 
-    --radius-xs: .5rem;
-    --radius-sm: .75rem;
-    --radius-md: 1rem;
-    --radius-lg: 1.125rem;   /* Apple 卡片 18px */
-    --radius-xl: 1.5rem;
-    --radius-full: 980px;    /* Apple 胶囊按钮 */
+    /* Spotify 圆角：中等偏小，卡片 ~8px、控件 ~4px、胶囊 500px */
+    --radius-xs: .25rem;
+    --radius-sm: .5rem;
+    --radius-md: .5rem;
+    --radius-lg: .5rem;   /* Spotify 卡片 8px */
+    --radius-xl: .875rem;
+    --radius-full: 500px; /* Spotify 胶囊按钮 */
 
     /* 用户身份标识色（个人页身份徽章等） */
     --role-admin: var(--danger);    /* 管理员 */
     --role-station: var(--warning); /* 站长（如需紫色可改为 #5f00c5） */
     --role-user: var(--primary);    /* 普通用户 */
+
+    /* 桌面端左侧固定导航栏宽度（Spotify 式侧栏） */
+    --sidebar-w: 15rem;
 
     font-size: 16px;
 }
@@ -770,8 +800,8 @@ html {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-md);
+    background-color: var(--button-bg);
     color: var(--nav-text);
     font-size: 1.05rem;
     line-height: 1;
@@ -782,7 +812,7 @@ html {
 }
 
 #themeToggleBtn:hover {
-    background-color: rgba(255, 255, 255, 0.22);
+    background-color: var(--button-bg-hl);
     transform: scale(1.05);
 }
 
@@ -1065,18 +1095,18 @@ html {
 }
 
 .notification-popup.notification-success {
-    background: rgba(52, 199, 89, 0.95);
-    color: white;
+    background: var(--success);
+    color: var(--success-light);
 }
 
 .notification-popup.notification-error {
-    background: rgba(255, 59, 48, 0.95);
-    color: white;
+    background: var(--danger);
+    color: var(--danger-light);
 }
 
 .notification-popup.notification-info {
-    background: rgba(0, 113, 227, 0.95);
-    color: white;
+    background: var(--primary);
+    color: var(--on-primary);
 }
 
 @keyframes notificationSlide {
@@ -1146,8 +1176,8 @@ hcw-body-header:has(> #navToggleBtn),
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-md);
+    background-color: var(--button-bg);
     color: var(--nav-text);
     cursor: pointer;
     flex-shrink: 0;
@@ -1158,7 +1188,7 @@ hcw-body-header:has(> #navToggleBtn),
 }
 
 .nav-toggle:hover {
-    background-color: rgba(255, 255, 255, 0.22);
+    background-color: var(--button-bg-hl);
 }
 
 .nav-toggle:active {
@@ -1271,8 +1301,8 @@ hcw-body-header:has(> #navToggleBtn),
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-md);
+    background-color: var(--button-bg);
     color: var(--nav-text);
     font-size: 1.15rem;
     line-height: 1;
@@ -1283,8 +1313,8 @@ hcw-body-header:has(> #navToggleBtn),
 }
 
 .nav-close:hover {
-    background-color: rgba(255, 255, 255, 0.24);
-    color: #ffffff;
+    background-color: var(--button-bg-hl);
+    color: var(--nav-text);
 }
 
 .nav-close:active {
@@ -1335,8 +1365,8 @@ hcw-body-header:has(> #navToggleBtn),
 }
 
 .nav-item:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    background-color: var(--button-bg);
+    color: var(--glass-text);
     text-decoration: none;
 }
 
@@ -1372,8 +1402,8 @@ hcw-body-header:has(> #navToggleBtn),
 }
 
 .nav-drawer-foot .nav-item:hover {
-    background-color: rgba(255, 69, 58, 0.22);
-    color: #ffffff;
+    background-color: var(--danger);
+    color: var(--danger-light);
 }
 
 /* hidden 属性必须压过 display: flex */
@@ -1442,5 +1472,84 @@ body.nav-open {
 
     .nav-item {
         font-size: .85rem;
+    }
+}
+
+/* ============ Spotify 式左侧固定导航栏（桌面端 ≥1024px） ============
+   把原「浮层抽屉」升级为常显的固定侧栏；移动端保持原有抽屉行为不变。 */
+@media (min-width: 1024px) {
+    /* 主内容区整体右移，为左侧栏留出空间 */
+    body {
+        padding-left: var(--sidebar-w, 15rem);
+    }
+
+    /* 抽屉变为常显固定侧栏 */
+    .nav-drawer {
+        transform: none;
+        visibility: visible;
+        width: var(--sidebar-w, 15rem);
+        background: var(--nav-bg);
+        border-right: 1px solid var(--border-light);
+        box-shadow: none;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    /* 侧栏头部：隐藏关闭按钮，logo 区自适应 */
+    .nav-drawer-head {
+        padding: 1rem 1.1rem .9rem;
+    }
+
+    .nav-close {
+        display: none;
+    }
+
+    /* 遮罩与汉堡按钮在桌面端不再需要 */
+    .nav-overlay {
+        display: none;
+    }
+
+    .nav-toggle {
+        display: none;
+    }
+
+    /* 桌面端页头不再为汉堡按钮预留左侧空间 */
+    hcw-body-header:has(> #navToggleBtn),
+    [hcw-body-header]:has(> #navToggleBtn) {
+        padding-left: 1.5rem;
+    }
+
+    #headerAuthArea.game-auth-header:has(#navToggleBtn) {
+        padding-left: 0;
+    }
+
+    /* 桌面端顶栏隐藏 logo 文字（侧栏顶部已有 logo，避免重复）
+       仅隐藏 .logo-area，不影响顶栏里的「返回」等其它按钮 */
+    hcw-body-header .logo-area,
+    [hcw-body-header] .logo-area {
+        display: none;
+    }
+
+    /* 桌面端抽屉始终展开，滚动锁不再适用 */
+    body.nav-open {
+        overflow: auto;
+    }
+
+    /* ===== 浮层随内容区右移（fixed 元素不随 body padding 偏移，需手动补偿侧栏宽度） ===== */
+
+    /* 登录弹窗：inset 定位改为从侧栏右缘起 */
+    .modal {
+        left: var(--sidebar-w, 15rem);
+    }
+
+    /* Cookie 横幅：限定在内容区宽度内居中 */
+    .consent-banner {
+        left: var(--sidebar-w, 15rem);
+        width: min(720px, calc(100vw - var(--sidebar-w, 15rem) - 2rem));
+    }
+
+    /* 浮动通知：居中参考点从视口中心移到内容区中心 */
+    .notification-popup {
+        left: calc(50vw + var(--sidebar-w, 15rem) / 2);
     }
 }
