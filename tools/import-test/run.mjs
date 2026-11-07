@@ -488,12 +488,57 @@ async function main() {
         assert.equal(bad.records.length, 0, '有错的行不应进入 records');
     });
 
-    check('validateRows：缺列时按缺列报错（indices 为 -1）', () => {
+    check('validateRows：表头不在第 1 行（前面有空行）时仍能识别，行号按 Excel 计', () => {
+        const rows = [[], HEADER, ['上海市', '52路', '火车站', '汽车站', '', '0630', '0630', '2025.1.1']];
+        const { records, errors } = validateRows(rows);
+        assert.deepEqual(errors, []);
+        assert.equal(records.length, 1);
+        assert.equal(records[0].row, 3, '数据行号应按 Excel 绝对行号');
+    });
+
+    await checkAsync('XLSX：第一张是封面/说明表时，自动选用表头能认出来的那张', async () => {
+        const bytes = buildXlsx({
+            sheets: [
+                { name: '封面', rows: [['时刻表导入模板'], ['请把数据填在第二张表']] },
+                { name: '数据', rows: SAMPLE_ROWS }
+            ]
+        });
+        const rows = await parseXlsx(bytes);
+        assert.deepEqual(rows[0].slice(0, 2), ['城市', '线路'], '应选中带表头的那张工作表');
+        const { records, errors } = validateRows(rows);
+        assert.deepEqual(errors, []);
+        assert.equal(records.length, 3);
+    });
+
+    check('validateRows：表头缺必需列 → 一条「表头无法识别」错误（不再逐行刷「xx不能为空」）', () => {
         const rows = [['城市', '线路'], ['上海市', '52']];
         const { records, errors } = validateRows(rows);
         assert.equal(records.length, 0);
-        assert.ok(errors.some((item) => item.field === 'etime'));
-        assert.ok(errors.some((item) => item.field === 'time1'));
+        assert.equal(errors.length, 1, '表头缺列只应产出 1 条错误，实际 ' + errors.length);
+        assert.equal(errors[0].field, 'header');
+        assert.match(errors[0].message, /表头无法识别/);
+        // 缺的必需列都要点名，「特殊情况」不在其中（可整列省略）
+        for (const label of ['起点站', '终点站', '主站→副站时刻表', '副站→主站时刻表', '执行时间']) {
+            assert.ok(errors[0].message.includes(label), '应点名缺少「' + label + '」');
+        }
+        assert.ok(!errors[0].message.includes('特殊情况'), '「特殊情况」可省略，不该被点名');
+        // 回显第一行实际内容，便于用户自查
+        assert.match(errors[0].message, /当前第 1 行：城市 \| 线路/);
+    });
+
+    check('validateRows：缺少「特殊情况」列不算错误（可整列省略）', () => {
+        const header = ['城市', '线路', '起点站', '终点站', '主站→副站时刻表', '副站→主站时刻表', '执行时间'];
+        const { records, errors } = validateRows([header, ['上海市', '52', '火车站', '汽车站', '0630', '0645', '2025.1.1']]);
+        assert.deepEqual(errors, []);
+        assert.equal(records.length, 1);
+        assert.equal(records[0].special, '');
+    });
+
+    check('validateRows：表头是英文/标题行时也能明确报「表头无法识别」', () => {
+        const { errors } = validateRows([['City', 'Line', 'Start', 'End'], ['上海市', '52路', '火车站', '汽车站']]);
+        assert.equal(errors.length, 1);
+        assert.equal(errors[0].field, 'header');
+        assert.match(errors[0].message, /City \| Line \| Start \| End/);
     });
 
     check('validateRows：空表 / 只有表头', () => {

@@ -336,6 +336,39 @@ const okResponse = (call) => {
 }
 
 /* ------------------------------------------------------------------ */
+/* 4c. 表头认不出来 → 明确提示缺哪些列，并按列回显原始内容              */
+/* ------------------------------------------------------------------ */
+
+{
+    const broken = newPanel({ respond: okResponse });
+    // 第一行是英文表头（常见的「传错文件/表头写错」情形）
+    broken.panel.setRows([
+        ['City', 'Line', 'Start', 'End', 'Note', 'Out', 'Back', 'Date'],
+        ['扬州市', '352路', '郭村客运站停车场', '韩阳村党群中心', '无', '700 1310', '740 1345', '2025.1.1']
+    ]);
+
+    const problems = text(broken.$('import-problems'));
+    check(problems.includes('表头无法识别'), `表头：提示应写明「表头无法识别」，实际「${problems}」`);
+    // 英文别名里 city/way/start/end 都能认，所以缺的是两个时刻列与执行时间
+    check(problems.includes('副站→主站时刻表') && problems.includes('执行时间'),
+        `表头：应点名缺少的列，实际「${problems}」`);
+    check(problems.includes('当前第 1 行：City'), '表头：应回显第一行实际内容便于自查');
+    check(broken.$('import-confirm').hasAttribute('disabled') === true, '表头：无法识别时应禁用上传');
+
+    // 预览仍按标准列序回显原始内容，方便用户对照「缺哪些列」
+    const preview = broken.$('import-preview');
+    const previewText = text(preview);
+    check(previewText.includes('扬州市') && previewText.includes('352路'),
+        `表头：预览应按列回显原始内容，实际「${previewText.slice(0, 120)}」`);
+    check(broken.panel.getState().errors === 1,
+        `表头：应只报 1 处问题（不再是逐列「不能为空」），实际 ${broken.panel.getState().errors}`);
+
+    broken.$('import-confirm').dispatch('click');
+    await settle();
+    check(broken.calls.length === 0, `表头：不得发起上传，实际 ${broken.calls.length} 次`);
+}
+
+/* ------------------------------------------------------------------ */
 /* 5. 第 2 批 429 → 部分完成 + 断点续传不重发已成功批、不漏行          */
 /* ------------------------------------------------------------------ */
 
