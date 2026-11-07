@@ -9,6 +9,14 @@
  *
  * 容错：接口失败 / 数据缺失时，隐藏整个速览区，不展示「—」占位。
  */
+import { APP_VERSION } from '../version.js';
+
+/** 首页版本号展示位：用单一真相源 src/version.js 填充 */
+function renderVersion() {
+  const el = document.getElementById('appVersion');
+  if (el) el.textContent = APP_VERSION;
+}
+
 const STAT_SELECTORS = {
   grid: '#statGrid',
   lines: '#statLines',
@@ -63,4 +71,7 @@ async function loadStats() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadStats);
+document.addEventListener('DOMContentLoaded', () => {
+  renderVersion();
+  loadStats();
+});

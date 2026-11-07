@@ -16,6 +16,7 @@
  */
 import './consent.js';
 import './nav.js';
+import './version-check.js';
 
 // 从 cookie 中读取指定名称的值
 function getCookie(name) {
