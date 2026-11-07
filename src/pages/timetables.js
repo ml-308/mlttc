@@ -18,6 +18,7 @@ import { mountCityPicker, attachCityPicker } from '/lib/data/city-picker.mjs';
 import { checkCityInput, describeCityInput, normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
+import { createImportPanel } from '/lib/ui/timetable-import.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
 /*
 class HcwArticle extends HTMLElement{
@@ -148,6 +149,7 @@ function show(input){
 const backa=document.getElementById("back");
 const add=document.getElementById("add-btn");
 const search=document.getElementById("search-btn");
+const importBtn=document.getElementById("import-btn");
 //const time1b=document.getElementById("back1");
 const time1c=document.getElementById("cl1");
 //const time2b=document.getElementById("back2");
@@ -168,6 +170,7 @@ const e_time_input=document.getElementById("exec-time");
 //div
 const addDiv=document.getElementById("add-form");
 const searchDiv=document.getElementById("search-form");
+const importDiv=document.getElementById("import-form");
 const time1Div=document.getElementById("time1b");
 const time2Div=document.getElementById("time2b");
 
@@ -199,10 +202,14 @@ let judge={
 backa.addEventListener("click", back);
 add.addEventListener("click", addForm);
 search.addEventListener("click", searchForm);
+importBtn.addEventListener("click", importForm);
 time1c.addEventListener("click", time1cl);
 time2c.addEventListener("click", time2cl);
 addconfirm.addEventListener("click", confirmAdd);
 clean.addEventListener("click", cleanall);
+
+//批量导入面板（解析 / 校验 / 分页预览 / 分批上传都在 /lib/ui/timetable-import.mjs 里）
+createImportPanel({ mount: document.getElementById("import-body") });
 
 //input
 city_input.addEventListener("input", cityinput);
@@ -268,6 +275,7 @@ function back(){
 function addForm(){
     addDiv.classList.remove("hidden");
     searchDiv.classList.add("hidden");
+    importDiv.classList.add("hidden");
     for(let i=0;i<inputs.length;i++){
         show(inputs[i]);
     }
@@ -284,7 +292,15 @@ function addForm(){
 function searchForm(){
     addDiv.classList.add("hidden");
     searchDiv.classList.remove("hidden");
+    importDiv.classList.add("hidden");
     console.log('search事件触发');
+}
+
+function importForm(){
+    addDiv.classList.add("hidden");
+    searchDiv.classList.add("hidden");
+    importDiv.classList.remove("hidden");
+    console.log('import事件触发');
 }
 
 

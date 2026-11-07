@@ -36,6 +36,7 @@
 			<hcw-button id="search-btn" class="menu-btn" primary data-menu="search"
 				>查询时刻表</hcw-button>
 			<hcw-button id="add-btn" class="menu-btn" data-menu="add">添加时刻表</hcw-button>
+			<hcw-button id="import-btn" class="menu-btn" data-menu="import">批量导入</hcw-button>
 		</div>
 		<div class="form-panel">
 			<!-- 添加模块 -->
@@ -143,6 +144,37 @@
 						<span id="result-count">共 0 条结果</span>
 					</div>
 					<div id="result-list" class="result-list"></div>
+				</div>
+			</div>
+
+			<!-- 批量导入模块：骨架由 /lib/ui/timetable-import.mjs 接管 -->
+			<div hcw-card id="import-form" class="form-card hidden">
+				<div class="form-group">
+					<label>批量导入时刻表</label>
+					<p class="lp">支持 .csv / .xlsx（XLSX 只读第一个工作表）。第一行必须是表头：城市、线路、起点站、终点站、特殊情况、主站→副站时刻表、副站→主站时刻表、执行时间。超过 20 行会自动分批提交，无需手动拆表。</p>
+				</div>
+				<div id="import-body">
+					<div class="tt-drop" id="import-drop">
+						<p>把 .csv 或 .xlsx 文件拖到这里，或点下面的按钮选择文件</p>
+						<div class="btn-group">
+							<hcw-button primary flat id="import-pick">选择文件</hcw-button>
+							<hcw-button id="import-template">下载 CSV 模板</hcw-button>
+						</div>
+						<input type="file" id="import-file"
+							accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+							hidden>
+					</div>
+					<p id="import-stat" class="lp"></p>
+					<p id="import-notice" class="lp lp-warning hidden"></p>
+					<div id="import-problems" class="lp lp-invalid hidden"></div>
+					<div id="import-preview" class="tt-table-wrap hidden"></div>
+					<div id="import-pager" class="tt-pager hidden"></div>
+					<div class="btn-group">
+						<hcw-button primary flat style="min-width: 6rem;" id="import-confirm" disabled>确认上传</hcw-button>
+						<hcw-button id="import-continue" class="hidden">继续提交剩余</hcw-button>
+						<hcw-button style="min-width: 5rem;" id="import-clear">清空</hcw-button>
+					</div>
+					<div id="import-result" class="result-card hidden"></div>
 				</div>
 			</div>
 		</div>

@@ -1,6 +1,7 @@
 @import url('./main.css');
 /* ============================================
    时刻表详情页样式（Apple 风格）
+   两个方向的时刻按「网格表格」渲染：每行 6 个时刻
    ============================================ */
 
 /* 加载状态 */
@@ -153,29 +154,45 @@
 }
 
 .detail-time-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: block;
 }
 
-.detail-time-chip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 14px;
-    background: var(--bg-hover);
+/* 每个方向一张网格表（每行 6 个时刻），窄屏时容器内部横向滚动 */
+.detail-time-table-wrap {
+    overflow-x: auto;
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-full);
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    transition: all var(--transition-fast);
+    border-radius: var(--radius-md);
+    margin: 0.25rem 0 0.5rem;
 }
 
-.detail-time-chip:hover {
-    border-color: var(--primary);
-    background: var(--primary-bg);
-    color: var(--primary);
+.detail-time-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.detail-time-table td {
+    padding: 0.45rem 0.5rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 最后一行的下边框由外层 wrap 的边框接管，避免双线 */
+.detail-time-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* 末行补位的 td.is-empty 只占位、不画内容，故无需额外规则 */
+
+/* 线路撤销 / 未填写班次的说明文案 */
+.detail-time-table td.detail-time-empty {
+    padding: 0.75rem 0.5rem;
+    color: var(--text-muted);
+    white-space: normal;
 }
 
 /* 元信息卡片 */
@@ -235,11 +252,6 @@
     .detail-card {
         padding: 1rem 1.15rem;
     }
-
-    .detail-time-chip {
-        padding: 5px 10px;
-        font-size: 0.8rem;
-    }
 }
 
 @media (max-width: 480px) {
@@ -251,5 +263,20 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 2px;
+    }
+}
+
+/* 小屏收紧时刻表格：仍保持横向滚动，不撑破布局 */
+@media (max-width: 600px) {
+    .detail-time-table {
+        font-size: 0.76rem;
+    }
+
+    .detail-time-table td {
+        padding: 0.35rem 0.3rem;
+    }
+
+    .detail-time-table td.detail-time-empty {
+        padding: 0.6rem 0.4rem;
     }
 }

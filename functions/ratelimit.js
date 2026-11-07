@@ -156,6 +156,8 @@ export const LIMITS = {
   profileRead: { name: 'profile-read', max: 60, window: 60 },
   /** 新增 / 修改时刻表 */
   write: { name: 'write', max: 10, window: 600 },
+  /** 批量导入时刻表（一个请求最多写 20 行，额度必须独立于 write，否则会立刻撞限） */
+  import: { name: 'timetable-import', max: 5, window: 600 },
   /** 删除时刻表 */
   remove: { name: 'remove', max: 20, window: 600 },
   /** 登录（防脚本撞库 / 请求过多） */
