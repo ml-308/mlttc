@@ -1,5 +1,26 @@
 # mlttc
 
+## 版本号与更新日志
+
+站点有「每次打开检查新版本」的能力：前端在页面加载时请求 `GET /api/version`，
+与当前代码内置版本号对比，发现不一致就弹「发现新版本」提示（每个版本仅提示一次）。
+
+**发版时需同步改两处**（否则版本检查对比不出差异，用户收不到更新提示）：
+
+1. **代码内置版本号** —— 改 `src/version.js` 里的 `APP_VERSION`（这是前端唯一真相源，
+   首页 `Version:` 展示位会自动跟随）。
+2. **后端最新版本号** —— 在 Cloudflare KV 命名空间 `mlttckv` 里设置键
+   `site:latest-version`，值为 JSON：
+
+   ```json
+   { "version": "1.2.8", "notes": "修复了 xxx" }
+   ```
+
+   `notes` 会显示在「发现新版本」提示里；`version` 与 `src/version.js` 保持一致。
+   若该键不存在，`/api/version` 会回退到代码内置的兜底版本号，前端将永远判断不出「有新版本」。
+
+更新日志见 [`CHANGELOG.md`](CHANGELOG.md)。
+
 ## 请求频率限制（Rate limiting）
 
 防「请求过多」分两层：应用层在本仓库代码里（随代码生效），边缘层需要在 Cloudflare
