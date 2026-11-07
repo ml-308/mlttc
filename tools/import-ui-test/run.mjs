@@ -24,6 +24,18 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const HTML = readFileSync(path.join(root, 'timetable.html'), 'utf8');
 
+/* ─── 城市库预热 ────────────────────────────────────────────────
+ * 城市列要按城市库匹配（lib/timetable-import.mjs 的 normalizeCityField），
+ * 面板解析前会确保城市数据就绪。这里让真实加载路径读仓库里的 cities.json。 */
+const CITY_JSON = JSON.parse(readFileSync(path.join(root, 'lib/data/cities.json'), 'utf8'));
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => {
+    if (String(url).includes('cities.json')) return { ok: true, json: async () => CITY_JSON };
+    if (realFetch) return realFetch(url, init);
+    throw new Error('unexpected fetch: ' + url);
+};
+await (await import(pathToFileURL(path.join(root, 'lib/data/city-data.mjs')).href)).loadCityData();
+
 const { createImportPanel, BATCH_SIZE, PAGE_SIZE } = await import(
     pathToFileURL(path.join(root, 'lib/ui/timetable-import.mjs')).href
 );
@@ -283,6 +295,44 @@ const okResponse = (call) => {
     await settle();
     check(single.calls.length === 1 && single.calls[0].body.items.length === 1,
         `原子：1 行应 1 次调用 1 条，实际 ${single.calls.length} 次`);
+}
+
+/* ------------------------------------------------------------------ */
+/* 4b. 城市列按城市库匹配：库外城市阻止上传，库内写法进请求体            */
+/* ------------------------------------------------------------------ */
+
+{
+    // 库外城市 → 该行非法 → 整批阻止
+    const badCity = newPanel({ respond: okResponse });
+    badCity.panel.setRows([HEADER, dataRow(1, { city: '火星' })]);
+    const badState = badCity.panel.getState();
+    check(badState.errors === 1, `城市：库外城市应产出 1 处错误，实际 ${badState.errors}`);
+    check(text(badCity.$('import-problems')).includes('城市库中找不到「火星」'),
+        `城市：非法原因应写明城市库找不到，实际「${text(badCity.$('import-problems'))}」`);
+    check(badCity.$('import-confirm').hasAttribute('disabled') === true, '城市：库外城市应禁用上传');
+
+    badCity.$('import-confirm').dispatch('click');
+    await settle();
+    check(badCity.calls.length === 0, `城市：库外城市不得发起任何上传，实际 ${badCity.calls.length} 次`);
+
+    // 库内简写 → 规范成库内写法后再提交
+    const okCity = newPanel({ respond: okResponse });
+    okCity.panel.setRows([
+        HEADER,
+        dataRow(1, { city: '无锡' }),
+        dataRow(2, { city: '无锡/苏州' })
+    ]);
+    const okState = okCity.panel.getState();
+    check(okState.errors === 0 && okState.records === 2,
+        `城市：库内城市应全部通过，实际 合法 ${okState.records} / 错误 ${okState.errors}`);
+
+    okCity.$('import-confirm').dispatch('click');
+    await settle();
+    check(okCity.calls.length === 1, `城市：应发起 1 次上传，实际 ${okCity.calls.length}`);
+    check(okCity.calls[0].body.items[0].city === '江苏省 无锡市',
+        `城市：请求体应带库内写法「江苏省 无锡市」，实际「${okCity.calls[0].body.items[0].city}」`);
+    check(okCity.calls[0].body.items[1].city === '江苏省 无锡市/江苏省 苏州市',
+        `城市：合营线路应逐段规范化，实际「${okCity.calls[0].body.items[1].city}」`);
 }
 
 /* ------------------------------------------------------------------ */

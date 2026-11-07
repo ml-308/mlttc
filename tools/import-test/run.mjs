@@ -20,6 +20,19 @@ import {
 } from '../../lib/timetable-import.mjs';
 import { HEADER, SAMPLE_ROWS, OTHER_ROWS, buildXlsx, toCsv, writeTempFixture } from './make-fixtures.mjs';
 
+/* ─── 城市库预热 ────────────────────────────────────────────────
+ * 城市列现在必须能匹配城市库（见 normalizeCityField），validateRows 默认读
+ * city-data.mjs 的缓存。这里让真实的加载路径读仓库里的 cities.json
+ * （桩掉 fetch 指向本地文件），与浏览器里页面加载的是同一份数据。 */
+const CITY_JSON = JSON.parse(readFileSync(new URL('../../lib/data/cities.json', import.meta.url), 'utf8'));
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url) => {
+    if (String(url).includes('cities.json')) return { ok: true, json: async () => CITY_JSON };
+    if (realFetch) return realFetch(url);
+    throw new Error('unexpected fetch: ' + url);
+};
+await (await import('../../lib/data/city-data.mjs')).loadCityData();
+
 let total = 0;
 let failed = 0;
 const failures = [];
@@ -381,10 +394,11 @@ async function main() {
         assert.equal(records[2].etime, '2025-6-1');
     });
 
-    check('validateRows：城市/站点补后缀，数字线路补「路」', () => {
+    check('validateRows：城市按城市库补全，站点补「站」，数字线路补「路」', () => {
         const rows = [HEADER, ['广州', '52', '火车东', '汽车', '', '0630', '0645', '2025.1.1']];
         const { records } = validateRows(rows);
-        assert.equal(records[0].city, '广州市');
+        // 城市走城市库匹配，输出库内入库写法（省份 + 市），与单条表单一致
+        assert.equal(records[0].city, '广东省 广州市');
         assert.equal(records[0].way, '52路');
         assert.equal(records[0].start, '火车东站');
         assert.equal(records[0].end, '汽车站');
@@ -561,6 +575,53 @@ async function main() {
     check('buildImportBody：空输入安全', () => {
         assert.deepEqual(buildImportBody([], 'a', 'b'), { items: [], writer: 'a', writetime: 'b' });
         assert.deepEqual(buildImportBody(null, 'a', 'b').items, []);
+    });
+
+    /* ─── 城市列：必须匹配城市库，并规范成库内入库写法 ─────────────── */
+    const cityRow = (city) => [city, '52路', '火车站', '汽车站', '', '0630', '0630', '2025.1.1'];
+    const cityOf = (city) => {
+        const { records, errors } = validateRows([HEADER, cityRow(city)]);
+        assert.deepEqual(errors, [], '「' + city + '」应通过校验');
+        return records[0].city;
+    };
+    const cityErr = (city) => {
+        const { records, errors } = validateRows([HEADER, cityRow(city)]);
+        assert.equal(records.length, 0, '「' + city + '」不应产出记录');
+        return errors.map((e) => e.message).join(' ');
+    };
+
+    check('城市：直辖市写法归一（上海/上海市/北京）', () => {
+        assert.equal(cityOf('上海'), '上海市');
+        assert.equal(cityOf('上海市'), '上海市');
+        assert.equal(cityOf('北京'), '北京市');
+    });
+
+    check('城市：自动补全成「省份 城市市」（无锡/江苏无锡/江苏省 无锡市）', () => {
+        assert.equal(cityOf('无锡'), '江苏省 无锡市');
+        assert.equal(cityOf('江苏无锡'), '江苏省 无锡市');
+        assert.equal(cityOf('江苏省 无锡市'), '江苏省 无锡市');
+    });
+
+    check('城市：县级市带上级地级市（宜兴→江苏省 无锡市-宜兴市）', () => {
+        assert.equal(cityOf('宜兴'), '江苏省 无锡市-宜兴市');
+    });
+
+    check('城市：合营线路多城市逐段匹配后拼回', () => {
+        assert.equal(cityOf('无锡/苏州'), '江苏省 无锡市/江苏省 苏州市');
+    });
+
+    check('城市：库外城市报错，不再按原样入库', () => {
+        assert.match(cityErr('火星'), /城市库中找不到「火星」/);
+    });
+
+    check('城市：超过 6 个城市报错', () => {
+        assert.match(cityErr('无锡/苏州/南京/常州/镇江/扬州/泰州'), /最多只能填 6 个城市/);
+    });
+
+    check('城市：城市库不可用时给出明确原因，而不是误判成非法城市', () => {
+        const { records, errors } = validateRows([HEADER, cityRow('上海市')], { cityData: null });
+        assert.equal(records.length, 0);
+        assert.match(errors[0].message, /城市库未加载/);
     });
 }
 
