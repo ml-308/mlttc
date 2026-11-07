@@ -18,7 +18,7 @@ import {
     parseCsv, parseXlsx, parseTableFile, HEADER_ALIASES, mapHeader,
     normalizeTimeList, validateRows, paginate, TEMPLATE_CSV, buildImportBody
 } from '../../lib/timetable-import.mjs';
-import { HEADER, SAMPLE_ROWS, OTHER_ROWS, buildXlsx, toCsv, writeTempFixture } from './make-fixtures.mjs';
+import { HEADER, SAMPLE_ROWS, OTHER_ROWS, buildXlsx, toCsv, writeTempFixture, encodeGbk, encodeUtf16le } from './make-fixtures.mjs';
 
 /* ─── 城市库预热 ────────────────────────────────────────────────
  * 城市列现在必须能匹配城市库（见 normalizeCityField），validateRows 默认读
@@ -494,6 +494,57 @@ async function main() {
         assert.deepEqual(errors, []);
         assert.equal(records.length, 1);
         assert.equal(records[0].row, 3, '数据行号应按 Excel 绝对行号');
+    });
+
+    /* ─── 文本编码自动判定（GBK/GB18030、UTF-16 的 CSV 不再整篇乱码）─────── */
+    const csvBytes = toCsv(SAMPLE_ROWS);
+    const fileOf = (name, bytes) => ({ name, arrayBuffer: async () => bytes });
+
+    check('编码：GB18030（国内 Excel 另存 CSV）自动判定并正确解码', () => {
+        const { text, encoding } = tables.decodeTableBytes(encodeGbk(csvBytes));
+        assert.equal(encoding, 'gb18030');
+        assert.equal(text, csvBytes);
+        // 反证：同一份字节按 UTF-8 硬解会拿到替换字符，表头必然认不出来
+        const garbled = new TextDecoder('utf-8').decode(encodeGbk(csvBytes));
+        assert.ok(garbled.includes('\uFFFD'), '按 UTF-8 硬解应出现替换字符');
+    });
+
+    check('编码：UTF-16LE（带 BOM）自动判定', () => {
+        const { text, encoding } = tables.decodeTableBytes(encodeUtf16le(csvBytes));
+        assert.equal(encoding, 'utf-16le');
+        assert.equal(text, csvBytes);
+    });
+
+    check('编码：UTF-8（带/不带 BOM）仍按 UTF-8', () => {
+        assert.equal(tables.decodeTableBytes(new TextEncoder().encode(csvBytes)).encoding, 'utf-8');
+        const withBom = new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(csvBytes)]);
+        const decoded = tables.decodeTableBytes(withBom);
+        assert.equal(decoded.encoding, 'utf-8');
+        assert.equal(decoded.text, csvBytes, 'BOM 应被去掉');
+    });
+
+    await checkAsync('parseTableFile：GBK 的 CSV 能读出正确表头与数据（并回报编码）', async () => {
+        const seen = [];
+        const rows = await parseTableFile(fileOf('时刻表.csv', encodeGbk(csvBytes)), {
+            onEncoding: (encoding) => seen.push(encoding)
+        });
+        assert.deepEqual(seen, ['gb18030']);
+        assert.deepEqual(rows[0], HEADER, '表头应正确解码');
+        const { records, errors } = validateRows(rows);
+        assert.deepEqual(errors, []);
+        assert.equal(records.length, SAMPLE_ROWS.length - 1);
+        assert.equal(records[0].city, '上海市');
+    });
+
+    await checkAsync('parseTableFile：UTF-16LE 的 CSV 也能正确读取', async () => {
+        const rows = await parseTableFile(fileOf('时刻表.csv', encodeUtf16le(csvBytes)));
+        assert.deepEqual(rows[0], HEADER);
+        assert.equal(validateRows(rows).records.length, SAMPLE_ROWS.length - 1);
+    });
+
+    await checkAsync('parseTableFile：UTF-8 的 CSV 不受影响', async () => {
+        const rows = await parseTableFile(fileOf('时刻表.csv', new TextEncoder().encode(csvBytes)));
+        assert.deepEqual(rows[0], HEADER);
     });
 
     await checkAsync('XLSX：第一张是封面/说明表时，自动选用表头能认出来的那张', async () => {

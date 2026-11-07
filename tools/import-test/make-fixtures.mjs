@@ -291,3 +291,61 @@ export function writeTempFixture(dir, name, data) {
     writeFileSync(target, data);
     return target;
 }
+
+/* ------------------------------------------------------------------ */
+/* 其它编码的夹具（验证「读取时自动选择编码」）                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 用 GB18030 / GBK 编码字符串（GBK 是 GB18030 的子集）
+ *
+ * Node 的 Buffer 只支持 utf-8 / latin1 等，不能直接出 GBK 字节，所以这里反向建表：
+ * 把全部双字节序列丢给 TextDecoder('gb18030')，得到「字 → 字节」映射。
+ * 与浏览器解码器是同一实现，结果精确，且不引入任何依赖。
+ *
+ * @param {string} text
+ * @returns {Uint8Array}
+ */
+export function encodeGbk(text) {
+    if (!encodeGbk.table) {
+        const table = new Map();
+        const decoder = new TextDecoder('gb18030');
+        for (let hi = 0x81; hi <= 0xfe; hi++) {
+            for (let lo = 0x40; lo <= 0xfe; lo++) {
+                if (lo === 0x7f) continue;
+                const ch = decoder.decode(new Uint8Array([hi, lo]));
+                if (ch.length === 1 && ch !== '\uFFFD' && !table.has(ch)) table.set(ch, [hi, lo]);
+            }
+        }
+        encodeGbk.table = table;
+    }
+
+    const out = [];
+    for (const ch of text) {
+        const code = ch.codePointAt(0);
+        if (code < 0x80) {
+            out.push(code);
+            continue;
+        }
+        const pair = encodeGbk.table.get(ch);
+        if (!pair) throw new Error('GBK 表里没有这个字符：' + ch);
+        out.push(pair[0], pair[1]);
+    }
+    return Uint8Array.from(out);
+}
+
+/**
+ * 用 UTF-16LE 编码字符串（默认带 BOM，与 Excel「Unicode 文本」一致）
+ * @param {string} text
+ * @param {{bom?: boolean}} [options]
+ * @returns {Uint8Array}
+ */
+export function encodeUtf16le(text, { bom = true } = {}) {
+    const body = Buffer.from(text, 'utf16le');
+    if (!bom) return new Uint8Array(body);
+    const out = new Uint8Array(body.length + 2);
+    out[0] = 0xff;
+    out[1] = 0xfe;
+    out.set(body, 2);
+    return out;
+}

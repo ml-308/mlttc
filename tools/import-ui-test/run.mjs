@@ -369,6 +369,36 @@ const okResponse = (call) => {
 }
 
 /* ------------------------------------------------------------------ */
+/* 4d. 非 UTF-8 的 CSV（国内 Excel 另存）→ 自动判定编码，不再乱码       */
+/* ------------------------------------------------------------------ */
+
+{
+    const { encodeGbk } = await import('../import-test/make-fixtures.mjs');
+    const csv = [
+        '城市,线路,起点站,终点站,特殊情况,主站→副站时刻表,副站→主站时刻表,执行时间',
+        '扬州市,352路,郭村客运站停车场,韩阳村党群中心,无,700 1310,740 1345,1000.1.1'
+    ].join('\r\n');
+
+    const file = { name: '时刻表.csv', arrayBuffer: async () => encodeGbk(csv) };
+    const gbk = newPanel({ respond: okResponse });
+    await gbk.panel.setFile(file);
+    await settle();
+
+    const stat = text(gbk.$('import-stat'));
+    const preview = text(gbk.$('import-preview'));
+    check(stat.includes('编码 GB18030'), `编码：统计行应显示实际编码，实际「${stat}」`);
+    check(gbk.panel.getState().errors === 0, `编码：GBK 文件不应报错，实际 ${gbk.panel.getState().errors} 处`);
+    check(!preview.includes('\uFFFD'), '编码：预览里不应出现替换字符（乱码）');
+    check(preview.includes('江苏省 扬州市'), `编码：城市应正确解码并规范化，实际「${preview.slice(0, 160)}」`);
+    check(preview.includes('07:00 13:10'), `编码：时刻应正确解码并规范化，实际「${preview.slice(0, 160)}」`);
+
+    gbk.$('import-confirm').dispatch('click');
+    await settle();
+    check(gbk.calls.length === 1, `编码：应能正常提交，实际 ${gbk.calls.length} 次`);
+    check(gbk.calls[0].body.items[0].city === '江苏省 扬州市', '编码：请求体城市应正确');
+}
+
+/* ------------------------------------------------------------------ */
 /* 5. 第 2 批 429 → 部分完成 + 断点续传不重发已成功批、不漏行          */
 /* ------------------------------------------------------------------ */
 
