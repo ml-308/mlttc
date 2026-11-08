@@ -8,4 +8,4 @@
  *
  * 发版时改这一处即可（index.html 等展示位会自动跟随）。
  */
-export const APP_VERSION = '1.2.7';
+export const APP_VERSION = '1.2.8';

@@ -1,0 +1,126 @@
+{
+  "generatedAt": "2026-11-08T06:13:32.879Z",
+  "count": 24,
+  "entries": [
+    {
+      "hash": "3482a33",
+      "date": "2026-11-07",
+      "subject": "版本检查 + 更新日志"
+    },
+    {
+      "hash": "7eac968",
+      "date": "2026-11-07",
+      "subject": "Spotify 风格视觉重塑 + 首页分区卡片墙 + 数据速览"
+    },
+    {
+      "hash": "6c47b75",
+      "date": "2026-11-07",
+      "subject": "批量导入的城市列改为城市库匹配"
+    },
+    {
+      "hash": "d8b9a1e",
+      "date": "2026-11-07",
+      "subject": "时刻表支持 CSV/XLSX 批量导入，详情页时刻改为表格展示"
+    },
+    {
+      "hash": "e59627f",
+      "date": "2026-11-01",
+      "subject": "新增关于我们页面并在页脚添加入口"
+    },
+    {
+      "hash": "c3a739c",
+      "date": "2026-10-31",
+      "subject": "移除 tool-life 页面的身份证号校验功能"
+    },
+    {
+      "hash": "6dd67ed",
+      "date": "2026-10-06",
+      "subject": "更新版本号至1.2.6"
+    },
+    {
+      "hash": "9126dbb",
+      "date": "2026-10-06",
+      "subject": "add my timetable page and navigation smoke test framework"
+    },
+    {
+      "hash": "ff1a866",
+      "date": "2026-10-04",
+      "subject": "新增13个实用工具并将工具总览整理为六大分区"
+    },
+    {
+      "hash": "fe8f520",
+      "date": "2026-10-02",
+      "subject": "新增文本、密码、时间、单位换算、随机五个工具页并添加工具箱入口"
+    },
+    {
+      "hash": "8440748",
+      "date": "2026-10-01",
+      "subject": "为辉县添加后缀信息，优化城市数据结构"
+    },
+    {
+      "hash": "5b4a490",
+      "date": "2026-10-01",
+      "subject": "添加湖州市县级城市支持，更新城市数据结构"
+    },
+    {
+      "hash": "1ae8f1d",
+      "date": "2026-10-01",
+      "subject": "添加县级城市支持，优化城市数据结构和格式化逻辑"
+    },
+    {
+      "hash": "21a7920",
+      "date": "2026-10-01",
+      "subject": "enhance city data structure and picker functionality"
+    },
+    {
+      "hash": "358ec38",
+      "date": "2026-10-01",
+      "subject": "支持双城输入（合营线路）功能，优化城市选择器的输入验证和提示信息"
+    },
+    {
+      "hash": "b4cbc42",
+      "date": "2026-10-01",
+      "subject": "添加游戏与工具页面，包含贪吃蛇游戏和敬请期待的工具"
+    },
+    {
+      "hash": "2d86d1b",
+      "date": "2026-09-25",
+      "subject": "add city data loading and city picker components"
+    },
+    {
+      "hash": "38dde59",
+      "date": "2026-09-12",
+      "subject": "添加请求频率限制功能，防止滥用和重复提交"
+    },
+    {
+      "hash": "7efe1dc",
+      "date": "2026-09-12",
+      "subject": "添加用户身份解析功能，优化身份显示逻辑及样式"
+    },
+    {
+      "hash": "191e3c8",
+      "date": "2026-09-12",
+      "subject": "添加版本日志输出，记录当前版本信息"
+    },
+    {
+      "hash": "5375e08",
+      "date": "2026-09-12",
+      "subject": "更新驳回逻辑，使用 BACK 列替代 SPECIAL 字段，优化审核状态显示"
+    },
+    {
+      "hash": "2af71cc",
+      "date": "2026-09-12",
+      "subject": "添加注册页提示框功能，优化用户注册体验"
+    },
+    {
+      "hash": "c158786",
+      "date": "2026-09-12",
+      "subject": "优化同意横幅展示逻辑，仅在首页显示并调整样式"
+    },
+    {
+      "hash": "12140c8",
+      "date": "2026-09-12",
+      "subject": "add user consent mechanism for registration and legal compliance"
+    }
+  ]
+}

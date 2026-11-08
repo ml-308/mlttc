@@ -36,7 +36,8 @@ const NAV_SECTIONS = [
     title: '其它',
     items: [
       { label: '个人主页', href: '/account.html' },
-      { label: '用户协议与隐私', href: '/legal.html' }
+      { label: '用户协议与隐私', href: '/legal.html' },
+      { label: '更新日志', href: '/changelog.html' }
     ]
   }
 ];

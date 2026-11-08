@@ -1,0 +1,144 @@
+@import url('./main.css');
+
+/* ============================================
+   更新日志页：按时间倒序的提交列表
+   ============================================ */
+
+.changelog {
+    /* 行宽收到接近长文页，条目是「日期 + 一句话」，过宽反而难扫读 */
+    max-width: 820px;
+    gap: 0;
+}
+
+/* ---------- 页头 ---------- */
+.changelog-head {
+    padding-bottom: .5rem;
+    animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+}
+
+.changelog-kicker {
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: .35rem;
+}
+
+.changelog h1 {
+    font-size: clamp(1.75rem, 5vw, 2.35rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--text-primary);
+    margin-bottom: .5rem;
+}
+
+.changelog-lead {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: .75rem;
+}
+
+.changelog-meta {
+    font-size: .8rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* ---------- 占位提示（加载中 / 失败 / 空态） ---------- */
+.changelog-state {
+    margin: 0;
+    padding: 1.1rem 1.25rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    font-size: .88rem;
+    line-height: 1.7;
+}
+
+/* ---------- 列表 ---------- */
+.changelog-list {
+    list-style: none;
+    margin: .25rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border-light);
+}
+
+.changelog-item {
+    display: flex;
+    align-items: baseline;
+    gap: .75rem;
+    padding: .70rem .5rem;
+    border-bottom: 1px solid var(--border-light);
+    border-radius: var(--radius-xs);
+    transition: background-color var(--transition-fast);
+}
+
+.changelog-item:hover {
+    background: var(--bg-hover);
+}
+
+.changelog-date {
+    flex: 0 0 5.4rem;
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    color: var(--text-muted);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.changelog-subject {
+    flex: 1 1 auto;
+    /* 长标题必须在 flex 子项里能收缩并换行，否则窄屏会被撑出横向滚动 */
+    min-width: 0;
+    font-size: .92rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+.changelog-hash {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: .74rem;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    padding: 1px 6px;
+    border-radius: var(--radius-xs);
+    white-space: nowrap;
+}
+
+.changelog-item:hover .changelog-hash {
+    background: var(--bg-card);
+}
+
+/* ---------- 窄屏：日期与 hash 并到一行，标题独占下一行 ---------- */
+@media (max-width: 480px) {
+    .changelog-item {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: baseline;
+        gap: .25rem .5rem;
+        padding: .7rem .25rem;
+    }
+
+    .changelog-date {
+        flex: none;
+        grid-column: 1;
+    }
+
+    .changelog-hash {
+        grid-column: 2;
+        justify-self: end;
+    }
+
+    .changelog-subject {
+        grid-column: 1 / -1;
+        font-size: .9rem;
+    }
+}
