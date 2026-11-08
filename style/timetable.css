@@ -96,7 +96,7 @@ hcw-article,
 .grid-2col {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 18px 16px;
+    gap: 1rem;   /* 横纵间距取同一值，与 .form-panel 的 1rem 节奏对齐 */
     align-items: start;
 }
 
@@ -491,8 +491,18 @@ footer::before {
 }
 
 @media (min-width: 1024px) {
+    /* 桌面端把区块间距统一到 1.25rem（表单面板 / 菜单栏 / 两列网格同一节奏），
+       移动端仍保持各自的紧凑值 */
     .grid-2col {
-        gap: 22px 20px;
+        gap: 1.25rem;
+    }
+
+    .form-panel {
+        gap: 1.25rem;
+    }
+
+    .menu-bar {
+        gap: 1.25rem;
     }
 }
 

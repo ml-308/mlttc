@@ -90,19 +90,25 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: var(--radius-full);
+            /* --hcw-button-radius：按钮圆角，默认取 --radius-full（500px 胶囊，与改动前一致） */
+            border-radius: var(--hcw-button-radius, var(--radius-full));
             background-color: var(--button-bg);
             color: var(--button-color);
-            padding: .55rem 1.15rem;
+            /* --hcw-button-padding：按钮内距，默认 .55rem 1.15rem（改动前硬编码值） */
+            padding: var(--hcw-button-padding, .55rem 1.15rem);
             transition: var(--transition-fast);
             transition-property: transform, background-color, color, box-shadow, opacity;
             text-align: center;
             cursor: pointer;
-            font-size: 0.95rem;
+            /* --hcw-button-font-size：按钮字号，默认 0.95rem（改动前硬编码值） */
+            font-size: var(--hcw-button-font-size, 0.95rem);
             font-weight: 700;
             letter-spacing: -0.01em;
-            min-height: 2.4rem;
-            min-width: 2.4rem;
+            /* --hcw-button-min-height / --hcw-button-min-width：按钮最小高/宽，默认 2.4rem */
+            min-height: var(--hcw-button-min-height, 2.4rem);
+            min-width: var(--hcw-button-min-width, 2.4rem);
+            /* --hcw-button-gap：按钮内部内容间距，默认 0（改动前无 gap，钩子不产生视觉变化） */
+            gap: var(--hcw-button-gap, 0);
             text-decoration: none;
             -webkit-tap-highlight-color: transparent;
             -webkit-user-select: none;
@@ -113,8 +119,9 @@
         :host-context(hcw-card)>.inner-root,
         :host-context([hcw-card])>.inner-root {
             background-color: var(--button-bg);
-            border-radius: var(--radius-full);
-            padding: .5rem 1.05rem;
+            border-radius: var(--hcw-button-radius, var(--radius-full));
+            /* 卡片内按钮内距，默认 .5rem 1.05rem；页面层设 --hcw-button-padding 时一并跟随 */
+            padding: var(--hcw-button-padding, .5rem 1.05rem);
         }
 
         :host-context(hcw-body-header)>.inner-root {
@@ -143,8 +150,9 @@
         }
 
         :host([large])>.inner-root {
-            font-size: 1.1rem;
-            padding: .7rem 1.5rem;
+            /* --hcw-button-font-size-lg / --hcw-button-padding-lg：大号按钮字号与内距，默认 1.1rem / .7rem 1.5rem */
+            font-size: var(--hcw-button-font-size-lg, 1.1rem);
+            padding: var(--hcw-button-padding-lg, .7rem 1.5rem);
         }
 
         :host([inline])>.inner-root {
@@ -153,7 +161,8 @@
 
         :host([icon])>.inner-root {
             aspect-ratio: 1;
-            height: 2.4rem;
+            /* --hcw-button-icon-size：图标按钮边长，默认 2.4rem（改动前硬编码值） */
+            height: var(--hcw-button-icon-size, 2.4rem);
             padding: 0;
             display: flex;
             align-items: center;
@@ -161,7 +170,8 @@
         }
 
         :host([icon][large])>.inner-root {
-            min-height: 3rem;
+            /* --hcw-button-icon-min-height-lg：大号图标按钮最小高度，默认 3rem（改动前硬编码值） */
+            min-height: var(--hcw-button-icon-min-height-lg, 3rem);
         }
 
         :host(:not([disabled], [primary], [variant]):hover)>.inner-root {
@@ -234,11 +244,13 @@
         .inner-root {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            /* --hcw-input-gap：标签与输入框之间的间距，默认 6px */
+            gap: var(--hcw-input-gap, 6px);
         }
 
         label {
-            font-size: 0.85rem;
+            /* --hcw-input-label-font-size：输入框标签字号，默认 0.85rem */
+            font-size: var(--hcw-input-label-font-size, 0.85rem);
             font-weight: 600;
             color: var(--text-secondary);
             letter-spacing: 0.02em;
@@ -251,14 +263,19 @@
             box-sizing: border-box;
             display: block;
             width: 100%;
-            border-radius: var(--radius-sm);
+            /* --hcw-input-radius：输入框圆角，默认取 --radius-sm（.5rem） */
+            border-radius: var(--hcw-input-radius, var(--radius-sm));
             background-color: var(--input-bg);
             color: var(--input-color);
-            padding: .7rem 1rem;
+            /* --hcw-input-padding-block / --hcw-input-padding-inline：输入框内距，默认 .7rem / 1rem */
+            padding: var(--hcw-input-padding-block, .7rem) var(--hcw-input-padding-inline, 1rem);
             transition: var(--transition-fast);
             transition-property: background-color, color, box-shadow, border-color;
             cursor: text;
-            font-size: 1rem;
+            /* --hcw-input-font-size：输入框字号，默认 1rem */
+            font-size: var(--hcw-input-font-size, 1rem);
+            /* --hcw-input-min-height：输入框最小高度，默认 auto（改动前无此声明，加钩子不改高度） */
+            min-height: var(--hcw-input-min-height, auto);
             outline: none;
             animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
         }
@@ -269,7 +286,8 @@
         }
 
         :host([large]) input {
-            font-size: 1.25rem;
+            /* --hcw-input-font-size-lg：大号输入框字号，默认 1.25rem */
+            font-size: var(--hcw-input-font-size-lg, 1.25rem);
         }
 
         :host(:not([disabled]):hover) input {
@@ -310,32 +328,38 @@
         .inner-root {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            /* --hcw-textarea-gap：标签与多行输入框之间的间距，默认 6px */
+            gap: var(--hcw-textarea-gap, 6px);
         }
 
         label {
-            font-size: 0.85rem;
+            /* --hcw-textarea-label-font-size：多行输入框标签字号，默认 0.85rem */
+            font-size: var(--hcw-textarea-label-font-size, 0.85rem);
             font-weight: 600;
             color: var(--text-secondary);
             letter-spacing: 0.02em;
         }
 
         textarea {
-            height:110px;
+            /* --hcw-textarea-height：多行输入框默认高度，默认 110px */
+            height: var(--hcw-textarea-height, 110px);
             appearance: none;
             border: 1px solid var(--border);
             position: relative;
             box-sizing: border-box;
             display: block;
             width: 100%;
-            border-radius: var(--radius-sm);
+            /* --hcw-textarea-radius：多行输入框圆角，默认取 --radius-sm（.5rem） */
+            border-radius: var(--hcw-textarea-radius, var(--radius-sm));
             background-color: var(--input-bg);
             color: var(--input-color);
-            padding: .7rem 1rem;
+            /* --hcw-textarea-padding-block / --hcw-textarea-padding-inline：内距，默认 .7rem / 1rem */
+            padding: var(--hcw-textarea-padding-block, .7rem) var(--hcw-textarea-padding-inline, 1rem);
             transition: var(--transition-fast);
             transition-property: background-color, color, box-shadow, border-color;
             cursor: text;
-            font-size: 1rem;
+            /* --hcw-textarea-font-size：多行输入框字号，默认 1rem */
+            font-size: var(--hcw-textarea-font-size, 1rem);
             outline: none;
             resize: vertical;
             animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
@@ -347,7 +371,8 @@
         }
 
         :host([large]) textarea {
-            font-size: 1.25rem;
+            /* --hcw-textarea-font-size-lg：大号多行输入框字号，默认 1.25rem */
+            font-size: var(--hcw-textarea-font-size-lg, 1.25rem);
         }
 
         :host(:not([disabled]):hover) textarea {
@@ -380,7 +405,8 @@
             border: none;
             outline: none;
             resize: vertical;
-            border-radius: var(--radius-md);
+            /* --hcw-textarea-radius-readonly：只读态多行输入框圆角，默认取 --radius-md（.5rem） */
+            border-radius: var(--hcw-textarea-radius-readonly, var(--radius-md));
             backdrop-filter: none;
         }
     </style>
@@ -396,6 +422,9 @@
     <style>
         :host {
             position: relative;
+            /* --hcw-hero-min-height：hero 最小高度，默认 auto（不限制）；
+               首页在文档层设 --hcw-hero-min-height: 22rem 撑满首屏 */
+            min-height: var(--hcw-hero-min-height, auto);
         }
 
         :host::before {
@@ -405,22 +434,27 @@
             bottom: 0;
             right: 0;
             aspect-ratio: 1;
-            max-width: 40%;
+            /* --hcw-hero-media-width：右侧装饰图最大宽度占宿主宽度的比例，默认 40% */
+            max-width: var(--hcw-hero-media-width, 40%);
             background: url('/asset/bg-main.jpg') no-repeat center;
             background-size: cover;
-            border-radius: var(--radius-lg);
+            /* --hcw-hero-media-radius：装饰图圆角，默认取 --radius-lg（.5rem） */
+            border-radius: var(--hcw-hero-media-radius, var(--radius-lg));
         }
 
         h1,
         h2,
         p {
-            margin: 1rem;
+            /* --hcw-hero-gap：hero 内标题/段落的外边距，默认 1rem */
+            margin: var(--hcw-hero-gap, 1rem);
         }
 
         div {
-            padding: 1rem;
+            /* --hcw-hero-padding：hero 内容区内距，默认 1rem */
+            padding: var(--hcw-hero-padding, 1rem);
             position: relative;
-            max-width: 60%;
+            /* --hcw-hero-content-width：hero 文字区最大宽度占比，默认 60% */
+            max-width: var(--hcw-hero-content-width, 60%);
             word-wrap: break-all;
             overflow: hidden;
         }

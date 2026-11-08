@@ -19,7 +19,7 @@
 .button-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(15rem, 90vw), 1fr));
-    gap: 1.25rem;
+    gap: 1.5rem;   /* 与 .feature-grid 的卡片间距统一，工具页与首页节奏一致 */
     margin-top: .25rem;
 }
 
@@ -27,7 +27,7 @@
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 1.25rem;
+    gap: 1.5rem;   /* 与功能卡网格同一条间距，首页两组卡片节奏一致 */
     margin-top: .5rem;
 }
 
@@ -37,11 +37,12 @@
 }
 
 .stat-card [hcw-card-title] {
-    font-size: 1rem;
+    /* 统计卡标题的字号与下方间距改用卡片钩子（main.css 读 --hcw-card-title-font-size / -gap） */
+    --hcw-card-title-font-size: 1rem;
+    --hcw-card-title-gap: .5rem;
     font-weight: 700;
     letter-spacing: 0;
     color: var(--text-secondary);
-    margin-bottom: .5rem;
 }
 
 .stat-value {
@@ -62,7 +63,8 @@
 /* ---------- hero 顶部化：加大高度与呼吸感，撑满首屏 ---------- */
 hcw-hero {
     margin-bottom: .5rem;
-    min-height: 22rem;
+    /* 最小高度改由组件钩子控制：templates.html 的 hcw-hero :host 读 var(--hcw-hero-min-height)，默认 auto */
+    --hcw-hero-min-height: 22rem;
     display: flex;
     align-items: center;
 }
@@ -99,13 +101,29 @@ hcw-hero h1 {
 
 .feature-grid hcw-card,
 .feature-grid [hcw-card] {
-    min-height: 14rem;
+    /* 最小高度改由组件钩子控制：main.css 的 hcw-card 读 var(--hcw-card-min-height)，默认 auto */
+    --hcw-card-min-height: 14rem;
 }
 
 .feature-grid hcw-card h3,
 .feature-grid [hcw-card] h3 {
     font-size: 1.25rem;
     margin-bottom: .5rem;
+}
+
+/* 桌面端固定列数：4 张功能卡必须均匀分布，不再出现 3+1 的孤立单卡行。
+   1024–1279 内容区放不下 4 列（4×16rem+3×间距 已超过可用宽度），改用 2×2，
+   同样不会产生孤行；≥1280 起回到单行 4 列。 */
+@media (min-width: 1024px) {
+    .feature-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1280px) {
+    .feature-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
 }
 
 /* ---------- 响应式 ---------- */

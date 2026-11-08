@@ -203,23 +203,31 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    border-radius: var(--radius-lg);
+    /* --hcw-card-radius：卡片圆角，默认取 --radius-lg（.5rem） */
+    border-radius: var(--hcw-card-radius, var(--radius-lg));
     background: var(--bg-card);
     color: var(--text-primary);
-    padding: 1.25rem 1.5rem;
+    /* --hcw-card-padding：卡片内距，默认 1.25rem 1.5rem（改动前硬编码值） */
+    padding: var(--hcw-card-padding, 1.25rem 1.5rem);
     border: 1px solid var(--border-light);
     box-shadow: var(--shadow-xs);
     transition: var(--transition-normal);
     transition-property: transform, box-shadow, border-color;
+    /* --hcw-card-min-height：卡片最小高度，默认 auto（改动前无此声明）；首页 .feature-grid 里设 14rem */
+    min-height: var(--hcw-card-min-height, auto);
+    /* --hcw-card-gap：卡片内子元素间距，默认 0（改动前无 gap，加钩子不产生视觉变化） */
+    gap: var(--hcw-card-gap, 0);
 
     &>:is(hcw-card-title, [hcw-card-title]) {
-        font-size: 1.5rem;
+        /* --hcw-card-title-font-size：卡片标题字号，默认 1.5rem */
+        font-size: var(--hcw-card-title-font-size, 1.5rem);
         font-weight: 800;
         letter-spacing: -0.02em;
         text-align: left;
         position: relative;
         margin: 0;
-        margin-bottom: .25rem;
+        /* --hcw-card-title-gap：卡片标题与下方内容的间距，默认 .25rem */
+        margin-bottom: var(--hcw-card-title-gap, .25rem);
 
         &>:is(hcw-card-icon, [hcw-card-icon]) {
             aspect-ratio: 1;
@@ -234,7 +242,8 @@
     /* 卡片内的按钮：沉底，与其它卡片对齐 */
     &>hcw-button,
     &>[hcw-button] {
-        margin-top: 1rem;
+        /* --hcw-card-button-gap：卡片内按钮与上方内容的间距，默认 1rem */
+        margin-top: var(--hcw-card-button-gap, 1rem);
         align-self: flex-start;
     }
 
@@ -255,16 +264,19 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-full);   /* Apple 胶囊按钮 */
+    /* --hcw-button-radius：属性写法按钮（[hcw-button]）圆角，默认取 --radius-full */
+    border-radius: var(--hcw-button-radius, var(--radius-full));   /* Apple 胶囊按钮 */
     background-color: var(--button-bg);
     color: var(--button-color);
-    padding: .5rem 1.1rem;
+    /* --hcw-button-padding：属性写法按钮内距，默认 .5rem 1.1rem（改动前硬编码值） */
+    padding: var(--hcw-button-padding, .5rem 1.1rem);
     box-shadow: none;
     transition: var(--transition-fast);
     transition-property: transform, background-color, color, box-shadow, opacity;
     text-align: center;
     cursor: pointer;
-    font-size: 0.95rem;
+    /* --hcw-button-font-size：属性写法按钮字号，默认 0.95rem */
+    font-size: var(--hcw-button-font-size, 0.95rem);
     font-weight: 700;
     letter-spacing: -0.01em;
     text-decoration: none;
@@ -274,14 +286,16 @@
 
     :is(hcw-card, [hcw-card])>& {
         background-color: var(--button-bg);
-        border-radius: var(--radius-full);
-        padding: .45rem 1rem;
+        border-radius: var(--hcw-button-radius, var(--radius-full));
+        /* 卡片内属性写法按钮内距，默认 .45rem 1rem */
+        padding: var(--hcw-button-padding, .45rem 1rem);
         box-shadow: none;
     }
 
     &[large] {
-        font-size: 1.1rem;
-        padding: .65rem 1.4rem;
+        /* 属性写法大号按钮字号与内距，默认 1.1rem / .65rem 1.4rem */
+        font-size: var(--hcw-button-font-size-lg, 1.1rem);
+        padding: var(--hcw-button-padding-lg, .65rem 1.4rem);
     }
 
     &[inline] {
@@ -290,14 +304,16 @@
 
     &[icon] {
         aspect-ratio: 1;
-        height: 2.4rem;
+        /* --hcw-button-icon-size：属性写法图标按钮边长，默认 2.4rem */
+        height: var(--hcw-button-icon-size, 2.4rem);
         padding: 0;
         display: flex;
         align-items: center;
         justify-content: center;
 
         &[large] {
-            height: 3rem;
+            /* --hcw-button-icon-size-lg：属性写法大号图标按钮边长，默认 3rem */
+            height: var(--hcw-button-icon-size-lg, 3rem);
         }
     }
 
@@ -403,14 +419,17 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    border-radius: var(--radius-sm);
+    /* --hcw-input-radius：属性写法输入框圆角，默认取 --radius-sm */
+    border-radius: var(--hcw-input-radius, var(--radius-sm));
     background-color: var(--input-bg);
     color: var(--input-color);
-    padding: .7rem 1rem;
+    /* --hcw-input-padding-block / --hcw-input-padding-inline：属性写法输入框内距，默认 .7rem / 1rem */
+    padding: var(--hcw-input-padding-block, .7rem) var(--hcw-input-padding-inline, 1rem);
     transition: var(--transition-fast);
     transition-property: background-color, color, box-shadow, border-color;
     cursor: text;
-    font-size: 1rem;
+    /* --hcw-input-font-size：属性写法输入框字号，默认 1rem */
+    font-size: var(--hcw-input-font-size, 1rem);
     width: 100%;
 
     /* 原生 input/textarea 上的 hcw-input 属性 */
@@ -471,10 +490,16 @@ textarea[hcw-input]:focus {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: .5rem;
+    /* --hcw-header-gap：页头内元素间距，默认 .5rem */
+    gap: var(--hcw-header-gap, .5rem);
     background: var(--nav-bg);
     color: var(--nav-text);
-    padding: .7rem 1.5rem;
+    /* --hcw-header-padding-block / --hcw-header-padding-inline：页头内距，默认 .7rem / 1.5rem；
+       ≥1024 时 padding-inline 仍由下方 --page-gutter 规则接管 */
+    padding-block: var(--hcw-header-padding-block, .7rem);
+    padding-inline: var(--hcw-header-padding-inline, 1.5rem);
+    /* --hcw-header-height：页头最小高度，默认 auto（改动前无此声明） */
+    min-height: var(--hcw-header-height, auto);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
     box-shadow:
@@ -532,10 +557,13 @@ textarea[hcw-input]:focus {
     width: 100%;
     max-width: 1200px;   /* 内容区放宽，减少桌面端两侧留白 */
     margin: 0 auto;
-    padding: min(2.5rem, 6vw);
+    /* --hcw-article-padding：内容区内距，默认 min(2.5rem, 6vw)；
+       ≥1024 时 padding-inline 仍由下方 --page-gutter 规则接管 */
+    padding: var(--hcw-article-padding, min(2.5rem, 6vw));
     display: flex;
     flex-direction: column;
-    gap: 1.75rem;
+    /* --hcw-article-gap：内容区子元素间距，默认 1.75rem */
+    gap: var(--hcw-article-gap, 1.75rem);
 }
 
 /* 长文页（法务/关于）保持较窄行宽，利于阅读 */
@@ -551,8 +579,12 @@ hcw-article.legal,
     justify-content: space-between;
     background: var(--footer-bg);
     color: var(--footer-text);
-    padding: .8rem 1.5rem;
-    font-size: .75rem;
+    /* --hcw-footer-padding-block / --hcw-footer-padding-inline：页脚内距，默认 .8rem / 1.5rem；
+       ≥1024 时 padding-inline 仍由下方 --page-gutter 规则接管 */
+    padding-block: var(--hcw-footer-padding-block, .8rem);
+    padding-inline: var(--hcw-footer-padding-inline, 1.5rem);
+    /* --hcw-footer-font-size：页脚字号，默认 .75rem */
+    font-size: var(--hcw-footer-font-size, .75rem);
     letter-spacing: 0.01em;
     border-top: 1px solid var(--border-light);
     transition: var(--transition-fast);
@@ -1476,15 +1508,26 @@ body.nav-open {
 }
 
 /* ============ Spotify 式左侧固定导航栏（桌面端 ≥1024px） ============
-   把原「浮层抽屉」升级为常显的固定侧栏；移动端保持原有抽屉行为不变。 */
+   把原「浮层抽屉」升级为常显的固定侧栏；移动端保持原有抽屉行为不变。
+
+   门控：下面每条规则都以「页面存在侧栏」为前提，而 .nav-drawer 只由 nav.js
+   在运行时注入。因此整块统一收窄到 body:has(.nav-drawer)；没有侧栏的页面
+   （例如同源的管理端）不会再被 padding-left 撑出 --sidebar-w 宽的左侧死白。 */
 @media (min-width: 1024px) {
+    /* 桌面留白节奏的唯一来源：页头/页脚用它做内边距，内容区用它做外边距，
+       三者左右内缘因此始终重合；--content-max 只作为行宽上限。 */
+    :root {
+        --content-max: 105rem;
+        --page-gutter: max(1.5rem, calc((100% - var(--content-max)) / 2));
+    }
+
     /* 主内容区整体右移，为左侧栏留出空间 */
-    body {
+    body:has(.nav-drawer) {
         padding-left: var(--sidebar-w, 15rem);
     }
 
     /* 抽屉变为常显固定侧栏 */
-    .nav-drawer {
+    body:has(.nav-drawer) .nav-drawer {
         transform: none;
         visibility: visible;
         width: var(--sidebar-w, 15rem);
@@ -1496,60 +1539,81 @@ body.nav-open {
     }
 
     /* 侧栏头部：隐藏关闭按钮，logo 区自适应 */
-    .nav-drawer-head {
+    body:has(.nav-drawer) .nav-drawer-head {
         padding: 1rem 1.1rem .9rem;
     }
 
-    .nav-close {
+    body:has(.nav-drawer) .nav-close {
         display: none;
     }
 
     /* 遮罩与汉堡按钮在桌面端不再需要 */
-    .nav-overlay {
+    body:has(.nav-drawer) .nav-overlay {
         display: none;
     }
 
-    .nav-toggle {
+    body:has(.nav-drawer) .nav-toggle {
         display: none;
     }
 
     /* 桌面端页头不再为汉堡按钮预留左侧空间 */
-    hcw-body-header:has(> #navToggleBtn),
-    [hcw-body-header]:has(> #navToggleBtn) {
-        padding-left: 1.5rem;
+    body:has(.nav-drawer) hcw-body-header:has(> #navToggleBtn),
+    body:has(.nav-drawer) [hcw-body-header]:has(> #navToggleBtn) {
+        padding-left: var(--page-gutter);
     }
 
-    #headerAuthArea.game-auth-header:has(#navToggleBtn) {
+    body:has(.nav-drawer) #headerAuthArea.game-auth-header:has(#navToggleBtn) {
         padding-left: 0;
     }
 
     /* 桌面端顶栏隐藏 logo 文字（侧栏顶部已有 logo，避免重复）
        仅隐藏 .logo-area，不影响顶栏里的「返回」等其它按钮 */
-    hcw-body-header .logo-area,
-    [hcw-body-header] .logo-area {
+    body:has(.nav-drawer) hcw-body-header .logo-area,
+    body:has(.nav-drawer) [hcw-body-header] .logo-area {
         display: none;
     }
 
     /* 桌面端抽屉始终展开，滚动锁不再适用 */
-    body.nav-open {
+    body:has(.nav-drawer).nav-open {
         overflow: auto;
     }
 
     /* ===== 浮层随内容区右移（fixed 元素不随 body padding 偏移，需手动补偿侧栏宽度） ===== */
 
     /* 登录弹窗：inset 定位改为从侧栏右缘起 */
-    .modal {
+    body:has(.nav-drawer) .modal {
         left: var(--sidebar-w, 15rem);
     }
 
     /* Cookie 横幅：限定在内容区宽度内居中 */
-    .consent-banner {
+    body:has(.nav-drawer) .consent-banner {
         left: var(--sidebar-w, 15rem);
         width: min(720px, calc(100vw - var(--sidebar-w, 15rem) - 2rem));
     }
 
     /* 浮动通知：居中参考点从视口中心移到内容区中心 */
-    .notification-popup {
+    body:has(.nav-drawer) .notification-popup {
         left: calc(50vw + var(--sidebar-w, 15rem) / 2);
+    }
+
+    /* ===== 页头 / 侧栏 / 内容区 / 页脚共用同一条留白节奏 ===== */
+
+    /* 页头与页脚使用同一条内边距（1.5rem 起，宽屏时随内容上限一起外扩） */
+    hcw-body-header,
+    [hcw-body-header],
+    hcw-body-footer,
+    [hcw-body-footer] {
+        padding-inline: var(--page-gutter);
+    }
+
+    /* 内容区铺满页头与页脚之间的可用宽度，右内缘与页头/页脚右内缘重合。
+       .legal 长文页与带内联样式的窄栏页（account / my-timetable 的
+       style="max-width:36rem;margin:0 auto"）保持各自原样，不参与此处对齐。 */
+    hcw-article:not(.legal):not([style]),
+    [hcw-article]:not(.legal):not([style]) {
+        width: auto;   /* 覆盖基础 width:100%，让左右留白参与宽度计算 */
+        max-width: var(--content-max);
+        margin-inline: var(--page-gutter);
+        padding-inline: 0;
     }
 }
