@@ -1,10 +1,10 @@
 {
   "latestVersion": "1.2.9",
-  "generatedAt": "2026-11-08T06:41:28.748Z",
+  "generatedAt": "2026-11-08T06:43:17.735Z",
   "count": 26,
   "entries": [
     {
-      "hash": "ce59033",
+      "hash": "6bad9c3",
       "date": "2026-11-08",
       "subject": "修掉跨端版本/样式不一致，更新检查改认部署标记，提示框排版重做（v1.2.9）"
     },
