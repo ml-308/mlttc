@@ -12,6 +12,7 @@
   现在该接口用 `env.ASSETS` 读 `lib/data/changelog.json` 的 `latestVersion` 返回 `{success, version, notes}`（`Cache-Control: no-store`），取不到静态资源时退回与 `src/version.js` 同步的兜底常量。
 - **前端双通道**：先取静态标记（纯静态、不依赖 Functions），取不到再退回 `/api/version`；两边任意一个能答上来就不会漏检。
 - **补上「长时间挂着的页面」这条触发时机**：原来只有 `DOMContentLoaded` 与 bfcache 还原会检查；现在切回前台（`visibilitychange`）与每 5 分钟轮询也会检查一次，发版后一直开着的标签页也能弹出提示。
+- **「立即更新」现在真的会更新**：原来只给页面 URL 加 `_v`，而 JS/CSS 是按旧缓存策略存下来的，重载后仍命中缓存——表现为「点了更新、弹窗又弹一次」。现在点击后先用 `cache: 'reload'` 把本页引用的关键资源（含页面自己的 css/js）各拉一遍，再带 `_v` 重载，并按用户提示「正在更新到 vX…」。
 - 版本号 1.2.9 → 1.3.0。
 
 ---

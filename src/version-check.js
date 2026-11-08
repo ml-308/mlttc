@@ -59,10 +59,54 @@ function compareVersion(a, b) {
 }
 
 /**
- * 强刷当前页：只改写 _v 参数，原有查询串和 hash 都保留，
- * 避免把用户自己带着的参数丢掉。
+ * 「立即更新」前必须拉新的关键资源。
+ * 只给页面 URL 加 _v 是不够的：浏览器里那几份 JS/CSS 是按**旧缓存策略**存下来的，
+ * 页面重载时仍会直接命中缓存，用户看到的是「点了更新、弹窗又弹一次」。
+ * 下面这些用 cache:'reload' 请求（绕过缓存并回写缓存），再用页面 URL 的 _v 重载，
+ * 整条链路才会真的换成新版本。
  */
-function reloadWithCacheBust() {
+const ASSETS_TO_REFRESH = [
+  '/src/version.js',
+  '/src/version-check.js',
+  '/src/auth-header.js',
+  '/src/nav.js',
+  '/lib/ui/init.mjs',
+  '/lib/ui/popup.mjs',
+  '/lib/ui/templates.html',
+  '/style/main.css',
+  '/style/index.css',
+];
+
+/**
+ * 把上面这些资源用 cache:'reload' 各拉一次。
+ * 同时把当前页面自己引的样式与脚本也带上（时刻表页的 timetable.css、各页 pages/*.js 等），
+ * 否则只有主站首页能得到完整的新资源。
+ * 失败无所谓（某个文件 404 不该把「更新」卡死），所以逐个 catch 掉。
+ */
+function collectPageAssets() {
+  const urls = new Set(ASSETS_TO_REFRESH);
+  document.querySelectorAll('link[rel="stylesheet"][href]').forEach((el) => {
+    urls.add(new URL(el.getAttribute('href'), location.href).pathname);
+  });
+  document.querySelectorAll('script[src]').forEach((el) => {
+    const abs = new URL(el.getAttribute('src'), location.href);
+    if (abs.origin === location.origin) urls.add(abs.pathname);
+  });
+  return [...urls];
+}
+
+async function refreshCachedAssets() {
+  await Promise.all(
+    collectPageAssets().map((url) => fetch(url, { cache: 'reload' }).catch(() => null))
+  );
+}
+
+/**
+ * 强刷当前页：先拉新关键资源，再改写 _v 参数重载。
+ * 只改写 _v，原有查询串和 hash 都保留，避免把用户自己带着的参数丢掉。
+ */
+async function reloadWithCacheBust() {
+  await refreshCachedAssets();
   const url = new URL(location.href);
   url.searchParams.set('_v', String(Date.now()));
   location.replace(url.href);
@@ -156,7 +200,9 @@ async function checkVersion() {
 
     // showConfirm 返回的是**倒序**索引：0 =「稍后」，1 =「立即更新」
     if (choice === 1) {
-      reloadWithCacheBust();
+      // 刷新期间保持一个「正在更新」的提示，避免用户以为没反应而重复点击
+      showMessage('正在更新到 v' + latest + '…', false, { type: 'info', duration: 6000 });
+      await reloadWithCacheBust();
       return;
     }
     try { localStorage.setItem(SEEN_KEY, latest); } catch { /* ignore */ }
