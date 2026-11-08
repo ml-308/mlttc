@@ -19,12 +19,27 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // 默认写契约路径；MLTTC_CHANGELOG_OUT 只是给「当前目录不可写」的沙箱留的自检出口
 const OUT_FILE = path.resolve(REPO_ROOT, process.env.MLTTC_CHANGELOG_OUT || 'lib/data/changelog.json');
+const VERSION_FILE = path.resolve(REPO_ROOT, 'src/version.js');
+
+// 部署版本号只认源码里的 APP_VERSION：它和前端 JS 在同一次部署中一起下发，
+// 不会像外部存储那样与真正跑着的代码各说各话（KV 停在旧值曾让两端都静默）。
+const APP_VERSION_RE = /APP_VERSION\s*=\s*['"]([^'"]+)['"]/;
 
 // 一行一条；解析时只切前两段，所以 subject 里出现 | 也不会错位
 const GIT_ARGS = ['log', '--date=short', '--pretty=format:%h|%ad|%s'];
 // feat: xxx / feat(scope): xxx（容忍全角冒号）
 const FEAT_RE = /^feat(?:\([^)]*\))?[:：]\s*(.*)$/;
 const SEP = '|';
+
+/** 从 src/version.js 解析当前部署版本号；解析不到返回空串，由 main 打印告警 */
+function readLatestVersion() {
+  try {
+    const m = fs.readFileSync(VERSION_FILE, 'utf8').match(APP_VERSION_RE);
+    return m ? m[1].trim() : '';
+  } catch {
+    return '';
+  }
+}
 
 /** 读当前仓库的 git log；stdout 落到临时文件避免管道 */
 function readGitLog() {
@@ -90,7 +105,10 @@ function main() {
     : readGitLog();
 
   const { entries, featCount, malformed } = parseLog(text);
+  const latestVersion = readLatestVersion();
+  // latestVersion 排在最前：它是前端判断「有新版本」的唯一依据，和展示用的 entries 分开
   const payload = {
+    latestVersion,
     generatedAt: new Date().toISOString(),
     count: entries.length,
     entries,
@@ -99,6 +117,7 @@ function main() {
   fs.writeFileSync(OUT_FILE, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 
   console.log(`[changelog] 来源：${inputFile ? inputFile : 'git log'}`);
+  console.log(`[changelog] latestVersion：${latestVersion || '（解析失败，请检查 src/version.js）'}`);
   console.log(`[changelog] 收录 ${entries.length} 条 feat 提交（命中 feat 前缀 ${featCount} 条，无法解析 ${malformed} 条）`);
   console.log(`[changelog] 最新日期：${entries.length ? entries[0].date : '（无）'}`);
   console.log(`[changelog] 输出：${path.relative(REPO_ROOT, OUT_FILE)}`);

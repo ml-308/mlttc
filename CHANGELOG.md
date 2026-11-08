@@ -4,6 +4,21 @@
 
 ---
 
+## [1.2.9] - 2026-11-08
+
+### 🛠 修复
+
+- **跨端缓存一致性**：新增部署级 `_headers`，`/src/*`、`/style/*`、`/lib/*` 全部改为每次访问向服务器重校验（`public, max-age=0, must-revalidate`），手机端不会再长期停留在旧 JS/CSS 上，页面与新代码不会再各说各话。
+- **更新检查改为认部署标记**：不再请求 `/api/version`（KV 里的版本号会与实际部署脱节，导致代码已是新版而检查永远静默）；改为带时间戳 `no-store` 拉 `lib/data/changelog.json` 的 `latestVersion`——它由 `tools/gen-changelog.mjs` 在部署时从 `src/version.js` 写入，与 JS 同一次下发。`functions/api/version.js` 已删除。
+- **iOS bfcache 还原后重新检查**：监听 `pageshow` 的 `persisted`，从后台或返回键还原的页面也会补一次版本检查（同一版本仍只提醒一次）。
+
+### 🎨 界面
+
+- **提示框字体与排版重做**：正文从 1.5rem/字重 300（只适合当标题，长文本读着累）降到 1.0625rem / 行高 1.6 / 字重 500；正文与操作区之间加 1px 分隔线与统一间距；按钮区右对齐、触控高度 44px。带输入框的提示窗（单行 `hcw-input` 与多行 `hcw-textarea`）共用同一套间距管线，输入框字体改为全站字体、placeholder 提到 `--text-secondary` 层级。新增 `--hcw-popup-*` 钩子，页面层可覆盖。
+- **同时修掉两处弹窗硬伤**：窄屏 `min-width:100vw` 造成的横向滚动；组件库尚未就绪时 `showConfirm` / `showPrompt` 会静默崩溃——现在会等 `<hcw-popup>` 定义（带 1.5s 超时），超时兜底退回浏览器原生确认/输入框，不再什么都不弹。
+
+---
+
 ## [1.2.8] - 2026-11-08
 
 ### ✨ 新增

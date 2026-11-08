@@ -5,12 +5,18 @@
             position: fixed;
             inset: 0;
             z-index: 200;
+            /* box-sizing: padding 计入 inset:0 的自身宽度，否则 100vw 的子元素会把遮罩撑出横向滚动 */
+            box-sizing: border-box;
             background: rgba(0, 0, 0, 0.4);
             -webkit-backdrop-filter: blur(20px);
             backdrop-filter: blur(20px);
             justify-content: center;
             align-items: center;
-            padding: 1.5rem;
+            /* 卡片与屏幕边缘的安全距离，默认 1.5rem；窄屏按屏宽收缩，避免小屏只剩一条缝 */
+            padding: var(--hcw-modal-padding, clamp(1rem, 5vw, 1.5rem));
+            /* 内容高于视口时让遮罩自己滚，卡片不会被裁掉顶部 */
+            overflow-y: auto;
+            overscroll-behavior: contain;
             animation: modalFadeOut 0.25s ease-in-out 0s 1 forwards;
             pointer-events: none;
         }
@@ -249,11 +255,18 @@
         }
 
         label {
-            /* --hcw-input-label-font-size：输入框标签字号，默认 0.85rem */
+            /* 输入框标签字号，默认 0.85rem */
             font-size: var(--hcw-input-label-font-size, 0.85rem);
             font-weight: 600;
             color: var(--text-secondary);
             letter-spacing: 0.02em;
+            line-height: 1.3;
+        }
+
+        /* 没有 label 属性时（如弹窗里 showPrompt 不传标签）隐藏空标签，
+           否则 .inner-root 的 gap 会凭空多出 6px，让输入框与上方文字对不齐 */
+        :host(:not([label])) label {
+            display: none;
         }
 
         input {
@@ -272,12 +285,23 @@
             transition: var(--transition-fast);
             transition-property: background-color, color, box-shadow, border-color;
             cursor: text;
+            /* 输入控件不吃 UA 字体：显式跟随全站 --font-family，与弹窗正文同一张脸 */
+            font-family: var(--font-family);
             /* --hcw-input-font-size：输入框字号，默认 1rem */
             font-size: var(--hcw-input-font-size, 1rem);
+            /* --hcw-input-line-height：输入框行高，默认 1.4，单行文本垂直居中不贴边框 */
+            line-height: var(--hcw-input-line-height, 1.4);
             /* --hcw-input-min-height：输入框最小高度，默认 auto（改动前无此声明，加钩子不改高度） */
             min-height: var(--hcw-input-min-height, auto);
             outline: none;
             animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+        }
+
+        input::placeholder {
+            /* 占位符用 --text-secondary 而非 --text-placeholder：后者在深浅两套主题下只有 ~3.1:1，
+               压到 secondary 才够 4.5:1，同时仍比输入值（--input-color）低一档 */
+            color: var(--text-secondary);
+            opacity: 1;
         }
 
         input:focus {
@@ -338,6 +362,12 @@
             font-weight: 600;
             color: var(--text-secondary);
             letter-spacing: 0.02em;
+            line-height: 1.3;
+        }
+
+        /* 同 input：无 label 属性时隐藏空标签，省掉一个无用的 gap */
+        :host(:not([label])) label {
+            display: none;
         }
 
         textarea {
@@ -358,11 +388,19 @@
             transition: var(--transition-fast);
             transition-property: background-color, color, box-shadow, border-color;
             cursor: text;
+            font-family: var(--font-family);
             /* --hcw-textarea-font-size：多行输入框字号，默认 1rem */
             font-size: var(--hcw-textarea-font-size, 1rem);
+            /* --hcw-textarea-line-height：多行行高，默认 1.6，与弹窗正文同一档，多行输入读起来不憋 */
+            line-height: var(--hcw-textarea-line-height, 1.6);
             outline: none;
             resize: vertical;
             animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+        }
+
+        textarea::placeholder {
+            color: var(--text-secondary);
+            opacity: 1;
         }
 
         textarea:focus {
@@ -466,51 +504,93 @@
 
 <template id="template-hcw-popup">
     <style>
+        /* 卡片：正文块 → 1px 分隔线 → 操作区，三段靠一个 flex gap 加一条 hairline 分工。
+           正文只能挂在这一个 h2 上（popup.mjs 的 contentNode 就是它，输入变体也 append 在里面），
+           所以层次靠字号/行高/留白撑起来，不新增 DOM。 */
         .inner-root {
-            max-width: 420px;
-            width: 100%;
             position: relative;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            border-radius: var(--radius-lg);
+            width: 100%;
+            /* 卡片最大宽度，默认 420px：中文正文一行 ~21 字，是一屏一眼能扫完的行宽 */
+            max-width: var(--hcw-popup-max-width, 420px);
+            /* 卡片内距，默认 1.5rem（原 1.25rem 1.5rem，纵向补齐呼吸感） */
+            padding: var(--hcw-popup-padding, 1.5rem);
+            /* 正文块与操作区之间的间距，默认 1.25rem */
+            gap: var(--hcw-popup-gap, 1.25rem);
+            margin: 0;
+            /* 卡片圆角默认取 --radius-xl：比原 --radius-lg 更贴对话框，又不至于成胶囊 */
+            border-radius: var(--hcw-popup-radius, var(--radius-xl));
             background-color: var(--bg-card);
             color: var(--text-primary);
-            padding: 1.25rem 1.5rem;
+            font-family: var(--font-family);
             border: 1px solid var(--border-light);
             box-shadow: var(--shadow-xl);
             transition: var(--transition-fast);
             overflow: hidden;
-            margin-bottom: 5rem;
+            /* 操作区按钮统一 44px 触控高度与胶囊内距：走 button 模板已有的变量钩子，不动按钮基础样式 */
+            --hcw-button-min-height: var(--hcw-popup-button-height, 2.75rem);
+            --hcw-button-padding: var(--hcw-popup-button-padding, .6rem 1.25rem);
         }
 
+        /* 正文块自身也是 flex 容器：showPrompt 会把 <hcw-input>/<hcw-textarea> 直接 append 进来，
+           用 gap 一处控制「文字 → 输入控件」的垂直节奏，避免 margin 叠加后各变体间距不一致 */
         [name='text'] {
-            font-weight: 300;
+            display: flex;
+            flex-direction: column;
+            /* 正文与输入控件之间的间距，默认 1rem */
+            gap: var(--hcw-popup-content-gap, 1rem);
             margin: 0;
-            margin-bottom: 1rem;
-            font-size: 1.5rem;
+            /* 正文字号默认 1.0625rem（17px）：原 1.5rem 只适合当标题，长文本会读崩 */
+            font-size: var(--hcw-popup-text-font-size, 1.0625rem);
+            /* 行高 1.6：中文长段换行后行距够松 */
+            line-height: var(--hcw-popup-text-line-height, 1.6);
+            /* 自重 500：短句（如「确定要进行该操作吗？」）靠这一档撑出标题感，长段又不至于压眼 */
+            font-weight: var(--hcw-popup-text-weight, 500);
+            letter-spacing: var(--hcw-popup-text-letter-spacing, .01em);
+            color: var(--text-primary);
+            /* 长无空格串（URL / token / 订单号）必须能断行，否则撑破卡片 */
+            overflow-wrap: anywhere;
+            /* 中文短句尽量不出现末行孤字 */
+            text-wrap: pretty;
+            min-width: 0;
         }
 
         [name='btn-group'] {
             display: flex;
-            gap: .5rem;
-            margin-left: auto;
             flex-wrap: wrap;
+            /* 按钮间距，默认 .625rem */
+            gap: var(--hcw-popup-button-gap, .625rem);
+            /* 主操作固定落右下角：视线扫完正文自然停在动作上 */
+            justify-content: flex-end;
+            align-items: center;
+            /* 分隔线以上的留白，默认 1rem */
+            padding-top: var(--hcw-popup-action-padding, 1rem);
+            border-top: 1px solid var(--border-light);
+        }
 
-            & hcw-button {
-                min-width: max(5vw, 6.5rem);
-            }
+        [name='btn-group'] hcw-button {
+            /* 按钮最小宽度，默认 6.5rem（原 max(5vw, 6.5rem)：5vw 在窄屏会缩成小目标） */
+            min-width: var(--hcw-popup-button-min-width, 6.5rem);
         }
 
         @media(max-width: 480px) {
             .inner-root {
-                min-width: 100vw;
-                border-radius: 0px;
+                /* 原 min-width:100vw 会把遮罩撑出横向滚动；改成吃满可用宽度、内距略收 */
+                max-width: none;
+                padding: var(--hcw-popup-padding-narrow, 1.125rem);
+                border-radius: var(--hcw-popup-radius-narrow, var(--radius-lg));
             }
 
             [name='btn-group'] {
+                /* 窄屏按钮改成整行等分上下排：触控目标更大，也不会挤成一条 */
                 flex-direction: column;
-                margin-left: initial;
+                align-items: stretch;
+            }
+
+            [name='btn-group'] hcw-button {
+                min-width: 0;
             }
         }
     </style>

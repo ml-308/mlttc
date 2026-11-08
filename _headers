@@ -1,0 +1,11 @@
+# 资源每次访问都向服务器重校验，避免手机端长期停留在旧 JS/CSS
+# （图片等 /asset/* 不加：静态二进制不会变，no-cache 只会拖慢加载）
+
+/src/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/style/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/lib/*
+  Cache-Control: public, max-age=0, must-revalidate

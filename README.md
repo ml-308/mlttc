@@ -2,24 +2,29 @@
 
 ## 版本号与更新日志
 
-站点有「每次打开检查新版本」的能力：前端在页面加载时请求 `GET /api/version`，
-与当前代码内置版本号对比，发现不一致就弹「发现新版本」提示（每个版本仅提示一次）。
+站点有「每次打开检查新版本」的能力：页面加载时（以及 iOS 从 bfcache 还原时的 `pageshow`）
+请求 `lib/data/changelog.json`（带 `?_=<时间戳>` 破缓存）读取其中的 `latestVersion`，
+与当前代码内置的 `APP_VERSION` 做**数字三元组比较**，只有部署版本更新时才弹「发现新版本」提示
+（同一个版本只提醒一次；点「立即更新」带 `_v` 参数强刷当前页）。
 
-**发版时需同步改两处**（否则版本检查对比不出差异，用户收不到更新提示）：
+**发版流程（三步，都不需要碰 Cloudflare KV）：**
 
-1. **代码内置版本号** —— 改 `src/version.js` 里的 `APP_VERSION`（这是前端唯一真相源，
+1. **改版本号** —— 改 `src/version.js` 里的 `APP_VERSION`（前端唯一真相源，
    首页 `Version:` 展示位会自动跟随）。
-2. **后端最新版本号** —— 在 Cloudflare KV 命名空间 `mlttckv` 里设置键
-   `site:latest-version`，值为 JSON：
+2. **重生成部署标记** —— `node tools/gen-changelog.mjs`，它会把 `APP_VERSION` 与
+   git 里 `feat` 开头的提交（标题 + 日期，从新到旧）写进 `lib/data/changelog.json`。
+3. **提交推送** —— 部署后旧客户端下次打开就会读到新的 `latestVersion`，从而提示刷新。
 
-   ```json
-   { "version": "1.2.8", "notes": "修复了 xxx" }
-   ```
+早期版本用 Cloudflare KV 的 `site:latest-version` 与 `GET /api/version` 做版本通知，
+这条路已经废弃（端点已删除）：版本一旦依赖人工改 KV，忘了改就会出现
+「部署了新代码但没人被通知到」的情况。
 
-   `notes` 会显示在「发现新版本」提示里；`version` 与 `src/version.js` 保持一致。
-   若该键不存在，`/api/version` 会回退到代码内置的兜底版本号，前端将永远判断不出「有新版本」。
+静态资源缓存策略在仓库根目录的 `_headers`（Cloudflare Pages 语法）：
+`/src/*`、`/style/*`、`/lib/*` 全部 `max-age=0, must-revalidate`，
+避免手机端长期停留在旧 JS/CSS（曾导致 iOS 与 Windows 版本号、样式不一致）；
+`/asset/*` 图片不加，静态二进制没必要每次重校验。
 
-更新日志见 [`CHANGELOG.md`](CHANGELOG.md)。
+更新日志见 [`CHANGELOG.md`](CHANGELOG.md)，网页版在 `/changelog.html`。
 
 ## 请求频率限制（Rate limiting）
 
