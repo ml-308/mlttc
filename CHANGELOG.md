@@ -4,6 +4,18 @@
 
 ---
 
+## [1.3.0] - 2026-11-08
+
+### 🛠 修复：更新提示完全不弹
+
+- **恢复 `GET /api/version`（改由静态标记驱动，不再碰 KV）**：1.2.9 删掉这个接口是个设计错误——通知的受众恰恰是「缓存着旧版 JS 的客户端」，而它们只认 `/api/version`。删掉后 Pages 会回落 `index.html`（200 + HTML），旧客户端的 `res.json()` 直接抛错并静默。
+  现在该接口用 `env.ASSETS` 读 `lib/data/changelog.json` 的 `latestVersion` 返回 `{success, version, notes}`（`Cache-Control: no-store`），取不到静态资源时退回与 `src/version.js` 同步的兜底常量。
+- **前端双通道**：先取静态标记（纯静态、不依赖 Functions），取不到再退回 `/api/version`；两边任意一个能答上来就不会漏检。
+- **补上「长时间挂着的页面」这条触发时机**：原来只有 `DOMContentLoaded` 与 bfcache 还原会检查；现在切回前台（`visibilitychange`）与每 5 分钟轮询也会检查一次，发版后一直开着的标签页也能弹出提示。
+- 版本号 1.2.9 → 1.3.0。
+
+---
+
 ## [1.2.9] - 2026-11-08
 
 ### 🛠 修复

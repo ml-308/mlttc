@@ -89,19 +89,33 @@ function buildText(latest) {
 /**
  * 拉部署版本号。带 `?_=` 且 cache: 'no-store' 是必需的：
  * CDN 和手机浏览器都会把这份 JSON 缓存住，缓存住的旧值等于没检查。
+ *
+ * 主源是静态标记（纯静态、不依赖 Functions）；取不到再退回 /api/version——
+ * 那个接口是给「缓存着旧版 JS 的客户端」准备的兼容入口，两边必须都能答上来。
  */
 async function fetchLatestVersion() {
-  const res = await fetch(`${DATA_URL}?_=${Date.now()}`, { cache: 'no-store' });
-  if (!res.ok) {
-    console.warn('[version-check] 拉取部署标记失败：HTTP', res.status);
-    return '';
+  try {
+    const res = await fetch(`${DATA_URL}?_=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.latestVersion) return String(json.latestVersion);
+    }
+    console.warn('[version-check] 静态标记不可用，改走 /api/version');
+  } catch {
+    console.warn('[version-check] 静态标记读取异常，改走 /api/version');
   }
-  const json = await res.json();
-  if (!json || !json.latestVersion) {
-    console.warn('[version-check] 部署标记里没有 latestVersion，跳过本次检查');
-    return '';
+
+  try {
+    const res = await fetch(`/api/version?_=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.success && json.version) return String(json.version);
+    }
+    console.warn('[version-check] /api/version 也不可用');
+  } catch (err) {
+    console.warn('[version-check] /api/version 请求异常', err);
   }
-  return String(json.latestVersion);
+  return '';
 }
 
 async function checkVersion() {
@@ -158,3 +172,15 @@ document.addEventListener('DOMContentLoaded', checkVersion);
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) checkVersion();
 });
+
+// 长时间开着的标签页也要能发现新部署：切回前台查一次，另外每 5 分钟轮询一次
+// （请求只是一个几 KB 的 JSON，且 checkVersion 自带 in-flight 锁与已读去重）。
+const RECHECK_INTERVAL_MS = 5 * 60 * 1000;
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkVersion();
+});
+
+setInterval(() => {
+  if (document.visibilityState === 'visible') checkVersion();
+}, RECHECK_INTERVAL_MS);
