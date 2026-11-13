@@ -32,12 +32,27 @@
 	</hcw-body-header>
 
 	<hcw-article>
-		<div class="menu-bar">
-			<hcw-button id="search-btn" class="menu-btn" primary data-menu="search"
+		<!-- 页头下方的分段导航栏：整条一个容器，选中项高亮（.is-active），未选中项弱化。
+		     id 与 .menu-btn 类必须保留：/src/pages/timetables.js 按 id 绑定、按类查询。 -->
+		<div class="menu-bar menu-bar--nav">
+			<hcw-button id="search-btn" class="menu-btn is-active" data-menu="search"
 				>查询时刻表</hcw-button>
 			<hcw-button id="add-btn" class="menu-btn" data-menu="add">添加时刻表</hcw-button>
 			<hcw-button id="import-btn" class="menu-btn" data-menu="import">批量导入</hcw-button>
 		</div>
+		<!-- 选中态：面板显隐由 /src/pages/timetables.js 的 addForm / searchForm / importForm 负责
+		     （它只切 class="hidden"，不碰按钮上的任何标记），这里只把 .is-active 挪到被点的那一项 -->
+		<script type="module">
+			const navBar = document.querySelector('.menu-bar--nav');
+			if (navBar) {
+				const tabs = [...navBar.querySelectorAll('.menu-btn')];
+				tabs.forEach((tab) => {
+					tab.addEventListener('click', () => {
+						tabs.forEach((item) => item.classList.toggle('is-active', item === tab));
+					});
+				});
+			}
+		</script>
 		<div class="form-panel">
 			<!-- 添加模块 -->
 			<div hcw-card id="add-form" class="form-card hidden">

@@ -167,5 +167,9 @@ export const LIMITS = {
   /** 修改昵称 / 城市 */
   profileUpdate: { name: 'profile-update', max: 10, window: 600 },
   /** BUG 反馈（防灌水） */
-  feedback: { name: 'feedback', max: 5, window: 600 }
+  feedback: { name: 'feedback', max: 5, window: 600 },
+  /** 时刻表错误报告（防灌水：10 分钟 5 次） */
+  report: { max: 5, window: 600, name: 'report' },
+  /** 他人公开主页读取（每次页面加载调 1 次，额度必须宽松） */
+  userRead: { max: 60, window: 60, name: 'user-profile' }
 };

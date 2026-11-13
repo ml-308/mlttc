@@ -1,9 +1,45 @@
 {
-  "latestVersion": "1.3.1",
-  "generatedAt": "2026-11-13T13:20:08.938Z",
-  "count": 6,
+  "latestVersion": "1.4.0",
+  "generatedAt": "2026-11-13T13:20:27.177Z",
+  "count": 7,
   "source": "CHANGELOG.md",
   "releases": [
+    {
+      "version": "1.4.0",
+      "date": "2026-11-13",
+      "sections": [
+        {
+          "title": "🎉 新增",
+          "items": [
+            "**时刻表错误报告**：时刻表详情页新增「错误报告」按钮——登录用户用多行输入框写清错在哪（最多 500 字，如「06:30 这班车实际 06:45 发车」「某站名写错」），提交后落库到新表 `TIMETABLE_REPORT`；管理员在 admin 站详情页能看到该时刻表的全部报告（按时间倒序，带「待处理 / 已处理」状态与报告人）。接口 `POST /api/report`（10 分钟 5 次）。",
+            "**用户主页 `/user.html?email=…`**：可查看他人的公开资料——昵称、城市、注册时间、脱敏邮箱（`abc***@qq.com`），以及 TA 已上线的时刻表列表（卡片可点进详情）。入口是时刻表详情页的「作者」一行。新接口 `GET /api/user-profile?email=`（公开、1 分钟 60 次）：响应只给脱敏串，原始 email 不下发。",
+            "**更新内容直接看**：检查发现新版本时，弹窗里直接列出该版本的更新条目（分组 + 条目，支持行内粗体与代码），不用先跳更新日志页；快照里没有该版本（或条目全空）时自动退回原来的「当前 → 最新」对比块。"
+          ]
+        },
+        {
+          "title": "🎨 界面",
+          "items": [
+            "**时刻表页导航栏**：页头下方原有的三个独立胶囊按钮（查询时刻表 / 添加时刻表 / 批量导入）改为一条连续的分段导航栏，选中项高亮、未选中项弱化，窄屏横向滚动而不换行。按钮 id 与 `.menu-btn` 类保持原样，面板切换逻辑未动；其余页面（tools 系列）的同名样式不受影响。",
+            "**「我的时刻表」铺满页面**：去掉 36rem 窄栏限制，列表改为 2 列卡片网格（≤600px 单列），排布与搜索结果一致，卡片内容（含审核状态与三个操作）不变。",
+            "**admin 站「已审核时刻表」同款**：审核页的已审核列表改为与主站搜索结果一致的 2 列铺满网格，深色主题下同样生效。"
+          ]
+        },
+        {
+          "title": "🗄️ 数据库",
+          "items": [
+            "新增表 `TIMETABLE_REPORT`（`ID` 自增 / `TID` 时刻表 ID / `EMAIL` / `CONTENT` / `STATUS` 默认 `open` / `WRITETIME`）与索引 `idx_report_tid`。建表 SQL 见 `functions/TIMETABLE_REPORT.sql`，需在 Cloudflare D1 控制台执行一次（`IF NOT EXISTS`，可重复执行）。"
+          ]
+        },
+        {
+          "title": "🛠 内部",
+          "items": [
+            "限流新增两项：`report`（10 分钟 5 次）、`userRead`（1 分钟 60 次），统一收在 `functions/ratelimit.js` 的 `LIMITS`。",
+            "admin 站新增 `GET /api/admin-reports?id=`（Bearer + 管理员校验）；`TIMETABLE_REPORT` 尚未建表时该接口降级为 200 + 空列表，详情页显示空态而不是整块报错。",
+            "版本号 1.3.1 → 1.4.0（`src/version.js`、`index.html` 兜底文案、`/api/version` 兜底常量、`lib/data/changelog.json`）。"
+          ]
+        }
+      ]
+    },
     {
       "version": "1.3.1",
       "date": "2026-11-13",
@@ -255,6 +291,11 @@
     }
   ],
   "entries": [
+    {
+      "hash": "649811a",
+      "date": "2026-11-13",
+      "subject": "更新日志页改为渲染 CHANGELOG.md 的发版记录（v1.3.1 收尾）"
+    },
     {
       "hash": "1b761ca",
       "date": "2026-11-13",

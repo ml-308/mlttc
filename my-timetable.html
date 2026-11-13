@@ -32,7 +32,7 @@
         </div>
     </hcw-body-header>
 
-    <hcw-article style="max-width: 36rem; margin: 0 auto;">
+    <hcw-article>
         <!-- 我的时刻表（原在个人主页内，现拆分为独立页面） -->
         <hcw-card>
             <hcw-card-title style="font-size: 1.1rem; display:flex; align-items:center; justify-content:space-between;">
@@ -43,7 +43,7 @@
                 <div id="timetable-loading" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">加载中...</div>
                 <div id="timetable-empty" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">暂未写入时刻表</div>
                 <div id="timetable-error" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--danger);"></div>
-                <div id="timetable-list" class="result-area result-list" style="margin-top: 0.5rem;"></div>
+                <div id="timetable-list" class="result-area result-list result-list--grid" style="margin-top: 0.5rem;"></div>
             </div>
         </hcw-card>
     </hcw-article>

@@ -69,6 +69,77 @@ hcw-article,
     box-shadow: var(--shadow-focus);
 }
 
+/* ---------- 分段导航栏 .menu-bar--nav ----------
+   时刻表页（timetable.html）页头下方的 tab 形态导航：整条一个容器，选中项高亮、
+   未选中项弱化。其它页面（tools 系列）仍用上面的 .menu-bar 独立胶囊，不受影响，
+   所以这里全部按 .menu-bar--nav 收窄作用域。 */
+.menu-bar.menu-bar--nav {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-full);
+    background-color: var(--bg-hover);
+    /* 窄屏横向滚动，而不是换行错位 */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.menu-bar.menu-bar--nav::-webkit-scrollbar {
+    display: none;
+}
+
+.menu-bar--nav .menu-btn {
+    /* 一格撑满可用宽度，但不缩到字形底下：空间不够就交给容器滚动 */
+    flex: 1 1 auto;
+    min-width: max-content;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-full);
+    background-color: transparent;
+    /* 选中态由 .is-active 表达（timetables.js 只切换面板显隐，不碰这两个属性）；
+       按钮的底色 / 字色 / 内距全部走 hcw-button 自己的变量，才能传进它的 shadow */
+    --button-bg: transparent;
+    --button-color: var(--text-secondary);
+    --hcw-button-radius: var(--radius-full);
+    --hcw-button-padding: .45rem 1.1rem;
+    --hcw-button-font-size: .9rem;
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.menu-bar--nav .menu-btn.is-active {
+    --button-bg: var(--primary);
+    --button-color: var(--on-primary);
+    /* 悬停时组件会切到 -hl 这一对，跟着换成提亮的绿，不要让选中项被灰掉 */
+    --button-bg-hl: var(--primary-hl);
+    --button-color-hl: var(--on-primary-hl);
+    font-weight: 700;
+    color: var(--on-primary);
+}
+
+.menu-bar--nav .menu-btn:focus-visible {
+    box-shadow: var(--shadow-focus);
+}
+
+@media (max-width: 600px) {
+    .menu-bar--nav .menu-btn {
+        --hcw-button-padding: .4rem .75rem;
+        --hcw-button-font-size: .85rem;
+        font-size: .85rem;
+    }
+}
+
+@media print {
+    .menu-bar.menu-bar--nav {
+        display: none;
+    }
+}
+
 /* ---------- 表单面板 .form-panel ---------- */
 .form-panel {
     display: flex;
@@ -312,6 +383,34 @@ footer::before {
 
 @media (max-width: 600px) {
     #search-result .result-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- 通用网格列表 .result-list--grid ---------- */
+/* 与上面 #search-result .result-list 同一套栅格（那条规则服务于搜索页，保持不动）：
+   2 列、≤600px 单列、间距 12px。给「我的时刻表」这类铺满整页的列表复用。 */
+.result-list--grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 600px) {
+    .result-list--grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 深色主题区块里 [data-theme="dark"] .result-area .result-list 会把列表改回 flex，
+   这里用同等复合选择器补一条，否则深色下网格不生效 */
+[data-theme="dark"] .result-area .result-list.result-list--grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 600px) {
+    [data-theme="dark"] .result-area .result-list.result-list--grid {
         grid-template-columns: 1fr;
     }
 }

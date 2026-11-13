@@ -17,8 +17,11 @@
  *   - 数据源是本仓库里跟着 JS 一起部署的静态快照，不再走 KV 支撑的版本接口：
  *     外部存储靠人工同步，一旦停在旧值，就会和真正跑着的代码各说各话，
  *     结果新版本永远推不出去（两端都静默）。
- *   - 弹窗由 lib/ui/popup.mjs 的 showDialog 渲染：eyebrow + 标题 + 版本对比块，
+ *   - 弹窗由 lib/ui/popup.mjs 的 showDialog 渲染：eyebrow + 标题 + 版本对比块
+ *     + 这个新版本自己的更新条目清单（分组标题 + 条目，区域可滚动），
  *     与全站其它对话框共用同一套「标题 / 描述 / 操作」版式。
+ *   - 条目文本取自快照，属于远端 / 文档内容：一律按纯文本拼 DOM，
+ *     只把 **粗体** 与 `代码` 这两种行内标记换成元素，绝不把整段当 HTML 插入。
  */
 import { APP_VERSION } from './version.js';
 import { popupReady, showDialog } from '/lib/ui/popup.mjs';
@@ -117,12 +120,12 @@ function buildText(latest) {
 }
 
 /**
- * 版本对比块的样式。样式节点跟着内容一起 append 进弹窗 shadow，
+ * 版本对比块 + 更新条目的样式。样式节点跟着内容一起 append 进弹窗 shadow，
  * 所以只作用于这一个弹窗；类名统一带 vc- 前缀，避免和别处渗透进来的选择器撞车。
  * 颜色全部取设计令牌，深浅两套主题自动跟随。
  */
 const VERSION_DIFF_STYLE = [
-  '.vc-diff { display: flex; flex-direction: column; gap: .75rem; }',
+  '.vc-diff { display: flex; flex-direction: column; gap: .625rem; }',
   '.vc-track { display: flex; align-items: center; gap: .625rem; padding: .75rem .875rem;' +
   ' border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--input-bg); }',
   '.vc-chip { display: flex; flex: 1 1 0; flex-direction: column; gap: .1875rem; min-width: 0; }',
@@ -132,6 +135,20 @@ const VERSION_DIFF_STYLE = [
   ' color: var(--text-primary); overflow-wrap: anywhere; }',
   '.vc-chip-new .vc-chip-value { color: var(--link-color); }',
   '.vc-arrow { flex: none; color: var(--text-secondary); font-size: 1rem; line-height: 1; }',
+  // 条目区：弹窗高度受限，给它自己一条滚动条，不把整张卡片顶出视口
+  '.vc-notes { display: flex; flex-direction: column; gap: .75rem; max-height: 15rem;' +
+  ' overflow-y: auto; overscroll-behavior: contain; padding: .75rem .25rem 0 0;' +
+  ' border-top: 1px solid var(--border-light); }',
+  '.vc-note-group { display: flex; flex-direction: column; gap: .25rem; }',
+  '.vc-note-title { margin: 0; font-size: .75rem; font-weight: 700;' +
+  ' letter-spacing: .01em; color: var(--text-primary); }',
+  '.vc-note-points { margin: 0; padding-left: 1.125rem; display: flex; flex-direction: column;' +
+  ' gap: .3125rem; font-size: .8125rem; line-height: 1.6; color: var(--text-secondary); }',
+  '.vc-note-points li::marker { color: var(--text-muted); }',
+  '.vc-note-points strong { font-weight: 700; color: var(--text-primary); }',
+  '.vc-note-points code { font-family: var(--font-mono); font-size: .875em; padding: .0625rem .25rem;' +
+  ' border-radius: var(--radius-xs); background: var(--input-bg); color: var(--text-primary);' +
+  ' overflow-wrap: anywhere; }',
   '.vc-log { align-self: flex-start; font-size: .8125rem; font-weight: 600; color: var(--link-color);' +
   ' text-decoration: none; border-radius: var(--radius-xs); }',
   '.vc-log:hover { text-decoration: underline; }',
@@ -156,10 +173,91 @@ function versionChip(value, kind, labelText) {
 }
 
 /**
- * 版本对比块：当前 vX → 最新 vY，外加一个更新日志入口。
- * 全部用 textContent 拼，版本号即使来自远端数据也不会被当成 HTML 解析。
+ * 行内标记渲染：**粗体** 与 `代码`，规则与 src/pages/changelog.js 的 appendInline 一致
+ * （粗体里可能还嵌着 `代码`，所以递归解析一次）。
+ * 全程 createElement / textContent 拼接：条目文本里的 <img onerror> 这类片段
+ * 只会变成一串字面量字符，不会被解析成元素。
  */
-function buildVersionDiff(current, latest) {
+function appendInline(parent, text) {
+  const source = String(text ?? '');
+  const pattern = /\*\*([^*]+)\*\*|`([^`]+)`/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = pattern.exec(source))) {
+    if (match.index > lastIndex) {
+      parent.append(document.createTextNode(source.slice(lastIndex, match.index)));
+    }
+
+    const bold = match[1];
+    const code = match[2];
+
+    if (bold !== undefined) {
+      const el = document.createElement('strong');
+      appendInline(el, bold);
+      parent.append(el);
+    } else {
+      const el = document.createElement('code');
+      el.textContent = code;
+      parent.append(el);
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < source.length) {
+    parent.append(document.createTextNode(source.slice(lastIndex)));
+  }
+}
+
+/**
+ * 更新条目区：每个分组一个标题 + 一组条目，整体可滚动。
+ * 一条可渲染的条目都没有时返回 null，调用方据此退回「只显示版本对比块」。
+ */
+function buildVersionNotes(sections) {
+  const groups = Array.isArray(sections) ? sections : [];
+  const wrap = document.createElement('div');
+  wrap.className = 'vc-notes';
+
+  let count = 0;
+  for (const section of groups) {
+    const items = Array.isArray(section && section.items) ? section.items : [];
+    if (items.length === 0) continue;
+
+    const group = document.createElement('div');
+    group.className = 'vc-note-group';
+
+    if (section.title) {
+      const title = document.createElement('p');
+      title.className = 'vc-note-title';
+      title.textContent = String(section.title);
+      group.append(title);
+    }
+
+    const points = document.createElement('ul');
+    points.className = 'vc-note-points';
+    for (const item of items) {
+      const text = String(item ?? '').trim();
+      if (text === '') continue; // 空白条目不占位，也不让它把「0 条」判成有内容
+      const point = document.createElement('li');
+      appendInline(point, text);
+      points.append(point);
+      count++;
+    }
+
+    if (points.childElementCount === 0) continue;
+    group.append(points);
+    wrap.append(group);
+  }
+
+  return count > 0 ? wrap : null;
+}
+
+/**
+ * 版本对比块：当前 vX → 最新 vY，外加这个新版本的更新条目与更新日志入口。
+ * 全部用 textContent 拼，版本号与条目文本即使来自远端数据也不会被当成 HTML 解析。
+ */
+function buildVersionDiff(current, latest, sections) {
   const root = document.createElement('div');
   root.className = 'vc-diff';
 
@@ -183,23 +281,61 @@ function buildVersionDiff(current, latest) {
   log.rel = 'noopener';
   log.textContent = '查看更新日志';
 
-  root.append(style, track, log);
+  // 对比块在前、这次新增的条目清单在后，更新日志入口收尾；
+  // 快照里没有这一版（或解析不出条目）时 notes 为 null，只留对比块
+  const notes = buildVersionNotes(sections);
+
+  root.append(style, track);
+  if (notes) root.append(notes);
+  root.append(log);
   return root;
 }
 
 /**
- * 拉部署版本号。带 ?_= 且 cache: 'no-store' 是必需的：
+ * 从快照里挑出「部署版本」那一节，整理成渲染用的 [{ title, items }]。
+ * 版本号对不上（快照没跟上部署）或一条条目都解析不出来时返回空数组，
+ * 让调用方退回「只显示版本对比块」——不空白、也不抛错。
+ */
+function collectVersionNotes(json, version) {
+  const releases = Array.isArray(json && json.releases) ? json.releases : [];
+
+  // 先按字符串严格比对（快照就是这么写进去的），再退回版本号数字比较，容忍 v1.3.1 / 1.3.1 的写法差异
+  let release = releases.find((r) => r && String(r.version) === String(version));
+  if (!release) {
+    release = releases.find((r) => r && parseVersion(r.version) && compareVersion(r.version, version) === 0);
+  }
+  if (!release) return [];
+
+  const rawSections = Array.isArray(release.sections) ? release.sections : [];
+  const sections = [];
+  for (const section of rawSections) {
+    const items = (Array.isArray(section && section.items) ? section.items : [])
+      .map((item) => String(item ?? '').trim())
+      .filter((item) => item !== '');
+    if (items.length === 0) continue;
+    sections.push({ title: String((section && section.title) || ''), items });
+  }
+  return sections;
+}
+
+/**
+ * 拉部署版本号（以及这个版本的更新条目）。带 ?_= 且 cache: 'no-store' 是必需的：
  * CDN 和手机浏览器都会把这份 JSON 缓存住，缓存住的旧值等于没检查。
  *
  * 主源是静态标记（纯静态、不依赖 Functions）；取不到再退回 /api/version——
  * 那个接口是给「缓存着旧版 JS 的客户端」准备的兼容入口，两边必须都能答上来。
+ * 返回值统一成 { version, notes }：version 为空串表示两路都不可用；
+ * notes 只在静态快照里能对上这个版本号时才有内容（/api/version 不带条目）。
  */
 async function fetchLatestVersion() {
   try {
     const res = await fetch(DATA_URL + '?_=' + Date.now(), { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
-      if (json && json.latestVersion) return String(json.latestVersion);
+      if (json && json.latestVersion) {
+        const version = String(json.latestVersion);
+        return { version, notes: collectVersionNotes(json, version) };
+      }
     }
     console.warn('[version-check] 静态标记不可用，改走 /api/version');
   } catch {
@@ -210,13 +346,15 @@ async function fetchLatestVersion() {
     const res = await fetch('/api/version?_=' + Date.now(), { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
-      if (json && json.success && json.version) return String(json.version);
+      if (json && json.success && json.version) {
+        return { version: String(json.version), notes: [] };
+      }
     }
     console.warn('[version-check] /api/version 也不可用');
   } catch (err) {
     console.warn('[version-check] /api/version 请求异常', err);
   }
-  return '';
+  return { version: '', notes: [] };
 }
 
 async function checkVersion() {
@@ -224,8 +362,11 @@ async function checkVersion() {
   checking = true;
   try {
     let latest = '';
+    let notes = [];
     try {
-      latest = await fetchLatestVersion();
+      const info = await fetchLatestVersion();
+      latest = info.version;
+      notes = info.notes;
     } catch (err) {
       console.warn('[version-check] 读取部署版本出错，跳过本次检查', err);
       return;
@@ -251,7 +392,7 @@ async function checkVersion() {
       eyebrow: '更新可用',
       title: '发现新版本 v' + latest,
       text: '更新会重新加载本页，正在填写的内容不会保留；也可以先看看这次改了什么。',
-      content: buildVersionDiff(APP_VERSION, latest),
+      content: buildVersionDiff(APP_VERSION, latest, notes),
       buttons: ['立即更新', '稍后'],
       button_style: ['primary', 'tp'],
     });
