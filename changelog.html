@@ -4,7 +4,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-	<meta name="description" content="MLTTC 更新日志：按时间倒序记录站点的功能性改动">
+	<meta name="description" content="MLTTC 更新日志：按版本倒序记录每次发版的改动">
 	<title>更新日志 - MLTTC</title>
 	<link rel="stylesheet" href="style/changelog.css">
 	<script src="src/pages/main.js" type="module"></script>
@@ -34,7 +34,7 @@
 			<p class="changelog-kicker">更新日志</p>
 			<h1>更新日志</h1>
 			<p class="changelog-lead">
-				站点每一次功能性改动都按时间倒序记在这里，方便你回看「什么时候多了这个功能」。
+				每次发版的改动都按版本倒序记在这里；1.2.7 起按版本整理，更早的改动收在页面底部。
 			</p>
 			<p class="changelog-meta" id="changelogMeta"></p>
 		</header>
@@ -42,6 +42,7 @@
 		<!-- 列表与占位互斥：脚本渲染成功才显示列表，其余情况只留一行提示 -->
 		<p class="changelog-state" id="changelogState">正在加载更新日志…</p>
 		<ol class="changelog-list" id="changelogList" hidden></ol>
+		<section class="changelog-history" id="changelogHistory" hidden></section>
 	</hcw-article>
 
 	<hcw-body-footer></hcw-body-footer>

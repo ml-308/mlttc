@@ -7,17 +7,21 @@
 与当前代码内置的 `APP_VERSION` 做**数字三元组比较**，只有部署版本更新时才弹「发现新版本」提示
 （同一个版本只提醒一次；点「立即更新」带 `_v` 参数强刷当前页）。
 
-**发版流程（三步，都不需要碰 Cloudflare KV）：**
+**发版流程（四步，都不需要碰 Cloudflare KV）：**
 
 1. **改版本号** —— 改 `src/version.js` 里的 `APP_VERSION`（前端唯一真相源，
    首页 `Version:` 展示位会自动跟随）。
-2. **重生成部署标记** —— `node tools/gen-changelog.mjs`，它会把 `APP_VERSION` 与
-   git 里 `feat` 开头的提交（标题 + 日期，从新到旧）写进 `lib/data/changelog.json`。
-3. **提交推送** —— 部署后旧客户端下次打开就会读到新的 `latestVersion`，从而提示刷新。
+2. **写发版记录** —— 在 `CHANGELOG.md` 顶部加一节 `## [新版本号] - 日期`，分组写条目；
+   网页版更新日志（`/changelog.html`）直接渲染这份记录，纯修复版本也不会漏。
+3. **重生成部署标记** —— `node tools/gen-changelog.mjs`，它会把 `APP_VERSION`、
+   `CHANGELOG.md` 的版本记录，以及 git 里 `feat` 提交（作为按版本记录之前的「更早的改动」）
+   一起写进 `lib/data/changelog.json`；`APP_VERSION` 与最新版本号不一致时会告警。
+4. **提交推送** —— 部署后旧客户端下次打开就会读到新的 `latestVersion`，从而提示刷新。
 
-早期版本用 Cloudflare KV 的 `site:latest-version` 与 `GET /api/version` 做版本通知，
-这条路已经废弃（端点已删除）：版本一旦依赖人工改 KV，忘了改就会出现
-「部署了新代码但没人被通知到」的情况。
+早期版本用 Cloudflare KV 的 `site:latest-version` 与 `GET /api/version` 做版本通知：
+版本一旦依赖人工改 KV，忘了改就会出现「部署了新代码但没人被通知到」的情况，所以已废弃。
+`/api/version` 现在仍然保留，但只作为「缓存着旧版 JS 的客户端」的兼容入口，
+版本号由同一次部署下发的静态标记提供（见 v1.3.0 更新日志）。
 
 静态资源缓存策略在仓库根目录的 `_headers`（Cloudflare Pages 语法）：
 `/src/*`、`/style/*`、`/lib/*` 全部 `max-age=0, must-revalidate`，

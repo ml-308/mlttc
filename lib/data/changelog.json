@@ -1,8 +1,265 @@
 {
   "latestVersion": "1.3.1",
-  "generatedAt": "2026-11-08T06:54:57.967Z",
-  "count": 26,
+  "generatedAt": "2026-11-13T13:20:08.938Z",
+  "count": 6,
+  "source": "CHANGELOG.md",
+  "releases": [
+    {
+      "version": "1.3.1",
+      "date": "2026-11-13",
+      "sections": [
+        {
+          "title": "🎨 界面",
+          "items": [
+            "**弹窗组件重做**：`<hcw-popup>` 从「一段大字号文本 + 按钮」升级成三段式对话框——eyebrow（如「更新可用」）→ 粗黑标题 → secondary 描述，右上角 32px 圆形关闭钮，操作区用一条 hairline 与正文分开、主操作固定右下角；卡片入场改为 12px 上浮 + 轻微缩放，并尊重 `prefers-reduced-motion`。新增 `--hcw-popup-title-*` / `-text-*` / `-close-*` 等钩子，页面层可整体覆盖。",
+            "**带输入框的弹窗（`showPrompt`）**：输入控件改挂独立的正文内容区，不再塞进标题节点；新增 `title` / `text` / `label` 分工（只传 `text` 时它仍是标题，旧调用不用改），单行输入回车即提交（中文输入法选词时不会误触发），打开即聚焦输入框。",
+            "**关闭语义统一**：右上角 ×、Esc、点遮罩都能关窗，`showConfirm` / `showPrompt` 一律按「取消」处理（遮罩只在按下与抬起都落在遮罩上时才生效，拖选文字不会误关）；关闭后焦点回到打开前的元素。",
+            "**更新检查用上新对话框**：发现新版本时不再是纯文字——「更新可用」+ `发现新版本 v1.3.1` + 当前/最新版本对比块 + 更新日志入口；「立即更新」仍是绿色胶囊主按钮，「稍后」改为文字按钮。组件库不可用时照旧降级为顶部 Toast。",
+            "**更新日志页补全**：`/changelog.html` 不再只列 `feat` 提交，改为渲染 `CHANGELOG.md` 的发版记录（版本 / 日期 / 分组条目，支持行内粗体与代码，最新一版带「最新」标记），纯修复版本（如 v1.3.0）不会再缺席；1.2.7 之前的提交收进页面底部「更早的改动」。快照由 `tools/gen-changelog.mjs` 在部署时重新生成。"
+          ]
+        },
+        {
+          "title": "🛠 内部",
+          "items": [
+            "`lib/ui/popup.mjs` 新增 `showDialog()` 通用原语与 `popupReady()`；`version-check.js` 删掉自己那份「等组件就绪」的超时逻辑。",
+            "`hcw-input` / `hcw-textarea` 补齐 `focus()` / `blur()` / `label` 代理，标签通过 `for` 关联输入框，读屏可正确播报。",
+            "版本号 1.3.0 → 1.3.1（`src/version.js`、`index.html` 兜底文案、`/api/version` 兜底常量、`lib/data/changelog.json`）。"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-11-08",
+      "sections": [
+        {
+          "title": "🛠 修复：更新提示完全不弹",
+          "items": [
+            "**恢复 `GET /api/version`（改由静态标记驱动，不再碰 KV）**：1.2.9 删掉这个接口是个设计错误——通知的受众恰恰是「缓存着旧版 JS 的客户端」，而它们只认 `/api/version`。删掉后 Pages 会回落 `index.html`（200 + HTML），旧客户端的 `res.json()` 直接抛错并静默。现在该接口用 `env.ASSETS` 读 `lib/data/changelog.json` 的 `latestVersion` 返回 `{success, version, notes}`（`Cache-Control: no-store`），取不到静态资源时退回与 `src/version.js` 同步的兜底常量。",
+            "**前端双通道**：先取静态标记（纯静态、不依赖 Functions），取不到再退回 `/api/version`；两边任意一个能答上来就不会漏检。",
+            "**补上「长时间挂着的页面」这条触发时机**：原来只有 `DOMContentLoaded` 与 bfcache 还原会检查；现在切回前台（`visibilitychange`）与每 5 分钟轮询也会检查一次，发版后一直开着的标签页也能弹出提示。",
+            "**「立即更新」现在真的会更新**：原来只给页面 URL 加 `_v`，而 JS/CSS 是按旧缓存策略存下来的，重载后仍命中缓存——表现为「点了更新、弹窗又弹一次」。现在点击后先用 `cache: 'reload'` 把本页引用的关键资源（含页面自己的 css/js）各拉一遍，再带 `_v` 重载，并按用户提示「正在更新到 vX…」。",
+            "版本号 1.2.9 → 1.3.0。"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "1.2.9",
+      "date": "2026-11-08",
+      "sections": [
+        {
+          "title": "🛠 修复",
+          "items": [
+            "**跨端缓存一致性**：新增部署级 `_headers`，`/src/*`、`/style/*`、`/lib/*` 全部改为每次访问向服务器重校验（`public, max-age=0, must-revalidate`），手机端不会再长期停留在旧 JS/CSS 上，页面与新代码不会再各说各话。",
+            "**更新检查改为认部署标记**：不再请求 `/api/version`（KV 里的版本号会与实际部署脱节，导致代码已是新版而检查永远静默）；改为带时间戳 `no-store` 拉 `lib/data/changelog.json` 的 `latestVersion`——它由 `tools/gen-changelog.mjs` 在部署时从 `src/version.js` 写入，与 JS 同一次下发。`functions/api/version.js` 已删除。",
+            "**iOS bfcache 还原后重新检查**：监听 `pageshow` 的 `persisted`，从后台或返回键还原的页面也会补一次版本检查（同一版本仍只提醒一次）。"
+          ]
+        },
+        {
+          "title": "🎨 界面",
+          "items": [
+            "**提示框字体与排版重做**：正文从 1.5rem/字重 300（只适合当标题，长文本读着累）降到 1.0625rem / 行高 1.6 / 字重 500；正文与操作区之间加 1px 分隔线与统一间距；按钮区右对齐、触控高度 44px。带输入框的提示窗（单行 `hcw-input` 与多行 `hcw-textarea`）共用同一套间距管线，输入框字体改为全站字体、placeholder 提到 `--text-secondary` 层级。新增 `--hcw-popup-*` 钩子，页面层可覆盖。",
+            "**同时修掉两处弹窗硬伤**：窄屏 `min-width:100vw` 造成的横向滚动；组件库尚未就绪时 `showConfirm` / `showPrompt` 会静默崩溃——现在会等 `<hcw-popup>` 定义（带 1.5s 超时），超时兜底退回浏览器原生确认/输入框，不再什么都不弹。"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "1.2.8",
+      "date": "2026-11-08",
+      "sections": [
+        {
+          "title": "✨ 新增",
+          "items": [
+            "**更新日志页** `/changelog.html`：内容来自 git 的 `feat` 提交（标题 + 日期），由 `tools/gen-changelog.mjs` 生成 `lib/data/changelog.json` 快照后前端读取，左侧导航「其它」组已加入口。",
+            "**首页更新日志入口**：hero 里 BUG 反馈下方新增入口块，一键跳转更新日志页。",
+            "**新版本提示升级**：发现新版本从「顶部提示一次」改为**提示框 + 两个按钮**——「立即更新」带 `_v` 缓存参数强刷当前页，「稍后」才记为已读；没有组件库底座的页面自动降级为顶部提示。"
+          ]
+        },
+        {
+          "title": "🎨 布局与组件",
+          "items": [
+            "首页功能卡改为固定列数（1024–1279 两列、≥1280 四列），修掉 4 张卡 3+1 的孤立单行。",
+            "页头 / 页脚 / 内容区共用一套留白节奏（`--page-gutter` / `--content-max`），右缘对齐。",
+            "hcw 组件的布局量抽成 `--hcw-*` CSS 变量（默认值逐像素不变），`--hcw-button-*` 作为主站与管理端的共享契约。",
+            "手机端 hero 收掉右侧装饰图，正文放宽到整行。"
+          ]
+        },
+        {
+          "title": "🛠 修复",
+          "items": [
+            "管理端左侧 240px 死白与页头标题消失：侧栏样式块改为 `body:has(.nav-drawer)` 门控，无侧栏的页面不再被左移。",
+            "管理端登录页窄栏行宽被「全宽对齐」规则覆盖，已用更高特异度改回。"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "1.2.7",
+      "date": "2026-11-07",
+      "sections": [
+        {
+          "title": "✨ 新增",
+          "items": [
+            "**检查新版本**：每次打开页面时自动对比后端最新版本号，发现新版本弹出提示（每个版本仅提示一次）。",
+            "**首页数据速览**：新增「已收录线路 / 覆盖城市 / 数据更新」三张统计卡，数据来自真实接口，基于独立统计表增量维护。",
+            "**版本单一真相源**：版本号收敛到 `src/version.js`，首页展示位自动跟随。"
+          ]
+        },
+        {
+          "title": "🎨 视觉重塑（全面仿 Spotify）",
+          "items": [
+            "配色：主色 Spotify 绿 `#1DB954`，深色优先（黑底 `#000` / 表面 `#181818`），绿底黑字高对比按钮。",
+            "圆角、阴影、字重整体调整为 Spotify 风格（中等圆角、克制阴影、粗黑标题）。",
+            "卡片 hover 从「上浮位移」改为「背景变亮 + 阴影浮现」。"
+          ]
+        },
+        {
+          "title": "🧭 布局升级",
+          "items": [
+            "桌面端新增**左侧固定导航栏**（Spotify 式），全站统一生效；移动端保持抽屉导航。",
+            "修复固定浮层（Cookie 横幅 / 登录弹窗 / 通知）未随侧栏右移导致的居中偏移。",
+            "修复桌面端顶栏与侧栏 logo 重复的问题。"
+          ]
+        },
+        {
+          "title": "🎛 主题",
+          "items": [
+            "支持**浅色 / 深色**切换（默认深色优先）。",
+            "个人主页新增**自定义主题色**：8 个预设色 + 取色器，选择结果存 localStorage，全站联动。"
+          ]
+        },
+        {
+          "title": "🏠 首页改版",
+          "items": [
+            "升级为「hero + 数据速览 + 核心功能卡片墙」三段式结构。",
+            "卡片统一等高、按钮沉底对齐，内容区撑满视口高度。"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "1.2.6",
+      "date": "之前",
+      "sections": [
+        {
+          "title": "",
+          "items": [
+            "历史版本未单独记录，从 1.2.7 起开始维护更新日志。"
+          ]
+        }
+      ]
+    }
+  ],
+  "history": [
+    {
+      "hash": "e59627f",
+      "date": "2026-11-01",
+      "subject": "新增关于我们页面并在页脚添加入口"
+    },
+    {
+      "hash": "c3a739c",
+      "date": "2026-10-31",
+      "subject": "移除 tool-life 页面的身份证号校验功能"
+    },
+    {
+      "hash": "6dd67ed",
+      "date": "2026-10-06",
+      "subject": "更新版本号至1.2.6"
+    },
+    {
+      "hash": "9126dbb",
+      "date": "2026-10-06",
+      "subject": "add my timetable page and navigation smoke test framework"
+    },
+    {
+      "hash": "ff1a866",
+      "date": "2026-10-04",
+      "subject": "新增13个实用工具并将工具总览整理为六大分区"
+    },
+    {
+      "hash": "fe8f520",
+      "date": "2026-10-02",
+      "subject": "新增文本、密码、时间、单位换算、随机五个工具页并添加工具箱入口"
+    },
+    {
+      "hash": "8440748",
+      "date": "2026-10-01",
+      "subject": "为辉县添加后缀信息，优化城市数据结构"
+    },
+    {
+      "hash": "5b4a490",
+      "date": "2026-10-01",
+      "subject": "添加湖州市县级城市支持，更新城市数据结构"
+    },
+    {
+      "hash": "1ae8f1d",
+      "date": "2026-10-01",
+      "subject": "添加县级城市支持，优化城市数据结构和格式化逻辑"
+    },
+    {
+      "hash": "21a7920",
+      "date": "2026-10-01",
+      "subject": "enhance city data structure and picker functionality"
+    },
+    {
+      "hash": "358ec38",
+      "date": "2026-10-01",
+      "subject": "支持双城输入（合营线路）功能，优化城市选择器的输入验证和提示信息"
+    },
+    {
+      "hash": "b4cbc42",
+      "date": "2026-10-01",
+      "subject": "添加游戏与工具页面，包含贪吃蛇游戏和敬请期待的工具"
+    },
+    {
+      "hash": "2d86d1b",
+      "date": "2026-09-25",
+      "subject": "add city data loading and city picker components"
+    },
+    {
+      "hash": "38dde59",
+      "date": "2026-09-12",
+      "subject": "添加请求频率限制功能，防止滥用和重复提交"
+    },
+    {
+      "hash": "7efe1dc",
+      "date": "2026-09-12",
+      "subject": "添加用户身份解析功能，优化身份显示逻辑及样式"
+    },
+    {
+      "hash": "191e3c8",
+      "date": "2026-09-12",
+      "subject": "添加版本日志输出，记录当前版本信息"
+    },
+    {
+      "hash": "5375e08",
+      "date": "2026-09-12",
+      "subject": "更新驳回逻辑，使用 BACK 列替代 SPECIAL 字段，优化审核状态显示"
+    },
+    {
+      "hash": "2af71cc",
+      "date": "2026-09-12",
+      "subject": "添加注册页提示框功能，优化用户注册体验"
+    },
+    {
+      "hash": "c158786",
+      "date": "2026-09-12",
+      "subject": "优化同意横幅展示逻辑，仅在首页显示并调整样式"
+    },
+    {
+      "hash": "12140c8",
+      "date": "2026-09-12",
+      "subject": "add user consent mechanism for registration and legal compliance"
+    }
+  ],
   "entries": [
+    {
+      "hash": "1b761ca",
+      "date": "2026-11-13",
+      "subject": "Update bug feedback prompt and version check dialog"
+    },
     {
       "hash": "6bad9c3",
       "date": "2026-11-08",

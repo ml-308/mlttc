@@ -1,11 +1,11 @@
 @import url('./main.css');
 
 /* ============================================
-   更新日志页：按时间倒序的提交列表
+   更新日志页：按版本倒序的发版记录
    ============================================ */
 
 .changelog {
-    /* 行宽收到接近长文页，条目是「日期 + 一句话」，过宽反而难扫读 */
+    /* 行宽收到接近长文页：条目是「版本 + 分组 + 若干句话」，过宽反而难扫读 */
     max-width: 820px;
     gap: 0;
 }
@@ -59,16 +59,171 @@
     line-height: 1.7;
 }
 
-/* ---------- 列表 ---------- */
+/* ---------- 发版记录 ---------- */
 .changelog-list {
     list-style: none;
-    margin: .25rem 0 0;
+    margin: .5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.changelog-release {
+    position: relative;
+    padding: 1.15rem 1.35rem 1.3rem;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.changelog-release:hover {
+    border-color: var(--border);
+}
+
+/* 最新一版在卡片上缘点一条主色短线：不抢内容，但能一眼看出从哪里开始读 */
+.changelog-release:first-child::before {
+    content: '';
+    position: absolute;
+    inset-block-start: -1px;
+    inset-inline: 1.35rem auto;
+    width: 2.5rem;
+    height: 2px;
+    border-radius: var(--radius-full);
+    background: var(--primary);
+}
+
+.changelog-release-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: .5rem .6rem;
+    margin-bottom: .35rem;
+}
+
+.changelog-version {
+    font-family: var(--font-mono);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+}
+
+.changelog-latest {
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    line-height: 1.6;
+    color: var(--on-primary);
+    background: var(--primary);
+    padding: 0 .5rem;
+    border-radius: var(--radius-full);
+}
+
+.changelog-release-date {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: .78rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.changelog-section {
+    margin-top: .85rem;
+}
+
+.changelog-section-title {
+    margin: 0 0 .45rem;
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--text-secondary);
+}
+
+.changelog-points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+
+.changelog-points>li {
+    position: relative;
+    padding-left: 1rem;
+    font-size: .92rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+/* 条目圆点：和卡片留白同一节奏，不用默认 list-style 的大黑点 */
+.changelog-points>li::before {
+    content: '';
+    position: absolute;
+    left: .12rem;
+    top: .75em;
+    width: .3rem;
+    height: .3rem;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.changelog-points strong {
+    font-weight: 700;
+}
+
+.changelog-points code {
+    font-family: var(--font-mono);
+    font-size: .86em;
+    background: var(--bg-hover);
+    padding: .08em .34em;
+    border-radius: var(--radius-xs);
+}
+
+.changelog-points a {
+    color: var(--link-color);
+    text-decoration: none;
+}
+
+.changelog-points a:hover {
+    text-decoration: underline;
+}
+
+/* ---------- 更早的改动（按版本记录之前的提交） ---------- */
+.changelog-history {
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-light);
+}
+
+.changelog-history-title {
+    margin: 0 0 .25rem;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+}
+
+.changelog-history-hint {
+    margin: 0 0 .5rem;
+    font-size: .8rem;
+    line-height: 1.7;
+    color: var(--text-muted);
+}
+
+.changelog-history-list {
+    list-style: none;
+    margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
     border-top: 1px solid var(--border-light);
 }
 
+/* ---------- 扁平条目（早期提交 / 旧快照回退） ---------- */
 .changelog-item {
     display: flex;
     align-items: baseline;
@@ -117,8 +272,23 @@
     background: var(--bg-card);
 }
 
-/* ---------- 窄屏：日期与 hash 并到一行，标题独占下一行 ---------- */
+/* ---------- 窄屏 ---------- */
 @media (max-width: 480px) {
+    .changelog-release {
+        padding: 1rem 1rem 1.1rem;
+    }
+
+    .changelog-release-date {
+        /* 版本号与日期挤一行会换行，日期收到下一行左侧更整齐 */
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .changelog-points>li {
+        font-size: .9rem;
+    }
+
+    /* 日期与 hash 并到一行，标题独占下一行 */
     .changelog-item {
         display: grid;
         grid-template-columns: 1fr auto;
