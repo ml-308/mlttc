@@ -156,8 +156,9 @@ export const LIMITS = {
   profileRead: { name: 'profile-read', max: 60, window: 60 },
   /** 新增 / 修改时刻表 */
   write: { name: 'write', max: 10, window: 600 },
-  /** 批量导入时刻表（一个请求最多写 20 行，额度必须独立于 write，否则会立刻撞限） */
-  import: { name: 'timetable-import', max: 5, window: 600 },
+  /** 批量导入时刻表：批量导入已改为**逐行提交**（每行一个请求），额度必须按行计，
+   *  否则 20 行的一次导入会立刻撞限；因此从 5 提到 300（10 分钟内最多 300 行） */
+  import: { name: 'timetable-import', max: 300, window: 600 },
   /** 删除时刻表 */
   remove: { name: 'remove', max: 20, window: 600 },
   /** 登录（防脚本撞库 / 请求过多） */
@@ -171,5 +172,7 @@ export const LIMITS = {
   /** 时刻表错误报告（防灌水：10 分钟 5 次） */
   report: { max: 5, window: 600, name: 'report' },
   /** 他人公开主页读取（每次页面加载调 1 次，额度必须宽松） */
-  userRead: { max: 60, window: 60, name: 'user-profile' }
+  userRead: { max: 60, window: 60, name: 'user-profile' },
+  /** GitHub OAuth（登录 + 回调共用一套额度：防刷 state / 刷 code 换 token） */
+  githubAuth: { max: 10, window: 600, name: 'github-auth' }
 };

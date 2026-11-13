@@ -7,7 +7,8 @@
 //   signToken(payload, secret, expiresIn)  签发 JWT（HS256，默认 30 天）
 //   verifyToken(token, secret)             校验 JWT，失败抛异常，成功返回 payload
 //   getCookie(request, name)               从请求头 Cookie 中取值
-//   setAuthCookie(response, token)         写入登录 Cookie
+//   setAuthCookie(response, token, opts)    写入登录 Cookie
+//                                          opts.persistent=false → 会话 Cookie
 //   clearAuthCookie(response)              清除登录 Cookie
 //
 // Cookie 约定：
@@ -119,11 +120,19 @@ export function getCookie(request, name) {
   return cookies[name] || null;
 }
 
-// 设置 httpOnly Cookie（30天过期，兼容 Safari）
-export function setAuthCookie(response, token) {
+// 设置 httpOnly Cookie（兼容 Safari）
+//   persistent: true（默认） → 30 天持久化 Cookie，带 Max-Age=2592000
+//   persistent: false        → 会话 Cookie，不带 Max-Age / Expires，
+//                              关掉浏览器即失效（「不保持登录」用）
+// 注意：不传第 3 个参数时行为与改动前完全一致（向后兼容）。
+//       另外 JWT 自身也有 exp，调用方必须让 expiresIn 与这里的取值配套，
+//       否则会出现「Cookie 是会话级但 JWT 还能用 30 天」的不一致。
+export function setAuthCookie(response, token, { persistent = true } = {}) {
   response.headers.set(
     'Set-Cookie',
-    `auth_token=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=2592000`
+    persistent
+      ? `auth_token=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=2592000`
+      : `auth_token=${token}; HttpOnly; Secure; SameSite=None; Path=/`
   );
 }
 

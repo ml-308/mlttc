@@ -95,6 +95,8 @@ function mountBanner() {
 
 /* ==================== 登录前同意提示 ==================== */
 
+// 兜底提示：只在没有主动勾选区的页面（未加载 main.js 的挂载逻辑）出现。
+// 若 main.js 已注入 .auth-extras，它会负责移除本节点——主动勾选优先，此处不判断加载顺序。
 function mountLoginNotice() {
   document.querySelectorAll('#globalLoginModal').forEach((modal) => {
     if (modal.querySelector('.consent-login-notice')) return;

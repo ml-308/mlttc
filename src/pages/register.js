@@ -14,6 +14,7 @@
 import { setConsent } from '/src/consent.js';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
+import { TURNSTILE_SITE_KEY } from '/src/config.js';
 
 /** 注册防重复提交：连点会发出多个注册请求，很可能被服务端限流 */
 const registerGuard = createGuard('正在注册，请稍候…');
@@ -199,7 +200,7 @@ function passwordconfirminput(){
     }
 }
 
-function refisterbtnclick(){
+async function refisterbtnclick(){
     emailinput();
     passinput();
     passwordinput();
@@ -226,35 +227,201 @@ function refisterbtnclick(){
         console.log('error');
         return;
     }
+
+    // 人机验证：site key 留空时整段跳过（不加载脚本、不渲染、不传 turnstileToken）
+    let token='';
+    if(TURNSTILE_SITE_KEY){
+        if(!(await ensureTurnstileWidget())) return;   // 加载失败已在 ensure 里提示
+        token=await getTurnstileToken();
+        if(!token){
+            showMessage('人机验证未通过，请稍后重试',true);
+            resetTurnstile();
+            return;
+        }
+    }
+
     const emaili=email.value;
     const passwordi=password.value;
-    registerGuard.run(() => writeD1(emaili, passwordi));
+    registerGuard.run(() => writeD1(emaili, passwordi, token));
 }
 
-async function writeD1(email,password){
+async function writeD1(email,password,token){
     console.log('writeD1');
     // 记录用户同意（本地保存条款版本与时间）
     const consent=setConsent({ source:'register', email: email });
-    const res = await fetch('/api/register-D1', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    const body={
         email: email,
         password: password,
         agree: true,
         policyVersion: consent.version,
         agreedAt: consent.time
-  })
+    };
+    // turnstileToken 只在启用并拿到 token 时带上
+    if(token) body.turnstileToken=token;
+
+    const res = await fetch('/api/register-D1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
 });
     const data=await res.json();
     console.log(data);
     if(!res.ok){
+        // token 是一次性的，失败后必须 reset，否则再点注册会一直失败
+        resetTurnstile();
         showMessage(data.message,1);
     }
     else{
         showMessage(data.message,0);
         window.location.href='index.html';
     }
+}
+
+/* ==================== 人机验证（Cloudflare Turnstile） ==================== */
+/* TURNSTILE_SITE_KEY 留空时：不加载第三方脚本、不渲染组件、提交不带 turnstileToken */
+
+const TURNSTILE_SCRIPT_URL='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+
+/** 脚本加载 Promise / 组件实例 id / 最近一次 token / 等待 token 的回调 */
+let turnstileScriptPromise=null;
+let turnstileWidgetId=null;
+let turnstileToken='';
+let turnstileWaiters=[];
+
+/** 动态加载 Turnstile 脚本（只加载一次）；失败或超时 reject，由调用方降级提示 */
+function loadTurnstileScript(){
+    if(window.turnstile) return Promise.resolve(window.turnstile);
+    if(turnstileScriptPromise) return turnstileScriptPromise;
+    turnstileScriptPromise=new Promise((resolve,reject)=>{
+        const script=document.createElement('script');
+        script.src=TURNSTILE_SCRIPT_URL;
+        script.async=true;
+        script.defer=true;
+        // 15 秒还没加载出来就降级，避免注册按钮点了没反应
+        const timer=setTimeout(()=>reject(new Error('turnstile-script-timeout')),15000);
+        script.onload=()=>{ clearTimeout(timer); resolve(window.turnstile); };
+        script.onerror=()=>{ clearTimeout(timer); reject(new Error('turnstile-script-error')); };
+        document.head.appendChild(script);
+    }).catch((err)=>{
+        turnstileScriptPromise=null;   // 允许下次重试
+        throw err;
+    });
+    return turnstileScriptPromise;
+}
+
+/** 唤醒所有等待 token 的回调 */
+function flushTurnstileWaiters(token){
+    const waiters=turnstileWaiters;
+    turnstileWaiters=[];
+    waiters.forEach((fn)=>fn(token));
+}
+
+/** 等 widget 回调产出 token，超时返回空串 */
+function waitForTurnstileToken(timeout){
+    return new Promise((resolve)=>{
+        const waiter=(token)=>{
+            clearTimeout(timer);
+            resolve(typeof token==='string'?token:'');
+        };
+        const timer=setTimeout(()=>{
+            turnstileWaiters=turnstileWaiters.filter((fn)=>fn!==waiter);
+            resolve('');
+        },timeout);
+        turnstileWaiters.push(waiter);
+    });
+}
+
+/**
+ * 确保 Turnstile 已渲染就绪
+ * site key 留空时直接返回 true 且什么都不做
+ */
+async function ensureTurnstileWidget(){
+    if(!TURNSTILE_SITE_KEY) return true;
+    if(turnstileWidgetId!==null) return true;
+    const container=document.getElementById('registerTurnstile');
+    if(!container) return false;
+    try{
+        const turnstile=await loadTurnstileScript();
+        if(!turnstile||typeof turnstile.render!=='function') throw new Error('turnstile-unavailable');
+        turnstileWidgetId=turnstile.render(container,{
+            sitekey:TURNSTILE_SITE_KEY,
+            // 验证通过 → 记下 token；过期或出错 → 清空，等待用户重新验证
+            callback:(token)=>{ turnstileToken=token; flushTurnstileWaiters(token); },
+            'expired-callback':()=>{ turnstileToken=''; },
+            'error-callback':()=>{ turnstileToken=''; flushTurnstileWaiters(''); }
+        });
+        return true;
+    }catch{
+        // 加载失败要明确告诉用户，不能静默卡住
+        showMessage('人机验证加载失败，请检查网络后重试',true);
+        return false;
+    }
+}
+
+/** 取当前有效 token；没有就等回调，最多 8 秒 */
+async function getTurnstileToken(){
+    if(!TURNSTILE_SITE_KEY) return '';
+    if(turnstileToken) return turnstileToken;
+    if(window.turnstile&&turnstileWidgetId!==null){
+        try{
+            const token=window.turnstile.getResponse(turnstileWidgetId);
+            if(token){ turnstileToken=token; return token; }
+        }catch{
+            // 拿不到就走等待回调
+        }
+    }
+    return waitForTurnstileToken(8000);
+}
+
+/** 重置 widget：token 是一次性的，失败后不 reset 就会一直失败 */
+function resetTurnstile(){
+    turnstileToken='';
+    turnstileWaiters=[];
+    if(window.turnstile&&turnstileWidgetId!==null){
+        try{ window.turnstile.reset(turnstileWidgetId); }catch{ /* 忽略 */ }
+    }
+}
+
+/* ==================== GitHub 注册入口与授权回调 ==================== */
+
+const authParam=new URLSearchParams(window.location.search).get('auth');
+
+/** 后端回调带回来的错误码 → 提示文案 */
+const AUTH_CALLBACK_MESSAGE={
+    'unconfigured':{ text:'GitHub 注册暂未开通（管理员尚未配置）', error:true },
+    'state-error':{ text:'授权校验失败，请重试', error:true }
+};
+
+function handleAuthCallback(){
+    if(!authParam) return;
+    const info=AUTH_CALLBACK_MESSAGE[authParam];
+    if(info){
+        showMessage(info.text,info.error);
+        // 清掉查询参数，刷新页面时不再重复提示
+        window.history.replaceState(null,'',window.location.pathname);
+        return;
+    }
+    if(authParam==='github'){
+        // 后端已用 GitHub 账号完成注册并种下会话 cookie：提示后直接进首页
+        showMessage('GitHub 注册成功，正在进入首页…',false);
+        window.history.replaceState(null,'',window.location.pathname);
+        setTimeout(()=>{ window.location.href='/index.html'; },1200);
+    }
+}
+
+const githubRegisterBtn=document.getElementById('githubRegisterBtn');
+if(githubRegisterBtn){
+    githubRegisterBtn.addEventListener('click',()=>{
+        // 交给后端发起 GitHub 授权；from=register 让回调完成后回到注册页
+        window.location.href='/api/auth-github?from=register';
+    });
+}
+
+handleAuthCallback();
+
+/* site key 非空时，进页面就把人机验证渲染出来 */
+if(TURNSTILE_SITE_KEY){
+    ensureTurnstileWidget();
 }
 
 /* ==================== 进入注册页时的提示框 ==================== */

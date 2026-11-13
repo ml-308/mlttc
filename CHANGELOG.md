@@ -4,6 +4,37 @@
 
 ---
 
+## [1.5.0] - 2026-11-13
+
+### 🎉 新增
+
+- **Cloudflare Turnstile 人机验证**：登录与注册都接入。前端按 `src/config.js` 的 site key 决定是否启用（留空则整条链路跳过，站点行为与之前完全一致且不产生任何第三方请求）；secret 走环境变量 `TURNSTILE_SECRET`。配置后服务端 **fail-closed**（网络异常也拦住），失败返回 400「人机验证未通过，请重试」。
+- **GitHub 注册 / 登录**：注册页新增「使用 GitHub 注册」（`GET /api/auth-github` → `/api/auth-github-callback`）。授权后按 GitHub 的 primary verified 邮箱认人：老用户直接登录，新用户**直接建号**（密码列存随机串哈希占位，该账号只能走 GitHub 登录）。`state` 用 HMAC 签名 + 10 分钟时间窗防 CSRF，不依赖 KV（KV 最终一致，验证可能读到旧值）。
+- **登录框同意勾选**：①「已阅读并同意《用户协议》《隐私政策》」——首次必须勾选，同意后记住，条款升版会重新强制；②「同意使用 cookie 保持登录」——不勾则下发**会话 Cookie** 且 JWT 缩到 12 小时，关浏览器即登出（此前一律 30 天）。
+- **批量导入改为逐条上传**：一行一个请求、严格串行。成功的卡片**向左滑出**、下方卡片 FLIP 平滑上移补位；失败的行**变红并钉在队列首位**，不阻塞后续行继续上传；只有 429 限流会暂停整个队列并给出「重试未完成的 N 行」。
+
+### 🎨 界面
+
+- **搜索结果下滑入场更明显**：结果区入场从原来的 `-8px / 0.35s` 改为独立的 `-24px / 0.45s` 新 keyframes（不动 `.result-card` 共用的旧动画，避免波及别的卡），并补上 reduced-motion 下的彻底关闭。
+- **列表列数随屏宽自适应**：搜索结果与「我的时刻表」统一为 `≥1200px` 三列 / `601–1199px` 两列 / `≤600px` 单列，深色主题同步；网格子项加 `min-width: 0`，三列时不会被内容顶宽。
+- **登录框同意文案去重**：`consent.js` 原本会插一句「继续登录即表示你已阅读并同意…」，与新的强制勾选自相矛盾；现在由登录框挂载勾选区时移除，没有 `main.js` 的页面仍保留原提示作为兜底。
+
+### ⚠️ 行为与政策变更（须知）
+
+- **注册不再受邀请码约束**：GitHub 授权即可建号，等于开通了公开注册入口（此前仅持邀请码的邮箱可注册）。这是明确的产品决定，不是回归。
+- **注册成功后会顺手下发登录 Cookie**：由 `rememberCookie` 控制是否持久化。此前注册完还需要手动登录一次。
+- **`LIMITS.import` 从 5 次 / 10 分钟改为 300 次 / 10 分钟**：逐行提交后额度必须按行计，否则 20 行的导入会当场撞限。
+
+### 🛠 内部
+
+- 新增 `functions/turnstile.js`、`functions/api/auth-github.js`、`functions/api/auth-github-callback.js`、`src/config.js`、`style/timetable-import.css`。
+- `setAuthCookie(response, token, { persistent })` 支持会话 Cookie，不传参时行为与改动前一致；JWT 有效期与 Cookie 类型严格配套。
+- 需要的环境变量：`TURNSTILE_SECRET`、`GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`（可选 `GITHUB_REDIRECT_URI`，缺省按请求 origin 推导）。全部只从 `env` 读，不进仓库。
+- 测试：`tools/import-ui-test`（断言 128 → 143）与 `tools/import-api-test`（76 → 77）更新到「逐条提交 + 300 次限流」的新契约，并新增串行性、单行失败不中断等断言；`tools/nav-smoke-test` 的导航项数量断言改为从导航配置推导，修掉一处长期假红（导航多一个链接就全红）。
+- 版本号 1.4.1 → 1.5.0。
+
+---
+
 ## [1.4.1] - 2026-11-13
 
 ### 🔒 安全

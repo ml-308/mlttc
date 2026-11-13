@@ -16,7 +16,17 @@ const navSrc = readFileSync(path.join(root, 'src/nav.js'), 'utf8')
   .replace("'/lib/ui/message.mjs'", "'./message.mjs'")
   .replace("'/lib/ui/guard.mjs'", "'./guard.mjs'");
 const generated = path.join(path.dirname(fileURLToPath(import.meta.url)), 'nav-under-test.mjs');
-writeFileSync(generated, navSrc, 'utf8');
+// src/nav.js 只导出 { nav, isLoggedIn, tidyHeader }，但断言需要读菜单结构来推导期望值，
+// 故在生成副本时补一条导出（只改副本，不动 src/nav.js 本体）
+writeFileSync(generated, navSrc + '\nexport { NAV_SECTIONS };\n', 'utf8');
+
+/** 期望的 a.nav-item 数量：由导航配置推导 = 各组 items 链接总数 + 抽屉底部「退出登录」1 项 */
+function expectedNavItemCount(sections) {
+  return sections.reduce((n, section) => n + section.items.length, 0) + 1;
+}
+
+// 首次 import 后由 nav 配置算出，之后各页复用（导航结构不随页面变化）
+let expectedNavItems = null;
 
 async function checkPage(file) {
   const html = readFileSync(path.join(root, file), 'utf8');
@@ -33,6 +43,7 @@ async function checkPage(file) {
   globalThis.fetch = async (url) => { events.fetched = url; return { ok: true, json: async () => ({}) }; };
 
   const nav = await import('./nav-under-test.mjs?t=' + Date.now());
+  expectedNavItems ??= expectedNavItemCount(nav.NAV_SECTIONS);
   doc.dispatch('DOMContentLoaded');
 
   const toggle = doc.getElementById('navToggleBtn');
@@ -80,8 +91,9 @@ for (const f of files) {
   if (needsHeader && !r.toggleInHeader) problems.push('☰ 未注入页头');
   if (needsHeader && !r.toggleIsFirstChild) problems.push('☰ 不是页头第一个元素');
   if (!r.drawerInBody || !r.overlayInBody) problems.push('抽屉/遮罩未挂到 body');
-  // 导航结构：3 组 5 个链接 + 抽屉底部「退出登录」= 6 个 a.nav-item
-  if (r.navItems !== 6) problems.push('导航项数量=' + r.navItems);
+  // 导航结构：数量由 nav 配置推导（各组 items 链接数 + 抽屉底部「退出登录」），
+  // 加/删一个导航链接会自动跟随；实际值仍按桩 DOM 里数出的 a.nav-item 条目数，少渲染即 FAIL
+  if (r.navItems !== expectedNavItems) problems.push('导航项数量=' + r.navItems + '（期望 ' + expectedNavItems + '）');
   if (r.icons !== 0) problems.push('导航仍有 emoji 图标=' + r.icons);
   if (r.emojiLabel) problems.push('抽屉标题含 emoji');
   if (needsHeader && !r.hasMyTimetable) problems.push('缺少「我的时刻表」入口');

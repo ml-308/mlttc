@@ -1617,3 +1617,79 @@ body.nav-open {
         padding-inline: 0;
     }
 }
+
+/* ============ 登录弹窗同意区（由 src/pages/main.js 运行时注入） ============ */
+/* 结构：.auth-extras > .auth-consent（两条勾选）+ #loginTurnstile（人机验证容器） */
+
+#globalLoginModal .auth-extras {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    margin-bottom: .75rem;
+}
+
+#globalLoginModal .auth-consent {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    padding: .7rem .85rem;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    background: var(--bg-hover);
+}
+
+/* 未勾选政策就点登录：红框提醒 */
+#globalLoginModal .auth-consent.invalid {
+    border-color: var(--danger);
+}
+
+#globalLoginModal .auth-check {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    margin: 0;
+    font-size: .76rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+#globalLoginModal .auth-check input[type="checkbox"] {
+    flex-shrink: 0;
+    width: .95rem;
+    height: .95rem;
+    margin-top: .18rem;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+#globalLoginModal .auth-check a {
+    color: var(--link-color);
+}
+
+/* site key 留空时脚本不渲染 → 容器仍是空的 → 用 :empty 彻底隐藏，不留空白框 */
+#globalLoginModal .auth-turnstile {
+    display: flex;
+    justify-content: center;
+}
+
+#globalLoginModal .auth-turnstile:empty {
+    display: none;
+}
+
+/* ============ 注册页：人机验证 + GitHub 注册（src/pages/register.js） ============ */
+
+.register-turnstile {
+    display: flex;
+    justify-content: center;
+    margin: .25rem 0 .5rem;
+}
+
+.register-turnstile:empty {
+    display: none;
+}
+
+.register-github-btn {
+    width: 100%;
+    margin-top: .6rem;
+}

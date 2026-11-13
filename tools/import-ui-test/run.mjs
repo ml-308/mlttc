@@ -4,8 +4,8 @@
  *
  * 用 tools/nav-smoke-test/dom-stub.mjs 的最小 DOM 桩，加载真实的 timetable.html 骨架，
  * 再挂上真实的导入面板组件，逐条验证：
- *   分页预览（20/页）、非法行阻止上传、按 20 行自动分批串行提交、
- *   429 断点续传、409 部分完成如实报告、未登录不发起请求、模板下载不抛错。
+ *   分页预览（20/页）、非法行阻止上传、逐行提交（一行一个请求、同一时刻只在飞一个）、
+ *   单行失败不中断其余行、429 暂停队列并给「重试未完成」、未登录不发起请求、模板下载不抛错。
  *
  * 用法：node tools/import-ui-test/run.mjs
  * 全部通过打印 PASS n/n 并以 0 退出；任一断言失败打印首个失败详情并以非 0 退出。
@@ -102,6 +102,11 @@ function newPanel(opts = {}) {
     const notifyCalls = [];
     const calls = [];
 
+    /* 「同一时刻在飞请求数」计数器
+     * 递增落在 fetchImpl 的最外层同步段（并发实现会在同一个 tick 里叠起来），
+     * 递减放在组件读完 body（json() 之后）—— 只有这样「串行」与「并发池」才可区分。 */
+    const counter = { inFlight: 0, max: 0 };
+
     const fetchImpl = async (url, init) => {
         const call = {
             index: calls.length + 1,
@@ -110,16 +115,27 @@ function newPanel(opts = {}) {
             body: init && init.body ? JSON.parse(init.body) : null
         };
         calls.push(call);
-        if (opts.respond) return opts.respond(call);
-        const size = call.body ? call.body.items.length : 0;
+        counter.inFlight += 1;
+        if (counter.inFlight > counter.max) counter.max = counter.inFlight;
+
+        let res;
+        try {
+            res = opts.respond ? await opts.respond(call) : okResponse(call);
+        } catch (error) {
+            counter.inFlight -= 1;
+            throw error;
+        }
+
+        const readBody = res.json;
         return {
-            ok: true,
-            status: 201,
-            json: async () => ({
-                success: true,
-                inserted: size,
-                items: Array.from({ length: size }, (_, i) => ({ row: i + 2, id: 'ID' + i }))
-            })
+            ...res,
+            json: async () => {
+                try {
+                    return await readBody();
+                } finally {
+                    counter.inFlight -= 1;
+                }
+            }
         };
     };
 
@@ -133,7 +149,7 @@ function newPanel(opts = {}) {
     });
 
     const $ = (id) => doc.getElementById(id);
-    return { doc, mount, panel, calls, notifyCalls, $ };
+    return { doc, mount, panel, calls, notifyCalls, counter, $ };
 }
 
 const okResponse = (call) => {
@@ -221,61 +237,80 @@ const okResponse = (call) => {
 }
 
 /* ------------------------------------------------------------------ */
-/* 3. 45 行 → 自动分 3 批串行提交（20 / 20 / 5），合起来不重不漏        */
+/* 3. 45 行 → 逐行提交：45 个请求、每个只带 1 条、严格串行、不重不漏    */
+/*    【替换】旧用例「45 行自动分 3 批（20/20/5）一次请求」：分批概念已   */
+/*    不存在（后端每个请求只收到 1 行），故改写成逐条语义的新用例。       */
 /* ------------------------------------------------------------------ */
 
 {
-    const { panel, $, calls } = newPanel({ respond: okResponse });
+    const { panel, $, calls, counter } = newPanel({ respond: okResponse });
     panel.setRows(makeTable(45));
 
-    check($('import-confirm').disabled === false, '分批：45 行合法数据不应禁用上传（智能分批，行数不阻塞）');
+    check($('import-confirm').disabled === false, '逐条：45 行合法数据不应禁用上传（行数不再阻塞）');
     check($('import-confirm').hasAttribute('disabled') === false,
-        '分批：合法数据时 disabled 属性必须被移除（否则 hcw-button 一直是灰的）');
-    check(panel.getState().canUpload === true, '分批：getState().canUpload 应为 true');
-    check(panel.getState().batchCount === 3, `分批：应计划 3 批，实际 ${panel.getState().batchCount}`);
+        '逐条：合法数据时 disabled 属性必须被移除（否则 hcw-button 一直是灰的）');
+    check(panel.getState().canUpload === true, '逐条：getState().canUpload 应为 true');
+    // 新契约：要发的请求数 == 待上传行数（旧期望 batchCount === 3）
+    check(panel.getState().batchCount === 45, `逐条：应计划 45 个请求，实际 ${panel.getState().batchCount}`);
+    check(panel.getState().requestCount === 45, `逐条：requestCount 应为 45，实际 ${panel.getState().requestCount}`);
+    check(panel.getState().perRequest === 1, `逐条：perRequest 应为 1，实际 ${panel.getState().perRequest}`);
 
     $('import-confirm').dispatch('click');
     await settle();
 
     const sizes = calls.map((call) => call.body.items.length);
-    check(calls.length === 3, `分批：应调用 3 次，实际 ${calls.length}（${sizes.join('/')}）`);
-    check(JSON.stringify(sizes) === JSON.stringify([20, 20, 5]), `分批：每批条数应为 20/20/5，实际 ${sizes.join('/')}`);
+    // ④ 45 行 = 45 个请求（旧期望：3 次调用）
+    check(calls.length === 45, `逐条：45 行应发 45 个请求，实际 ${calls.length}（${sizes.join('/')}）`);
+    // ① 每个请求体 items.length === 1（旧期望：[20, 20, 5]）
+    check(sizes.every((size) => size === 1), `逐条：每个请求 items.length 必须为 1，实际 ${sizes.join('/')}`);
+    // ② 串行：同一时刻在飞请求数峰值必须是 1
+    check(counter.max === 1, `逐条：应严格串行（在飞请求数峰值为 1），实际峰值 ${counter.max}`);
+    check(counter.inFlight === 0, `逐条：提交结束后不应留有在飞请求，实际 ${counter.inFlight}`);
 
     const sentWays = calls.flatMap((call) => call.body.items.map((item) => item.way));
-    check(sentWays.length === 45, `分批：三次 items 合计应 45 条，实际 ${sentWays.length}`);
-    check(new Set(sentWays).size === 45, `分批：三次 items 不应重复，去重后 ${new Set(sentWays).size}`);
+    check(sentWays.length === 45, `逐条：45 个请求合计应 45 条，实际 ${sentWays.length}`);
+    check(new Set(sentWays).size === 45, `逐条：45 个请求不应重复，去重后 ${new Set(sentWays).size}`);
     const expected = Array.from({ length: 45 }, (_, i) => `测试${i + 1}路`);
-    check(expected.every((way) => sentWays.includes(way)), '分批：三次 items 不应漏行');
+    check(expected.every((way) => sentWays.includes(way)), '逐条：45 个请求不应漏行');
+    // 串行的另一个可观察特征：请求按队列（Excel 行号）顺序发出，不跳号
+    check(sentWays.every((way, index) => way === expected[index]),
+        `逐条：请求应按行序发出，首个乱序位置 ${sentWays.findIndex((way, index) => way !== expected[index])}`);
 
     const first = calls[0];
-    check(first.url === '/api/timetable-import-D1', `分批：URL 应为 /api/timetable-import-D1，实际 ${first.url}`);
-    check(first.init.method === 'POST', `分批：method 应为 POST，实际 ${first.init.method}`);
-    check(first.init.credentials === 'include', `分批：应带 credentials: include，实际 ${first.init.credentials}`);
-    check(first.init.headers['Content-Type'] === 'application/json', '分批：Content-Type 应为 application/json');
+    check(first.url === '/api/timetable-import-D1', `逐条：URL 应为 /api/timetable-import-D1，实际 ${first.url}`);
+    check(first.init.method === 'POST', `逐条：method 应为 POST，实际 ${first.init.method}`);
+    check(first.init.credentials === 'include', `逐条：应带 credentials: include，实际 ${first.init.credentials}`);
+    check(first.init.headers['Content-Type'] === 'application/json', '逐条：Content-Type 应为 application/json');
     check(Object.keys(first.body).join(',') === 'items,writer,writetime',
-        `分批：请求体应只有 items/writer/writetime，实际 ${Object.keys(first.body).join(',')}`);
-    check(first.body.writer === '测试用户', `分批：writer 应为注入值，实际 ${first.body.writer}`);
-    check(first.body.writetime === '2025-06-01', `分批：writetime 应为本地日期，实际 ${first.body.writetime}`);
+        `逐条：请求体应只有 items/writer/writetime，实际 ${Object.keys(first.body).join(',')}`);
+    check(first.body.writer === '测试用户', `逐条：writer 应为注入值，实际 ${first.body.writer}`);
+    check(first.body.writetime === '2025-06-01', `逐条：writetime 应为本地日期，实际 ${first.body.writetime}`);
     const keys = Object.keys(first.body.items[0]);
-    check(keys.length === 8, `分批：每项应 8 个字段，实际 ${keys.length}`);
-    check(!('row' in first.body.items[0]), '分批：items 不应带 row 字段');
+    check(keys.length === 8, `逐条：每项应 8 个字段，实际 ${keys.length}`);
+    check(!('row' in first.body.items[0]), '逐条：items 不应带 row 字段');
     check(keys.join(',') === 'city,way,start,end,special,time1,time2,etime',
-        `分批：字段名/顺序应逐字对齐后端契约，实际 ${keys.join(',')}`);
+        `逐条：字段名/顺序应逐字对齐后端契约，实际 ${keys.join(',')}`);
     // 真实抓到的第一段请求体，供报告引用
     check(typeof first.body.items[0].time1 === 'string' && first.body.items[0].time1.length > 0,
-        '分批：time1 应已是入库格式');
+        '逐条：time1 应已是入库格式');
 
     const result = text($('import-result'));
-    check($('import-result').classList.contains('success'), `分批：结果卡应有 success 类，实际「${$('import-result').className}」`);
-    check(result.includes('分 3 批写入 45 条时刻表'), `分批：成功文案异常「${result}」`);
-    check(result.includes('第 2-21 行') && result.includes('第 42-46 行'), `分批：应列出每批行号范围，「${result}」`);
-    check(panel.getState().total === 0, '分批：全部成功后应清空预览');
-    console.log('  [证据] 45 行分批 → 每批 items.length =', sizes.join(' / '));
-    console.log('  [证据] 第 1 批 items[0] =', JSON.stringify(first.body.items[0]));
+    check($('import-result').classList.contains('success'), `逐条：结果卡应有 success 类，实际「${$('import-result').className}」`);
+    // 新文案：「导入成功：逐条写入 45 条时刻表」（旧期望「分 3 批写入 45 条时刻表」）
+    check(result.includes('导入成功') && result.includes('逐条写入 45 条时刻表'),
+        `逐条：成功文案异常「${result}」`);
+    // 【替换】旧断言「应列出每批行号范围（第 2-21 行 / 第 42-46 行）」：
+    // 逐条提交没有「批」，成功卡片不再罗列行号范围
+    check(!result.includes('批'), `逐条：成功文案不应再出现「批」的措辞，「${result}」`);
+    check(panel.getState().total === 0, '逐条：全部成功后应清空预览');
+    console.log('  [证据] 45 行逐条上传 → 请求数 =', calls.length, '/ 在飞峰值 =', counter.max);
+    console.log('  [证据] 第 1 个请求 items =', JSON.stringify(first.body.items));
 }
 
 /* ------------------------------------------------------------------ */
-/* 4. 20 行及以下 → 单请求原子提交                                    */
+/* 4. 小文件同样是逐行：20 行 = 20 个请求，1 行 = 1 个请求             */
+/*    【替换】旧用例「20 行及以下 → 单请求原子提交（items 里塞 20 条）」： */
+/*    「一个请求写一批」的原子语义已不存在，N 行就是 N 个请求。            */
 /* ------------------------------------------------------------------ */
 
 {
@@ -284,17 +319,17 @@ const okResponse = (call) => {
     $('import-confirm').dispatch('click');
     await settle();
 
-    check(calls.length === 1, `原子：20 行应只调用 1 次，实际 ${calls.length}`);
-    check(calls[0].body.items.length === 20, `原子：单次 items 应为 20，实际 ${calls[0].body.items.length}`);
-    check(text($('import-result')).includes('已写入 20 条时刻表'), `原子：成功文案异常「${text($('import-result'))}」`);
+    check(calls.length === 20, `逐条：20 行应发 20 个请求，实际 ${calls.length}`);
+    check(calls.every((call) => call.body.items.length === 1), '逐条：20 行的每个请求也只带 1 条');
+    check(text($('import-result')).includes('逐条写入 20 条时刻表'), `逐条：成功文案异常「${text($('import-result'))}」`);
 
-    // 1 行也走原子路径
+    // 1 行是同一条逐条路径的 N=1（旧用例里叫「原子路径」）
     const single = newPanel({ respond: okResponse });
     single.panel.setRows(makeTable(1));
     single.$('import-confirm').dispatch('click');
     await settle();
     check(single.calls.length === 1 && single.calls[0].body.items.length === 1,
-        `原子：1 行应 1 次调用 1 条，实际 ${single.calls.length} 次`);
+        `逐条：1 行应 1 次调用 1 条，实际 ${single.calls.length} 次`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -328,11 +363,12 @@ const okResponse = (call) => {
 
     okCity.$('import-confirm').dispatch('click');
     await settle();
-    check(okCity.calls.length === 1, `城市：应发起 1 次上传，实际 ${okCity.calls.length}`);
+    // 逐行提交：2 行 = 2 个请求，每个请求 items 里只有自己那一行
+    check(okCity.calls.length === 2, `城市：2 行应发起 2 个请求，实际 ${okCity.calls.length}`);
     check(okCity.calls[0].body.items[0].city === '江苏省 无锡市',
         `城市：请求体应带库内写法「江苏省 无锡市」，实际「${okCity.calls[0].body.items[0].city}」`);
-    check(okCity.calls[0].body.items[1].city === '江苏省 无锡市/江苏省 苏州市',
-        `城市：合营线路应逐段规范化，实际「${okCity.calls[0].body.items[1].city}」`);
+    check(okCity.calls[1].body.items[0].city === '江苏省 无锡市/江苏省 苏州市',
+        `城市：合营线路应逐段规范化，实际「${okCity.calls[1].body.items[0].city}」`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -399,7 +435,9 @@ const okResponse = (call) => {
 }
 
 /* ------------------------------------------------------------------ */
-/* 5. 第 2 批 429 → 部分完成 + 断点续传不重发已成功批、不漏行          */
+/* 5. 单行 429 → 暂停整个队列 + 「重试未完成」不重发已写入的行、不漏行   */
+/*    【替换】旧用例「第 2 批 429 → 断点续传（游标停在第 2 批）」：      */
+/*    逐条提交没有「批」，暂停点变成「某一行」，续传语义随之改写。        */
 /* ------------------------------------------------------------------ */
 
 {
@@ -425,53 +463,68 @@ const okResponse = (call) => {
     $('import-confirm').dispatch('click');
     await settle();
 
-    check(calls.length === 2, `429：第 3 批不应发出，总调用应 2 次，实际 ${calls.length}`);
+    // 429 是唯一会停队列的失败：第 2 个请求被拒后，后面 43 行都不再发
+    check(calls.length === 2, `429：限流后应暂停整个队列（后续 43 行不再发出），实际调用 ${calls.length} 次`);
     let result = text($('import-result'));
     check(result.includes('部分完成'), `429：结果区应含「部分完成」，「${result}」`);
-    check(result.includes('已写入 20 行'), `429：应报已写入 20 行，「${result}」`);
-    check(result.includes('剩余 25 行未提交'), `429：应报剩余 25 行，` + `「${result}」`);
-    check(result.includes('请在 42 秒后继续'), `429：应显示 retryAfter 秒数，「${result}」`);
-    check(result.includes('第 22-41 行') && result.includes('未写入'), `429：应指出第 2 批未写入，「${result}」`);
+    check(result.includes('已写入 1 条'), `429：应报已写入 1 条（逐条），「${result}」`);
+    check(result.includes('1 条失败'), `429：限流那一行应计入失败，「${result}」`);
+    check(result.includes('43 条未提交'), `429：应报剩余 43 行未提交，「${result}」`);
+    check(result.includes('请 42 秒后重试'), `429：应显示 retryAfter 秒数，「${result}」`);
+    check(result.includes('第 3 行') && result.includes('请求过于频繁'),
+        `429：应指出失败的是 Excel 第 3 行，「${result}」`);
+    check($('import-result').classList.contains('info'),
+        `429：结果卡应为 info（暂停，不是终态错误），实际「${$('import-result').className}」`);
 
     const continueBtn = $('import-continue');
-    check(!continueBtn.classList.contains('hidden'), '429：应出现「继续提交剩余」按钮');
-    check(text(continueBtn).includes('继续提交剩余'), `429：按钮文案异常「${text(continueBtn)}」`);
-    check(panel.getState().run.cursor === 1, `429：游标应停在第 2 批（索引 1），实际 ${panel.getState().run.cursor}`);
-    check($('import-confirm').disabled === true,
-        '429：已有成功批次后「确认上传」应禁用（避免从头重发撞 409），只能走「继续提交剩余」');
-    check($('import-confirm').hasAttribute('disabled') === true,
-        '429：该禁用必须体现在 disabled 属性上');
+    check(!continueBtn.classList.contains('hidden'), '429：应出现「重试未完成」按钮');
+    check(text(continueBtn).includes('重试未完成的 44 行'), `429：按钮文案异常「${text(continueBtn)}」`);
+    // 【替换】旧断言「游标停在第 2 批（索引 1）」：逐条提交没有「批」，
+    // 本轮 run 结束后 state.run 置空，未完成的行留在 records 里
+    check(panel.getState().run === null,
+        `429：暂停后本轮提交状态应已收尾（run 为 null），实际 ${JSON.stringify(panel.getState().run)}`);
+    check(panel.getState().total === 44,
+        `429：暂停后应保留 44 行待重试（1 条失败 + 43 条未提交），实际 ${panel.getState().total}`);
+    // 【替换】旧断言「已有成功批次后确认上传应禁用」：现在已写入的行已从队列移除，
+    // 再点「确认上传」只会重发未写入的行，按钮因此应可用
+    check($('import-confirm').disabled === false,
+        '429：「确认上传」应可用（已写入的行已出队，再点只会重发未写入的行）');
+    check($('import-confirm').hasAttribute('disabled') === false,
+        '429：该可用状态必须体现在 disabled 属性上');
     check(!$('import-continue').hasAttribute('disabled'),
-        '429：可用的「继续提交剩余」不应带 disabled 属性（否则看着是灰的）');
+        '429：可用的「重试未完成」不应带 disabled 属性（否则看着是灰的）');
     check(!$('import-clear').hasAttribute('disabled'),
         '429：非提交中，「清空」不应带 disabled 属性');
 
-    // 续传：从第 2 批开始（429 的批并未写入，跳过会丢 20 行）
-    const firstBatchWays = calls[0].body.items.map((item) => item.way);
+    // 续传：从失败的那一行开始（它并未写入，跳过就真丢行）
+    const writtenWays = calls[0].body.items.map((item) => item.way);
     continueBtn.dispatch('click');
     await settle();
 
     const resumed = calls.slice(2);
-    check(resumed.length === 2, `429 续传：应把第 2、3 批补齐（2 次调用），实际 ${resumed.length}`);
-    check(resumed[0].body.items.length === 20, `429 续传：第 1 次续传应重发第 2 批 20 条，实际 ${resumed[0].body.items.length}`);
-    check(resumed[1].body.items.length === 5, `429 续传：随后应发第 3 批 5 条，实际 ${resumed[1].body.items.length}`);
+    check(resumed.length === 44, `429 重试：应把剩下的 44 行补齐（44 个请求），实际 ${resumed.length}`);
+    check(resumed.every((call) => call.body.items.length === 1), '429 重试：重试同样是每个请求只带 1 条');
+    check(resumed[0].body.items[0].way === '测试2路',
+        `429 重试：应从失败的第 3 行（测试2路）重新开始，实际「${resumed[0].body.items[0].way}」`);
     const resumedWays = resumed.flatMap((call) => call.body.items.map((item) => item.way));
-    check(resumedWays.every((way) => !firstBatchWays.includes(way)),
-        '429 续传：不得重发第 1 批已写入的内容');
-    check(new Set([...firstBatchWays, ...resumedWays]).size === 45, '429 续传：全部 45 行最终都提交过且不重复');
+    check(resumedWays.every((way) => !writtenWays.includes(way)), '429 重试：不得重发已写入的行');
+    check(new Set([...writtenWays, ...resumedWays]).size === 45, '429 重试：全部 45 行最终都提交过且不重复');
 
     result = text($('import-result'));
-    check(result.includes('全部') === false && result.includes('导入成功'), `429 续传：补齐后应报成功，「${result}」`);
-    check(result.includes('分 3 批写入 45 条时刻表'), `429 续传：最终成功文案异常，「${result}」`);
-    check($('import-continue').classList.contains('hidden'), '429 续传：补完后应隐藏继续按钮');
+    check(result.includes('导入成功'), `429 重试：补齐后应报成功，「${result}」`);
+    check(result.includes('逐条写入 44 条时刻表'), `429 重试：本轮写入条数文案异常，「${result}」`);
+    check($('import-continue').classList.contains('hidden'), '429 重试：补完后应隐藏重试按钮');
     check(panel.getState().run === null && panel.getState().total === 0,
-        '429 续传：补完后应清空预览与本次提交状态');
-    console.log('  [证据] 429 续传 → 每次调用 items.length =',
-        calls.map((call) => call.body.items.length).join(' / '));
+        '429 重试：补完后应清空预览与本次提交状态');
+    console.log('  [证据] 429 重试 → 首次暂停 2 次调用，重试 44 次；每次 items.length =',
+        [...new Set(calls.map((call) => call.body.items.length))].join(' / '));
 }
 
 /* ------------------------------------------------------------------ */
-/* 6. 第 2 批 409 → 停止并如实说明「前 k-1 批已写入、第 k 批未写入」    */
+/* 6. 单行 409 → 只标记该行失败，其余行继续提交（不再整批打回）         */
+/*    【替换】旧用例「第 2 批 409 → 停止并说明前 k-1 批已写入」：        */
+/*    逐条提交下 409 只影响自己那一行，队列继续；行号取队列里的真实      */
+/*    Excel 行号（后端 errors[].row 是请求内序号恒为 1）。               */
 /* ------------------------------------------------------------------ */
 
 {
@@ -486,7 +539,8 @@ const okResponse = (call) => {
                         message: '部分时刻表已存在',
                         error: 'conflict',
                         errors: [
-                            { row: 22, message: '该时刻表已存在' },
+                            // 单行提交时后端只会给出「请求内第 1 行」，不是 Excel 行号
+                            { row: 1, message: '该时刻表已存在' },
                             { row: 0, message: 'batch level' }
                         ]
                     })
@@ -500,17 +554,39 @@ const okResponse = (call) => {
     $('import-confirm').dispatch('click');
     await settle();
 
-    check(calls.length === 2, `409：应停止后续批次（2 次调用），实际 ${calls.length}`);
+    // ③ 单行失败后其余行仍被提交：45 行全部发出，第 2 个请求失败不影响第 3~45 个
+    check(calls.length === 45, `409：单行失败不应中断队列（45 行 = 45 个请求），实际 ${calls.length}`);
+    check(calls.slice(2).every((call) => call.body.items.length === 1),
+        '409：失败之后的行仍是每请求 1 条');
+
     const result = text($('import-result'));
     check(result.includes('部分完成'), `409：应说明部分完成，「${result}」`);
-    check(result.includes('前 1 批已写入'), `409：应说明前 k-1 批已写入，「${result}」`);
-    check(result.includes('第 22-41 行'), `409：应指出失败批的行号范围，「${result}」`);
-    check(result.includes('部分时刻表已存在'), `409：应带后端 message，「${result}」`);
-    check(result.includes('第 22 行：该时刻表已存在'), `409：应带 errors 里的行号，「${result}」`);
+    check(result.includes('已写入 44 条'), `409：应报已写入 44 条，「${result}」`);
+    check(result.includes('1 条失败'), `409：应报 1 条失败，「${result}」`);
+    check(result.includes('第 3 行：该时刻表已存在'),
+        `409：应带「真实 Excel 行号 + 后端 errors[].message」，「${result}」`);
+    // 后端 errors[].row 是请求内序号（1），绝不能当 Excel 行号显示
+    check(!result.includes('第 1 行'), `409：请求内序号 1 不能被当成 Excel 行号，「${result}」`);
     check(!result.includes('第 0 行'), '409：批级错误 row=0 不能被当成行号');
-    check($('import-continue').classList.contains('hidden'), '409：非限流场景不提供继续按钮（需先修数据）');
+    // 单行提交时优先用该行原因（errors[].message），批级 message 不再顶到用户面前
+    check(!result.includes('部分时刻表已存在'),
+        `409：批级 message 不应再顶替该行原因，「${result}」`);
+    // 【替换】旧断言「非限流场景不提供继续按钮」：失败行留在 records 里，
+    // 现在恰恰要提供「重试未完成」入口
+    check(!$('import-continue').classList.contains('hidden'), '409：失败行应可通过「重试未完成」再提交');
+    check(text($('import-continue')).includes('重试未完成的 1 行'),
+        `409：重试按钮文案异常「${text($('import-continue'))}」`);
     check($('import-result').classList.contains('error'), '409：结果卡应为 error 类');
-    check(panel.getState().total === 45, '409：中止后预览应保留，便于用户修数据');
+
+    // 【替换】旧断言「中止后预览保留 45 行」：成功的行已出列，只留失败的那一行并标红
+    check(panel.getState().total === 1, `409：预览应只保留失败的那 1 行，实际 ${panel.getState().total}`);
+    check(!$('import-preview').classList.contains('is-queue'), '409：提交结束后预览应恢复成表格形态');
+    const failedRows = $('import-preview').querySelectorAll('tr.is-failed');
+    check(failedRows.length === 1, `409：失败行应带 is-failed 标红，实际 ${failedRows.length} 行`);
+    const failedCells = failedRows.length ? failedRows[0].querySelectorAll('td') : [];
+    check(text(failedCells[0]) === '3', `409：标红的应是 Excel 第 3 行，实际 ${text(failedCells[0])}`);
+    check(text(failedCells[9]).includes('失败：该时刻表已存在'),
+        `409：状态列应写明失败原因，实际「${text(failedCells[9])}」`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -613,13 +689,13 @@ const okResponse = (call) => {
     busy.panel.setRows(makeTable(45));
     busy.$('import-confirm').dispatch('click');
     await settle();
-    check(busyFlags.length === 3, `禁用态③：应抓到 3 次请求期间的按钮状态，实际 ${busyFlags.length}`);
+    check(busyFlags.length === 45, `禁用态③：逐条上传 45 行应抓到 45 次请求期间的按钮状态，实际 ${busyFlags.length}`);
     check(busyFlags.every((row) => row.confirm === true),
         `禁用态③：提交中 #import-confirm 必须带 disabled 属性，实际 ${JSON.stringify(busyFlags)}`);
     check(busyFlags.every((row) => row.clear === true),
         '禁用态③：提交中「清空」也应带 disabled 属性（防止中途清掉 state.run）');
     check(busyFlags.every((row) => row.continueBtn === true),
-        `禁用态③：提交中「继续提交剩余」也应带 disabled 属性，实际 ${JSON.stringify(busyFlags)}`);
+        `禁用态③：提交中「重试未完成」也应带 disabled 属性，实际 ${JSON.stringify(busyFlags)}`);
 
     // ④ 上传成功后（预览已清空、没有可上传数据）→ 属性必须写上
     check(busy.$('import-confirm').hasAttribute('disabled') === true,

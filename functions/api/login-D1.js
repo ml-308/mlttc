@@ -3,15 +3,19 @@
 //    （文件名中的 -D1 只是历史命名，路由以实际文件名为准）
 //
 // 用途：账号密码登录。前端 src/pages/main.js 的登录弹窗提交至此。
-// 入参：body { email, password }；输入含 "@" 时按邮箱匹配，否则按昵称 NAME 匹配
-// 出参：200 {success:true, message:'登录成功'} + Set-Cookie(auth_token, user_name)
-//       400 参数缺失 / 401 账号或密码错误
+// 入参：body { email, password, turnstileToken?, rememberCookie? }
+//       含 "@" 时按邮箱匹配，否则按昵称 NAME 匹配
+//       turnstileToken 可选：配置了 TURNSTILE_SECRET 时由 Turnstile 拦截（见 ../turnstile）
+//       rememberCookie 可选，缺省 true：true = 30 天持久化 Cookie，false = 会话 Cookie
+// 出参：200 {success:true, message:'登录成功'} + Set-Cookie(auth_token)
+//       400 参数缺失 / 人机验证未通过、401 账号或密码错误
 //
-// 依赖：env.mlttcd（USER 表）、env.JWT_SECRET
+// 依赖：env.mlttcd（USER 表）、env.JWT_SECRET、env.TURNSTILE_SECRET（可选）
 // 密码校验：PBKDF2-SHA256 / 100000 次迭代 / 256bit，与 register-D1.js 的
 //           hashPassword 配对（存储格式 "saltHex:hashHex"）
 import { signToken, setAuthCookie } from '../auth';
 import { enforceRateLimit, LIMITS } from '../ratelimit';
+import { verifyTurnstile } from '../turnstile';
 
 // 密码验证函数（与注册时的 hashPassword 配对使用）
 async function verifyPassword(password, storedValue) {
@@ -64,6 +68,18 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
+    // 人机验证：必须在验密码、查库之前拦截。
+    // 未配置 TURNSTILE_SECRET 时 skipped:true → 放行，行为与改动前一致。
+    const turnstile = await verifyTurnstile(request, env, body.turnstileToken);
+    if (!turnstile.ok) {
+      // message 与 error 同时给出：前端各处的读取习惯不一致（见 ratelimit.js 同样处理）
+      const msg = '人机验证未通过，请重试';
+      return new Response(JSON.stringify({ success: false, message: msg, error: msg }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // 若输入包含 @ 则按邮箱匹配，否则按昵称匹配
     const input = email.trim();
     let user;
@@ -93,15 +109,23 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
+    // 「保持登录」：只有明确传 false 才算不保持，缺省 / 其它值一律按 true 处理
+    const rememberCookie = body.rememberCookie !== false;
+
+    // JWT 有效期必须与 Cookie 类型配套：
+    //   持久化 Cookie（30 天）→ JWT 也 30 天
+    //   会话 Cookie（关浏览器失效）→ JWT 缩到 12 小时兜底
+    const expiresIn = rememberCookie ? 2592000 : 12 * 60 * 60;
+
     // 生成 JWT
-    const token = await signToken({ userId: user.id, email: user.email }, env.JWT_SECRET);
+    const token = await signToken({ userId: user.id, email: user.email }, env.JWT_SECRET, expiresIn);
 
     // 构造响应并设置 Cookie
     const response = new Response(JSON.stringify({ success: true, message: '登录成功' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-    setAuthCookie(response, token);
+    setAuthCookie(response, token, { persistent: rememberCookie });
     return response;
   } catch (error) {
     return new Response(JSON.stringify({ success: false, message: '服务器错误' }), {

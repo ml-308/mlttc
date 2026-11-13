@@ -394,22 +394,27 @@ section('非 POST 方法');
 
 section('限流');
 {
-    assert('LIMITS.import = { name: "timetable-import", max: 5, window: 600 }',
-        JSON.stringify(ratelimit.LIMITS.import) === JSON.stringify({ name: 'timetable-import', max: 5, window: 600 }),
+    assert('LIMITS.import = { name: "timetable-import", max: 300, window: 600 }（逐行提交后额度按行计）',
+        JSON.stringify(ratelimit.LIMITS.import) === JSON.stringify({ name: 'timetable-import', max: 300, window: 600 }),
         JSON.stringify(ratelimit.LIMITS.import));
     assert('LIMITS.write 仍是 10 次/600 秒（未被复用/篡改）',
         ratelimit.LIMITS.write.max === 10 && ratelimit.LIMITS.write.window === 600 && ratelimit.LIMITS.write.name === 'write',
         JSON.stringify(ratelimit.LIMITS.write));
 
+    // 逐行提交后额度按行计：10 分钟内 300 行（= 300 个请求）全部放行，第 301 个才 429
     const env = makeEnv(); // 同一个 env → 同一个 KV 桶
     const statuses = [];
-    for (let i = 0; i < 6; i += 1) {
-        const res = await handler.onRequestPost({ request: postRequest(makePayload(2)), env });
+    for (let i = 0; i < 301; i += 1) {
+        const res = await handler.onRequestPost({ request: postRequest(makePayload(1)), env });
         statuses.push(res.status);
     }
-    assert('前 5 次放行（201）', statuses.slice(0, 5).every((s) => s === 201), JSON.stringify(statuses));
-    assert('第 6 次被限流（429）', statuses[5] === 429, JSON.stringify(statuses));
-    assert('被限流时只写了 5 批', env.mlttcd.batchCalls.length === 5, `batchCalls=${env.mlttcd.batchCalls.length}`);
+    assert('前 300 次放行（201）', statuses.slice(0, 300).every((s) => s === 201),
+        `201 个数=${statuses.filter((s) => s === 201).length}，尾部=${JSON.stringify(statuses.slice(297))}`);
+    assert('第 301 次被限流（429）', statuses[300] === 429, JSON.stringify(statuses.slice(298)));
+    assert('被限流时只写了 300 次', env.mlttcd.batchCalls.length === 300, `batchCalls=${env.mlttcd.batchCalls.length}`);
+    assert('限流响应带 retryAfter 与 X-RateLimit-Limit=300',
+        (await handler.onRequestPost({ request: postRequest(makePayload(1)), env })).headers.get('X-RateLimit-Limit') === '300',
+        'X-RateLimit-Limit 不等于 300');
 }
 
 // ─── 汇总 ────────────────────────────────────────────────────

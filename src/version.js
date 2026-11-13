@@ -9,4 +9,4 @@
  * 发版时改这一处即可；index.html 的静态兜底文案与 lib/data/changelog.json 的
  * latestVersion 都是它的副本（前者防 JS 未执行，后者由 tools/gen-changelog.mjs 生成）。
  */
-export const APP_VERSION = '1.4.1';
+export const APP_VERSION = '1.5.0';

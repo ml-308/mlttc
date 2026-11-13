@@ -345,8 +345,30 @@ footer::before {
 }
 
 /* ---------- 搜索结果区域 .result-area ---------- */
+/* 入场：结果区整体从上方 -24px 下滑并淡入。这里用专用关键帧 resultDropIn，
+   不复用上方的 resultSlideIn——那组是 .result-card 共用的，改动会波及别处。
+   触发靠 .hidden 的 display:none 切换：src/pages/timetables.js 的 renderResults 在
+   有结果时 classList.remove('hidden')，display:none 会取消动画，恢复显示时重新播放一次。
+   分页/重排序只重建 .result-item 子卡片，不切换 .hidden，所以本动画不会重放；
+   子卡片的 cardEnter 错峰入场照旧叠加在这层位移之上。 */
+
+/* 位移 -24px 是原 -8px 的 3 倍，0.45s 也长于原来的 0.35s；
+   cubic-bezier(0.22, 1, 0.36, 1) 前段快、尾部缓，位移在大半时间内就走完，
+   肉眼一眼能看出"从上方滑下来"，收尾又不拖沓。 */
+@keyframes resultDropIn {
+    from {
+        opacity: 0;
+        transform: translateY(-24px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .result-area {
-    animation: resultSlideIn 0.35s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+    animation: resultDropIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .result-area.hidden {
@@ -374,11 +396,24 @@ footer::before {
     gap: 12px;
 }
 
-/* 搜索页：一行显示 2 个结果（不影响个人主页的竖向列表） */
+/* 搜索页：按屏幕宽度自适应列数（不影响个人主页的竖向列表）
+   三档断点：≥1200px 3 列 / 601px–1199px 2 列（默认值）/ ≤600px 1 列 */
 #search-result .result-list {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
+}
+
+/* 网格子项允许被压到轨道宽度：1fr 实为 minmax(auto, 1fr)，不加 min-width 时
+   卡片会被自身内容顶宽，3 列下容易溢出轨道 */
+#search-result .result-list > * {
+    min-width: 0;
+}
+
+@media (min-width: 1200px) {
+    #search-result .result-list {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
 
 @media (max-width: 600px) {
@@ -388,12 +423,23 @@ footer::before {
 }
 
 /* ---------- 通用网格列表 .result-list--grid ---------- */
-/* 与上面 #search-result .result-list 同一套栅格（那条规则服务于搜索页，保持不动）：
-   2 列、≤600px 单列、间距 12px。给「我的时刻表」这类铺满整页的列表复用。 */
+/* 与上面 #search-result .result-list 同一套三档栅格，间距同为 12px：
+   ≥1200px 3 列 / 601px–1199px 2 列 / ≤600px 1 列。给「我的时刻表」这类铺满整页的列表复用。 */
 .result-list--grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
+}
+
+/* 同 #search-result .result-list > *：3 列时卡片不被内容顶宽 */
+.result-list--grid > * {
+    min-width: 0;
+}
+
+@media (min-width: 1200px) {
+    .result-list--grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
 
 @media (max-width: 600px) {
@@ -403,10 +449,16 @@ footer::before {
 }
 
 /* 深色主题区块里 [data-theme="dark"] .result-area .result-list 会把列表改回 flex，
-   这里用同等复合选择器补一条，否则深色下网格不生效 */
+   这里用同等复合选择器补一条，否则深色下网格不生效；列数三档与上面两处保持一致 */
 [data-theme="dark"] .result-area .result-list.result-list--grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 1200px) {
+    [data-theme="dark"] .result-area .result-list.result-list--grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
 
 @media (max-width: 600px) {
@@ -618,6 +670,15 @@ footer::before {
 
     html {
         scroll-behavior: auto;
+    }
+
+    /* 结果区域的下滑入场彻底关掉。这条按选择器关闭，与动画名无关，
+       所以 .result-area 上的 resultDropIn 同样被一并取消。
+       容器本身没有 opacity:0 基态，去掉动画不会留下隐藏残留；
+       子卡片 .result-item 的 opacity:0 基态仍由上面 0.01ms 的动画瞬间补到终态，
+       所以这里不动它。 */
+    .result-area {
+        animation: none !important;
     }
 }
 

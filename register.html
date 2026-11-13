@@ -64,7 +64,12 @@
                 </div>
 
                 <br>
+                <!-- 人机验证容器：仅当 src/config.js 的 TURNSTILE_SITE_KEY 非空时才渲染，
+                     留空时容器保持空（CSS 用 :empty 隐藏，不显示空白框） -->
+                <div class="register-turnstile" id="registerTurnstile"></div>
                 <button hcw-button primary flat style="min-width: 8rem;" type="submit" id="registerbtn">注 册</button>
+                <!-- GitHub 注册入口：跳转 /api/auth-github?from=register，由后端 302 到 GitHub 授权页 -->
+                <button hcw-button flat type="button" id="githubRegisterBtn" class="register-github-btn">使用 GitHub 注册</button>
                 <div class="error-msg" id="errorMsg" style="display: none;"></div>
             </div>
         </hcw-card>
