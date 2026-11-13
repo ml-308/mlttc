@@ -40,6 +40,9 @@
                 <hcw-button id="tt-refresh-btn" flat icon style="height:1.8rem;width:1.8rem; font-size:0.9rem;" aria-label="刷新">⟳</hcw-button>
             </hcw-card-title>
             <div id="myTimetableArea">
+                <!-- 错误报告返还提醒横幅：内容全部由 src/pages/my-timetable.js 用 textContent 填充；
+                     无提醒（或接口失败/未登录）时保持 hidden，不留空占位 -->
+                <div id="my-report-notice" class="my-report-notice hidden" role="status" aria-live="polite"></div>
                 <div id="timetable-loading" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">加载中...</div>
                 <div id="timetable-empty" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--text-muted);">暂未写入时刻表</div>
                 <div id="timetable-error" class="hidden" style="text-align:center; padding: 2rem 0; color: var(--danger);"></div>

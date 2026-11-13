@@ -140,6 +140,32 @@ export async function onRequestPost({ request, env }) {
                 });
             }
 
+            // ─── 作者改表后自动销单（错误报告）──────────────────
+            // 触发条件：本条时刻表下存在被管理员「返还写入者」的错误报告
+            //           （TIMETABLE_REPORT.RESOLUTION = 'returned'）。
+            //           作者改表即视为已重新提交，这些报告随之置为：
+            //             RESOLUTION   = 'author-resubmitted'（作者改表自动销单）
+            //             STATUS       = 'resolved'
+            //             RESOLVEDTIME = 当前 ISO 时间（写法同 WRITETIME）
+            //             RESOLVEDBY   = NULL（作者自己处理，不是管理员处置）
+            // 'restored'（管理员恢复上线）已终结，不在此处覆盖。
+            // ⚠️ 必须独立 try/catch：用户还没执行新版 functions/TIMETABLE_REPORT.sql 时，
+            //    该表不存在或没有 RESOLUTION/STATUS/RESOLVED* 列，UPDATE 会抛错 ——
+            //    这种情况下**不能让「更新时刻表」失败**，改表功能必须照旧可用，
+            //    因此这里失败只打一条 console.warn，继续正常返回 200。
+            try {
+                await env.mlttcd.prepare(
+                    `UPDATE TIMETABLE_REPORT
+                     SET RESOLUTION = 'author-resubmitted',
+                         STATUS = 'resolved',
+                         RESOLVEDTIME = ?1,
+                         RESOLVEDBY = NULL
+                     WHERE TID = ?2 AND RESOLUTION = 'returned'`
+                ).bind(new Date().toISOString(), id).run();
+            } catch (reportErr) {
+                console.warn('自动销单失败（TIMETABLE_REPORT 可能尚未创建或缺列）:', reportErr);
+            }
+
             return new Response(JSON.stringify({
                 success: true,
                 id: id,
