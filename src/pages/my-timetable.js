@@ -34,6 +34,47 @@ function timetableLevel(item) {
   return 1;
 }
 
+// ─── 加载骨架 ─────────────────────────────────────────
+/** 建一个只有类名、没有内容的占位元素 */
+function makeSkeletonEl(tag, className) {
+  const el = document.createElement(tag);
+  el.className = className;
+  return el;
+}
+
+/**
+ * 渲染加载骨架：count 张 .sk-card，外面包一层 .sk-list
+ *
+ * 为什么用骨架而不是纯文字：文字「加载中...」只告诉用户「正在等」，
+ * 不预告版面；骨架用与 .result-item 同构的占位块先把列表轮廓撑出来，
+ * 数据到达后布局不再跳动（不出现 CLS 抖动），等待的感知时长也更短。
+ *
+ * 样式全部由 style/main.css 的 .sk-* 契约提供，本文件不写任何 CSS。
+ * 幂等：每次渲染前先清空容器，重复进入加载态（点刷新、切筛选）
+ * 不会叠加成 6 张、9 张卡片；容器里原有的「加载中...」文字也一并移除。
+ *
+ * 骨架不含任何接口数据，纯占位，因此不需要转义处理。
+ *
+ * @param {HTMLElement|null} container 加载态容器（#timetable-loading）
+ * @param {number} count 骨架卡片数量
+ */
+function renderSkeletonCards(container, count) {
+  if (!container) return;
+  container.innerHTML = '';
+
+  const list = makeSkeletonEl('div', 'sk-list');
+  for (let i = 0; i < count; i += 1) {
+    const card = makeSkeletonEl('div', 'sk-card');
+    // 一张卡片 = 2 条文本行（编号/线路）+ 1 个矩形块（站点行）
+    card.appendChild(makeSkeletonEl('div', 'sk sk-line'));
+    card.appendChild(makeSkeletonEl('div', 'sk sk-line'));
+    card.appendChild(makeSkeletonEl('div', 'sk sk-block'));
+    list.appendChild(card);
+  }
+
+  container.appendChild(list);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // 返回按钮：本页是导航栏里的顶层页面，返回到首页
   document.getElementById('backBtn')?.addEventListener('click', () => window.location.href = '/index.html');
@@ -53,7 +94,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // 错误报告返还提醒（顶部横幅容器，见 my-timetable.html）
   const ttReportNotice = document.getElementById('my-report-notice');
 
+  /**
+   * 加载入口：进入加载态先画骨架，再发请求
+   * 请求结束（成功 / 空 / 错误，含缓存命中的提前 return）一律在 finally 里清空骨架，
+   * 不必改动原有各处 hidden 的显隐逻辑，也不会漏掉任何一条退出分支。
+   */
   async function loadMyTimetables() {
+    // 先把加载态重新露出来：首次加载后 ttLoading 被加了 hidden 就再没人移除，
+    // 刷新/删表后重载时骨架会画在一个隐藏容器里、等于没有。
+    // 各退出分支原有的 add('hidden') 保持不变，所以失败/空列表仍会正确收起来。
+    if (ttLoading) ttLoading.classList.remove('hidden');
+    renderSkeletonCards(ttLoading, 3);
+    try {
+      await fetchMyTimetables();
+    } finally {
+      if (ttLoading) ttLoading.innerHTML = '';
+    }
+  }
+
+  async function fetchMyTimetables() {
     // 先获取用户邮箱
     let email = '';
     myEmail = '';

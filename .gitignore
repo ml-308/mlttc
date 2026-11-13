@@ -7,3 +7,6 @@ node_modules/
 # tools/nav-smoke-test/run.mjs 每次运行都会把 src/nav.js 复制成这个文件再 import，
 # 它永远是生成物：跟踪它只会让「跑一次测试就多一条假改动」。
 tools/nav-smoke-test/nav-under-test.mjs
+
+# wrangler 本地缓存（wrangler d1 execute 默认打本地 .wrangler/state）
+.wrangler/

@@ -48,6 +48,14 @@ function setVisibleState(name) {
   });
   // 列表容器仅在 ready 态显示
   stateEl.list?.classList.toggle('hidden', name !== 'ready');
+
+  // 骨架：进入 loading 态先铺占位卡片，离开 loading 态（ready/empty/error/missing）一律清空。
+  // 显隐仍然只由上面的 hidden 类决定，五态语义不变；清空放这里可覆盖所有退出分支。
+  if (name === 'loading') {
+    renderSkeletonCards(stateEl.loading, 3);
+  } else if (stateEl.loading) {
+    stateEl.loading.innerHTML = '';
+  }
 }
 
 // ─── 小工具 ─────────────────────────────────────────
@@ -68,6 +76,47 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
+}
+
+// ─── 加载骨架 ───────────────────────────────────────
+/** 建一个只有类名、没有内容的占位元素 */
+function makeSkeletonEl(tag, className) {
+  const el = document.createElement(tag);
+  el.className = className;
+  return el;
+}
+
+/**
+ * 渲染加载骨架：count 张 .sk-card，外面包一层 .sk-list
+ *
+ * 为什么用骨架而不是纯文字：文字「加载中...」只告诉用户「正在等」，
+ * 不预告版面；骨架用与 .result-item 同构的占位块先把列表轮廓撑出来，
+ * 数据到达后布局不再跳动（不出现 CLS 抖动），等待的感知时长也更短。
+ *
+ * 样式全部由 style/main.css 的 .sk-* 契约提供，本文件不写任何 CSS。
+ * 幂等：每次渲染前先清空容器，重复进入加载态不会叠加成 6 张、9 张卡片；
+ * 容器里原有的「加载中...」文字也一并移除。
+ *
+ * 骨架不含任何接口数据，纯占位，因此不需要转义处理。
+ *
+ * @param {HTMLElement|null} container 加载态容器（#profile-loading）
+ * @param {number} count 骨架卡片数量
+ */
+function renderSkeletonCards(container, count) {
+  if (!container) return;
+  container.innerHTML = '';
+
+  const list = makeSkeletonEl('div', 'sk-list');
+  for (let i = 0; i < count; i += 1) {
+    const card = makeSkeletonEl('div', 'sk-card');
+    // 一张卡片 = 2 条文本行（编号/线路）+ 1 个矩形块（站点行）
+    card.appendChild(makeSkeletonEl('div', 'sk sk-line'));
+    card.appendChild(makeSkeletonEl('div', 'sk sk-line'));
+    card.appendChild(makeSkeletonEl('div', 'sk sk-block'));
+    list.appendChild(card);
+  }
+
+  container.appendChild(list);
 }
 
 /** 以纯文本方式写入元素内容（昵称/城市/时间等字段专用） */

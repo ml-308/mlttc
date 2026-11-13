@@ -474,7 +474,11 @@ footer::before {
     border-radius: var(--radius-md);
     padding: 18px 20px;
     box-shadow: var(--shadow-xs);
-    transition: all var(--transition-fast);
+    /* translate / scale 排在 all 之后，悬停微位移与按下微下压才用上契约里的
+       --dur-fast + --ease-standard；其余属性仍沿用原有的 --transition-fast */
+    transition: all var(--transition-fast),
+        translate var(--dur-fast) var(--ease-standard),
+        scale var(--dur-fast) var(--ease-standard);
     animation: cardEnter 0.3s ease forwards;
     opacity: 0;
     transform: translateY(8px);
@@ -1136,7 +1140,12 @@ footer::before {
     background: var(--bg-card);
     box-shadow: var(--shadow-xs);
     color: var(--text-secondary);
-    animation: resultDropIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* 入场：只在从隐藏切到显示时播放（隐藏态 display:none，不给动画留残留），
+   关键帧取契约里的 fade-up-in，时长/缓动走 --dur-base + --ease-decelerate */
+.my-report-notice:not(.hidden) {
+    animation: fade-up-in var(--dur-base) var(--ease-decelerate) both;
 }
 
 .my-report-head {
@@ -1275,5 +1284,102 @@ footer::before {
 
     .my-report-item {
         padding: 0.5rem 0.55rem;
+    }
+}
+
+/* ============================================================
+   动效补充：微交互 / 状态过渡 / 入场节奏
+   只用 main.css 提供的契约 token（--dur-* / --ease-* 与 fade-in / fade-up-in），
+   不在此重复定义变量，也不重复定义全局关键帧。
+   全部集中在文件末尾，保证下面的 reduced-motion 块按序覆盖它们。
+   ============================================================ */
+
+/* ---------- 结果卡片：悬停微上移、按下微下压 ----------
+   cardEnter 带 forwards，会把 transform 锁在 translateY(0)，普通 transform 声明
+   赢不过动画；这里改用独立的 translate / scale 属性叠加，既不与入场动画抢
+   transform，也不产生布局位移。 */
+.result-item:hover {
+    translate: 0 -1px;
+}
+
+.result-item:active {
+    scale: 0.995;
+}
+
+/* ---------- 分段导航栏：选中切换的底色/字色过渡 + 按下微压 ----------
+   按钮是 hcw-button，底色与字色由 --button-* 传进 shadow，位移在宿主上做，
+   所以这里只过渡宿主能拿到的属性；不做滑块位移（会与 shadow 内内容错位）。 */
+.menu-bar--nav .menu-btn {
+    transition: background-color var(--dur-base) var(--ease-standard),
+        color var(--dur-base) var(--ease-standard),
+        scale var(--dur-fast) var(--ease-standard),
+        /* 焦点环沿用原 .menu-btn 里 all 命中时的时长，不因收窄列表而变成瞬变 */
+        box-shadow var(--transition-normal);
+}
+
+.menu-bar--nav .menu-btn:active {
+    scale: 0.97;
+}
+
+/* ---------- 状态徽标：出现时淡入 ---------- */
+.my-report-badge {
+    animation: fade-in var(--dur-base) var(--ease-standard) both;
+}
+
+/* ---------- 校验提示 / 导入统计 / 空态文案：出现时淡入 ----------
+   .lp 的状态由类名切换（lp-valid / lp-invalid / lp-warning），文案从空变非空也会
+   重新命中 :not(:empty)，两种出现方式都能让动画重新开始。 */
+.lp:not(:empty),
+.lp.lp-valid,
+.lp.lp-invalid,
+.lp.lp-warning {
+    animation: fade-in var(--dur-base) var(--ease-standard) both;
+}
+
+/* ---------- 导入预览表格：行悬停与状态变化的背景过渡 ----------
+   文字标红仍由本文件与 timetable-import.css 各自的既有规则负责，这里只补背景。 */
+.tt-table-wrap .tt-import-table tbody tr {
+    transition: background-color var(--dur-fast) var(--ease-standard),
+        color var(--dur-fast) var(--ease-standard);
+}
+
+.tt-table-wrap .tt-import-table tbody tr:hover {
+    background-color: var(--bg-hover);
+}
+
+/* 失败 / 非法行整行浅红底：取 --danger 自身调透明度，不新增变量，深浅主题都跟得上；
+   与上面的 background-color 过渡配合，行状态变化是渐显而不是瞬变。 */
+.tt-table-wrap .tt-import-table tbody tr.is-invalid,
+.tt-table-wrap .tt-import-table tbody tr.is-failed {
+    background-color: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+/* ---------- 降级：减少动态效果 ----------
+   上面已有的全量块（* / *::before / *::after）保持原样，这里按精确选择器逐条关掉
+   本次新增的位移与入场，避免依赖全量规则。 */
+@media (prefers-reduced-motion: reduce) {
+    .result-item:hover,
+    .result-item:active,
+    .menu-bar--nav .menu-btn:active {
+        translate: none;
+        scale: none;
+    }
+
+    /* 导航栏的底色/字色过渡同样关掉，不靠上面的全量块兜底 */
+    .menu-bar--nav .menu-btn {
+        transition: none;
+    }
+
+    .my-report-badge,
+    .my-report-notice:not(.hidden),
+    .lp:not(:empty),
+    .lp.lp-valid,
+    .lp.lp-invalid,
+    .lp.lp-warning {
+        animation: none;
+    }
+
+    .tt-table-wrap .tt-import-table tbody tr {
+        transition: none;
     }
 }

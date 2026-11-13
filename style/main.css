@@ -688,6 +688,16 @@ a:hover {
     --transition-normal: 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     --transition-slow: 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 
+    /* 动效基础设施：全站统一的缓动曲线与时长；新动效一律取用这些 token，不要写裸数值 */
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --dur-fast: 150ms;
+    --dur-base: 250ms;
+    --dur-slow: 400ms;
+    /* 错峰步长：animation-delay: calc(var(--stagger-step) * N) */
+    --stagger-step: 40ms;
+
     /* Spotify 字体栈：优先 Circular / 系统黑体，中文回退 PingFang / 微软雅黑 */
     --font-family: "Circular Std", "Circular", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
     --font-mono: "SF Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", "Courier New", monospace;
@@ -1692,4 +1702,164 @@ body.nav-open {
 .register-github-btn {
     width: 100%;
     margin-top: .6rem;
+}
+
+/* ============ 全站动效基础设施（供各页面直接复用） ============
+   只新增选择器与 keyframes，不改动上方任何既有规则：
+   0.01ms 兜底、.result-item 依赖的 0.01ms 入场补全、hcw-button 的既有 hover/active 全部保持原样。
+*/
+
+/* --- 1. 全局 keyframes（以下三个名字由本文件独占定义，其它文件只引用、不得重复定义） --- */
+
+/* 骨架屏流光：只位移 background-position，不触碰 width/height/top/left */
+@keyframes sk-shimmer {
+    from {
+        background-position: 100% 0;
+    }
+
+    to {
+        background-position: 0 0;
+    }
+}
+
+/* 入场：淡入 + 上移 8px */
+@keyframes fade-up-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 入场：纯淡入 */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* --- 2. 骨架屏原语（替换纯文字「加载中…」用）
+   用法：<div class="sk sk-line" style="width:40%"></div>
+        <div class="sk-card"><div class="sk-list"><div class="sk sk-line"></div>…</div></div> --- */
+
+.sk {
+    /* 流光高光：浅底上用白色提亮；深色主题在下方覆写为更低透明度，避免死白 */
+    --sk-sheen: rgba(255, 255, 255, 0.5);
+    display: block;
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-hover);
+    background-image: linear-gradient(90deg, transparent 0%, var(--sk-sheen) 50%, transparent 100%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    /* 循环流光需要匀速，故用 linear 而非缓动曲线 */
+    animation: sk-shimmer 1.3s linear infinite;
+}
+
+/* 单行文本占位：宽度用内联 style 覆盖 */
+.sk-line {
+    width: 100%;
+    height: 0.9rem;
+    border-radius: var(--radius-xs);
+}
+
+/* 矩形块占位：高度用内联 style 覆盖 */
+.sk-block {
+    width: 100%;
+    height: 6rem;
+    border-radius: var(--radius-sm);
+}
+
+/* 卡片轮廓：视觉与 .result-item（style/timetable.css）对齐；本身是容器，不参与流光 */
+.sk-card {
+    animation: none;
+    background-image: none;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    box-shadow: var(--shadow-xs);
+}
+
+/* 纵向骨架排列 */
+.sk-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 深色主题：深底上提亮一档（取 --border，深色下为 #2a2a2a），流光更克制 */
+[data-theme="dark"] .sk:not(.sk-card) {
+    --sk-sheen: rgba(255, 255, 255, 0.10);
+    background-color: var(--border);
+}
+
+/* --- 3. 入场工具类 --- */
+
+/* 淡入上移；错峰用内联 style 覆盖延迟：
+   <section class="anim-fade-up" style="animation-delay: calc(var(--stagger-step) * 3)"> */
+.anim-fade-up {
+    animation: fade-up-in var(--dur-slow) var(--ease-decelerate) backwards;
+}
+
+.anim-fade-in {
+    animation: fade-in var(--dur-base) var(--ease-decelerate) backwards;
+}
+
+/* --- 4. 组件微交互补齐 --- */
+
+/* 键盘焦点环：hcw-button（自定义元素宿主，其样式在 shadow 内，页面层只能改宿主）与
+   [hcw-button]（属性写法）原本都没有 :focus-visible 反馈。用 outline 而非 box-shadow，
+   避免与卡片内按钮、[primary] 等既有阴影规则互相覆盖；不删除任何既有焦点样式。 */
+hcw-button:focus-visible,
+[hcw-button]:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    /* 让焦点环跟随胶囊圆角走（宿主自身没有圆角声明） */
+    border-radius: var(--hcw-button-radius, var(--radius-full));
+}
+
+/* 属性写法按钮的按下：保留轻微下压，过渡收敛到 --dur-fast + --ease-standard。
+   hcw-button 自定义元素的按下反馈（scale .97）在 shadow 内部，页面层不重复叠加。 */
+[hcw-button]:not([disabled]):active {
+    transform: scale(0.98);
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-standard);
+}
+
+/* 输入框：hcw-input 已有 hover / focus-within 过渡；这里给裸 input / textarea 补同样的过渡，
+   让页面层已有的 hover / focus 配色与边框变化不再瞬跳（不新增任何视觉状态） */
+input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color']),
+textarea {
+    transition-property: background-color, color, border-color, box-shadow;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-standard);
+}
+
+/* --- 5. 无障碍总闸：按选择器精确关闭本文件新增的动效 ---
+   不使用 * { animation: none !important }：页面里已有依赖 0.01ms 动画把 opacity:0 基态补到 1
+   的元素（如 .result-item），一刀切会让它们停在不可见状态。上方既有的 0.01ms 兜底规则保持不动。 */
+@media (prefers-reduced-motion: reduce) {
+
+    /* 骨架屏：停掉流光，只留静态底色 */
+    .sk,
+    .sk-line,
+    .sk-block,
+    .sk-card {
+        animation: none;
+        background-image: none;
+    }
+
+    /* 入场工具类：直接落到终态（opacity:1 / translateY(0)） */
+    .anim-fade-up,
+    .anim-fade-in {
+        animation: none;
+    }
 }

@@ -157,6 +157,38 @@
     color: var(--danger);
 }
 
+/* ---------- 动效补充：卡片悬停、统计与分页的轻微淡入 ---------- */
+/* 既有三组队列动画（200ms 左滑、FLIP 180ms、失败脉冲）一律不动：
+   上面那条 transition 简写里含有 var() 之外的固定时长，一旦往里塞
+   --dur-* 而 token 尚未落地，整条简写会因「计算值无效」而失效，
+   把刚验收的左滑过渡一起带走。所以新动效全部另起规则。 */
+
+/* 队列卡片悬停：只改 border-color，直接复用既有的 200ms 过渡 */
+.tt-queue-card:not(.is-failed):hover {
+    border-color: var(--text-secondary);
+}
+
+/* 统计行：文案从空变非空（进入逐条上传 / 首次出分页）时轻微淡入 */
+#import-stat:not(:empty) {
+    animation: fade-in var(--dur-base) var(--ease-standard) both;
+}
+
+/* 分页按钮：每次翻页 renderPager 会重建这批 hcw-button，
+   入场淡入即自然的「换页」提示；悬停/按下在宿主上做位移，不碰 shadow 内的底色 */
+.tt-pager .tt-page-btn {
+    transition: translate var(--dur-fast) var(--ease-standard),
+        scale var(--dur-fast) var(--ease-standard);
+    animation: fade-in var(--dur-base) var(--ease-standard) both;
+}
+
+.tt-pager .tt-page-btn:hover {
+    translate: 0 -1px;
+}
+
+.tt-pager .tt-page-btn:active {
+    scale: 0.97;
+}
+
 /* ---------- 降级：用户要求减少动态效果时一律瞬时完成 ---------- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -171,5 +203,22 @@
     .tt-queue-card.is-pinned,
     .tt-queue-card.is-sending .tt-q-state {
         animation: none;
+    }
+
+    .tt-queue-card:not(.is-failed):hover {
+        border-color: var(--border-light);
+    }
+
+    #import-stat:not(:empty),
+    .tt-pager .tt-page-btn {
+        animation: none;
+    }
+
+    .tt-pager .tt-page-btn,
+    .tt-pager .tt-page-btn:hover,
+    .tt-pager .tt-page-btn:active {
+        transition: none;
+        translate: none;
+        scale: none;
     }
 }

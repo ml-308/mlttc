@@ -247,3 +247,235 @@ hcw-hero h1 {
         --hcw-hero-media-width: 0;
     }
 }
+
+/* ==========================================================================
+   首页 / 账户系页面动效（index.html · account.html · tools.html · user.html）
+   只用 main.css 提供的动效契约：--dur-fast/base/slow、--ease-standard /
+   --ease-decelerate、--stagger-step；关键帧只引用 fade-up-in / fade-in，
+   本文件不重复定义全局 keyframes，也不新造变量。
+   入场一律用 backwards 填充而不是 both：延迟期间取首帧（不可见），播完立刻把
+   transform 交还给元素本身——若用 both/forwards，fade-up-in 的终帧
+   transform: translateY(0) 会一直压在元素上，卡片 hover 的 translateY(-2px)
+   和按钮按下的 scale 就永远不生效。
+   错峰全靠 nth-child 表达，不改 HTML。
+   ========================================================================== */
+
+/* ---------- 首页 hero：标题 → 副标题 → 更新日志按钮，三拍入场 ---------- */
+hcw-hero > h1,
+hcw-hero > .hero-sub {
+    animation: fade-up-in var(--dur-slow) var(--ease-decelerate) backwards;
+}
+
+hcw-hero > h1 {
+    animation-delay: calc(var(--stagger-step) * 0);
+}
+
+hcw-hero > .hero-sub {
+    animation-delay: calc(var(--stagger-step) * 1);
+}
+
+/* 更新日志入口是第 3 拍：整块只淡入，块内的 CTA 再轻微上移，
+   这样"标题/副标题/按钮"三步节奏成立，又不会让整块做两次位移 */
+hcw-hero > .hero-changelog {
+    animation: fade-in var(--dur-base) var(--ease-standard) backwards;
+    animation-delay: calc(var(--stagger-step) * 2);
+}
+
+hcw-hero .hero-changelog hcw-button,
+hcw-hero .hero-changelog [hcw-button] {
+    animation: fade-up-in var(--dur-slow) var(--ease-decelerate) backwards;
+    animation-delay: calc(var(--stagger-step) * 2);
+}
+
+/* hero 里的 BUG 反馈入口与版本信息：纯淡入收尾，继续错峰 */
+hcw-hero > #BUG,
+hcw-hero > .hero-meta {
+    animation: fade-in var(--dur-base) var(--ease-standard) backwards;
+}
+
+hcw-hero > #BUG {
+    animation-delay: calc(var(--stagger-step) * 3);
+}
+
+hcw-hero > .hero-meta {
+    animation-delay: calc(var(--stagger-step) * 4);
+}
+
+/* ---------- 数据速览：三张统计卡整组错峰入场 ----------
+   数值本身（#statLines / #statCities / #statUpdated）由 home-stats.js 改写文本，
+   HTML 里没有可切换的类、也不允许改 HTML，CSS 无法感知"数值更新"这一时机，
+   所以按约定只做卡片入场，不给 .stat-value 挂一次性淡入（那只会和卡片入场重复）。 */
+.stat-grid > .stat-card {
+    animation: fade-up-in var(--dur-slow) var(--ease-decelerate) backwards;
+}
+
+.stat-grid > .stat-card:nth-child(1) {
+    animation-delay: calc(var(--stagger-step) * 0);
+}
+
+.stat-grid > .stat-card:nth-child(2) {
+    animation-delay: calc(var(--stagger-step) * 1);
+}
+
+.stat-grid > .stat-card:nth-child(3) {
+    animation-delay: calc(var(--stagger-step) * 2);
+}
+
+/* ---------- 功能卡墙（首页 .feature-grid）与工具卡（tools.html .button-grid） ----------
+   入场 250ms 比 hero 的 400ms 短一档：卡片数量多，错峰本身已经把总时长拉长；
+   悬停过渡收紧到 --dur-fast + --ease-standard（覆盖 main.css 卡片的 --transition-normal）。 */
+.feature-grid > hcw-card,
+.feature-grid > [hcw-card],
+.button-grid > hcw-card,
+.button-grid > [hcw-card] {
+    animation: fade-up-in var(--dur-base) var(--ease-decelerate) backwards;
+    transition: transform var(--dur-fast) var(--ease-standard),
+        box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+/* 组内按 nth-child 错峰；每网格排到第 6 拍封顶，第 6 张之后同延迟，
+   避免 5 张以上的分区把尾巴拖成一条长队 */
+.feature-grid > :is(hcw-card, [hcw-card]):nth-child(1),
+.button-grid > :is(hcw-card, [hcw-card]):nth-child(1) {
+    animation-delay: calc(var(--stagger-step) * 0);
+}
+
+.feature-grid > :is(hcw-card, [hcw-card]):nth-child(2),
+.button-grid > :is(hcw-card, [hcw-card]):nth-child(2) {
+    animation-delay: calc(var(--stagger-step) * 1);
+}
+
+.feature-grid > :is(hcw-card, [hcw-card]):nth-child(3),
+.button-grid > :is(hcw-card, [hcw-card]):nth-child(3) {
+    animation-delay: calc(var(--stagger-step) * 2);
+}
+
+.feature-grid > :is(hcw-card, [hcw-card]):nth-child(4),
+.button-grid > :is(hcw-card, [hcw-card]):nth-child(4) {
+    animation-delay: calc(var(--stagger-step) * 3);
+}
+
+.feature-grid > :is(hcw-card, [hcw-card]):nth-child(5),
+.button-grid > :is(hcw-card, [hcw-card]):nth-child(5) {
+    animation-delay: calc(var(--stagger-step) * 4);
+}
+
+.feature-grid > :is(hcw-card, [hcw-card]):nth-child(n + 6),
+.button-grid > :is(hcw-card, [hcw-card]):nth-child(n + 6) {
+    animation-delay: calc(var(--stagger-step) * 5);
+}
+
+/* 悬停：上移 2px + 阴影加深（main.css 对非表单卡片是"只亮背景、不做位移"，
+   这里按首页/工具页的诉求在网格范围内显式覆盖）；按下回到原位偏下 1px。
+   这两张卡片里没有独立的图标/箭头元素，所以按约定不追加"图标小幅位移"。 */
+.feature-grid > :is(hcw-card, [hcw-card]):hover,
+.button-grid > :is(hcw-card, [hcw-card]):hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.feature-grid > :is(hcw-card, [hcw-card]):active,
+.button-grid > :is(hcw-card, [hcw-card]):active {
+    transform: translateY(1px);
+    box-shadow: var(--shadow-md);
+}
+
+/* ---------- account.html / user.html：文章区里的卡片依次错峰入场 ---------- */
+hcw-article > hcw-card,
+hcw-article > [hcw-card] {
+    animation: fade-up-in var(--dur-slow) var(--ease-decelerate) backwards;
+}
+
+hcw-article > :is(hcw-card, [hcw-card]):nth-child(1) {
+    animation-delay: calc(var(--stagger-step) * 0);
+}
+
+hcw-article > :is(hcw-card, [hcw-card]):nth-child(2) {
+    animation-delay: calc(var(--stagger-step) * 1);
+}
+
+hcw-article > :is(hcw-card, [hcw-card]):nth-child(3) {
+    animation-delay: calc(var(--stagger-step) * 2);
+}
+
+hcw-article > :is(hcw-card, [hcw-card]):nth-child(n + 4) {
+    animation-delay: calc(var(--stagger-step) * 3);
+}
+
+/* ---------- account.html：主题色块 ----------
+   选中态外环和 transform/box-shadow 的过渡都由 account.js 的内联样式负责
+   （dot.style.transition = transform/box-shadow var(--transition-fast)），
+   内联样式优先级高于本文件，所以这里只补 hover / active 的缩放值，不重复声明 transition。 */
+#accentSwatches .accent-swatch:hover {
+    transform: scale(1.08);
+}
+
+#accentSwatches .accent-swatch:active {
+    transform: scale(0.96);
+}
+
+/* ---------- 保存反馈文案：出现即淡入 ----------
+   这些 p 平时是内联 display:none，由 JS 切到可见；fade-in 终帧就是自然态，
+   用 backwards 不会残留半透明。 */
+#accentMsg,
+#nameMsg,
+#cityMsg,
+#accountLogoutMsg {
+    animation: fade-in var(--dur-base) var(--ease-standard) backwards;
+}
+
+/* ---------- user.html：时刻表三态容器淡入 ----------
+   #timetable-list 带 .result-area，timetable.css 已给它 resultDropIn 下滑入场，
+   所以这里只覆盖三态提示块，不给结果区或它的子项加任何动画，避免两层位移叠加。 */
+#profile-loading,
+#profile-error,
+#profile-empty,
+#profile-missing {
+    animation: fade-in var(--dur-base) var(--ease-standard) backwards;
+}
+
+/* ---------- 无障碍：按精确选择器关掉本文件新增的动效 ----------
+   不使用 * 一刀切，也不覆盖 main.css / timetable.css 已有的 0.01ms 兜底规则：
+   本文件所有入场动画的基态都是"可见"，animation: none 只会落到自然态，不会留下隐藏残留。 */
+@media (prefers-reduced-motion: reduce) {
+
+    hcw-hero > h1,
+    hcw-hero > .hero-sub,
+    hcw-hero > .hero-changelog,
+    hcw-hero .hero-changelog hcw-button,
+    hcw-hero .hero-changelog [hcw-button],
+    hcw-hero > #BUG,
+    hcw-hero > .hero-meta,
+    .stat-grid > .stat-card,
+    .feature-grid > hcw-card,
+    .feature-grid > [hcw-card],
+    .button-grid > hcw-card,
+    .button-grid > [hcw-card],
+    hcw-article > hcw-card,
+    hcw-article > [hcw-card],
+    #accentMsg,
+    #nameMsg,
+    #cityMsg,
+    #accountLogoutMsg,
+    #profile-loading,
+    #profile-error,
+    #profile-empty,
+    #profile-missing {
+        animation: none;
+    }
+
+    /* 悬停/按下的位移与过渡一并关掉，反馈只留背景与阴影的静态变化 */
+    .feature-grid > :is(hcw-card, [hcw-card]),
+    .button-grid > :is(hcw-card, [hcw-card]) {
+        transition: none;
+    }
+
+    .feature-grid > :is(hcw-card, [hcw-card]):hover,
+    .feature-grid > :is(hcw-card, [hcw-card]):active,
+    .button-grid > :is(hcw-card, [hcw-card]):hover,
+    .button-grid > :is(hcw-card, [hcw-card]):active,
+    #accentSwatches .accent-swatch:hover,
+    #accentSwatches .accent-swatch:active {
+        transform: none;
+    }
+}

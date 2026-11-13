@@ -1,9 +1,35 @@
 {
-  "latestVersion": "1.5.2",
-  "generatedAt": "2026-11-13T15:10:50.137Z",
-  "count": 11,
+  "latestVersion": "1.6.0",
+  "generatedAt": "2026-11-13T15:29:50.344Z",
+  "count": 12,
   "source": "CHANGELOG.md",
   "releases": [
+    {
+      "version": "1.6.0",
+      "date": "2026-11-13",
+      "sections": [
+        {
+          "title": "✨ 动效（全站）",
+          "items": [
+            "**统一动效基础设施**：新增 `--ease-standard` / `--ease-decelerate` / `--ease-spring`、`--dur-fast/base/slow`、`--stagger-step` 七个 token，以及全站共用的 `fade-up-in` / `fade-in` / `sk-shimmer` 三个关键帧；此后新动效一律取 token，不再写裸数值。admin 站同步同一套（两仓库该段逐字节一致）。",
+            "**骨架屏**：「我的时刻表」与「用户主页」的纯文字「加载中…」换成 3 张与列表同构的骨架卡（带流光），数据到达后布局不再跳动；刷新、删表后重载时也会显示骨架，而不是一片空白。",
+            "**微交互补齐**：`hcw-button` 与属性写法按钮补上 `:focus-visible` 焦点环、按下统一为 `scale(0.98)`；裸 `input` / `textarea` 补过渡。卡片、统计卡、工具卡补上悬停上移 1–2px 与按下微压反馈。",
+            "**入场节奏**：首页 hero 分组、统计卡、功能卡与工具卡网格、个人主页三张卡、工具索引网格、详情页信息分块、admin 的审核入口与详情分块，统一 `fade-up-in` 错峰（`--stagger-step` 40ms 步长）；报告列表逐条 `fade-in`。",
+            "**状态过渡**：提醒横幅、徽标、空态与错误态、加载态的出现改用淡入；表格行悬停与失败标红改为颜色过渡；导入分页按钮与队列卡补 hover 反馈；admin 报告卡与筛选按钮补选中态过渡。",
+            "**无障碍**：以上每一条都在 `prefers-reduced-motion: reduce` 下用**精确选择器**关闭 —— 没有 `*` 一刀切，也没有触碰既有的 0.01ms 兜底规则。",
+            "关键技术点：卡片悬停位移改用独立的 `translate` / `scale` 属性，而不是 `transform`。`.result-item` 的入场动画带 `forwards`，会把 `transform` 钉在终值，用 `transform` 写的 hover 位移根本不会生效（这是既有代码里已存在的隐患）。同理把 `.anim-fade-up` / `.anim-fade-in` 的填充模式由 `both` 改为 `backwards`，避免工具类把交互元素的位移锁死。"
+          ]
+        },
+        {
+          "title": "🛠 内部",
+          "items": [
+            "两个仓库的 `.gitignore` 原本是 **UTF-16LE**：git 按字节逐行解析，那种编码下的规则实际上一条都没生效过。已改为 UTF-8，并补上 `.wrangler/`（wrangler 本地缓存）等忽略项。",
+            "既有问题（本次未动，留档）：`@keyframes cardEnter` 在 `timetable.css`（16px）与 `timetable-detail.css`（8px）各定义一次且值不同，详情页同时加载两份，后者会覆盖全局名。",
+            "版本号 1.5.2 → 1.6.0。"
+          ]
+        }
+      ]
+    },
     {
       "version": "1.5.2",
       "date": "2026-11-13",

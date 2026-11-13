@@ -90,15 +90,18 @@
     padding: 1.25rem 1.5rem;
     box-shadow: var(--shadow-xs);
     margin-bottom: 1rem;
-    animation: cardEnter 0.3s ease forwards;
-    opacity: 0;
-    transform: translateY(8px);
+    /* 入场统一走契约里的 fade-up-in：both 让延迟期间就固定在起始态，
+       所以不再需要 opacity:0 / transform 的基态 —— 关键帧缺席时也不会
+       留下一张隐形卡片（旧写法依赖 cardEnter 的 forwards 才能现形）。 */
+    animation: fade-up-in var(--dur-base) var(--ease-decelerate) both;
 }
 
-.detail-card:nth-child(2) { animation-delay: 0.05s; }
-.detail-card:nth-child(3) { animation-delay: 0.1s; }
-.detail-card:nth-child(4) { animation-delay: 0.15s; }
-.detail-card:nth-child(5) { animation-delay: 0.2s; }
+/* 错峰：卡片在 #detail-content 里是第 2~5 个子元素（第 1 个是 .detail-header），
+   倍数按出现顺序从 1 起，步长取契约的 --stagger-step */
+.detail-card:nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
+.detail-card:nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
+.detail-card:nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
+.detail-card:nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
 
 @keyframes cardEnter {
     from {
@@ -278,5 +281,50 @@
 
     .detail-time-table td.detail-time-empty {
         padding: 0.6rem 0.4rem;
+    }
+}
+
+/* ============================================================
+   动效补充：加载/错误态淡入、时刻网格行悬停
+   只用 main.css 提供的契约 token，不在此定义变量与全局关键帧。
+   ============================================================ */
+
+/* 加载态与错误态：显示时淡入。首屏的 .detail-loading 本身没有 .hidden，
+   等价于首帧淡入；两者都是 display 切换，重新显示时会重播。 */
+.detail-loading:not(.hidden),
+.detail-error:not(.hidden) {
+    animation: fade-in var(--dur-base) var(--ease-standard) both;
+}
+
+/* 时刻网格（每行 6 个时刻）：整行悬停轻微提亮，方便跨列对读。
+   原设计里的「时刻胶囊 .detail-time-chip」已不再渲染（详情页改为网格表格，
+   tools/detail-table-test 还专门断言它必须为 0 个），这里用现存的
+   .detail-time-table 行承接同一意图；单元不缩放，避免表格边框错位。 */
+.detail-time-table tr td {
+    transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.detail-time-table tr:hover td {
+    background-color: var(--bg-hover);
+}
+
+/* ---------- 降级：减少动态效果 ---------- */
+@media (prefers-reduced-motion: reduce) {
+    /* 卡片直接呈现终态：没有 opacity 基态，关掉动画不会留下隐形区块 */
+    .detail-card,
+    .detail-card:nth-child(2),
+    .detail-card:nth-child(3),
+    .detail-card:nth-child(4),
+    .detail-card:nth-child(5) {
+        animation: none;
+    }
+
+    .detail-loading:not(.hidden),
+    .detail-error:not(.hidden) {
+        animation: none;
+    }
+
+    .detail-time-table tr td {
+        transition: none;
     }
 }
