@@ -17,16 +17,15 @@
  *   - 数据源是本仓库里跟着 JS 一起部署的静态快照，不再走 KV 支撑的版本接口：
  *     外部存储靠人工同步，一旦停在旧值，就会和真正跑着的代码各说各话，
  *     结果新版本永远推不出去（两端都静默）。
+ *   - 弹窗由 lib/ui/popup.mjs 的 showDialog 渲染：eyebrow + 标题 + 版本对比块，
+ *     与全站其它对话框共用同一套「标题 / 描述 / 操作」版式。
  */
 import { APP_VERSION } from './version.js';
-import { showConfirm } from '/lib/ui/popup.mjs';
+import { popupReady, showDialog } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 
 /** localStorage 键：记录「已被用户选择稍后 / 已提示过的新版本号」 */
 const SEEN_KEY = 'mlttc-seen-version';
-
-/** <hcw-popup> 由 lib/ui/init.mjs 定义；没引 init.mjs 的页面等不到它，不能无限等 */
-const POPUP_WAIT_MS = 1500;
 
 const DATA_URL = '/lib/data/changelog.json';
 
@@ -112,26 +111,84 @@ async function reloadWithCacheBust() {
   location.replace(url.href);
 }
 
-/**
- * <hcw-popup> 可使用返回 true；等待超时仍未定义（页面没引 init.mjs）返回 false。
- * 必须 race：whenDefined 在这些页面上会永远 pending，弹框和提示就一起消失了。
- */
-function popupAvailable() {
-  return Promise.race([
-    customElements.whenDefined('hcw-popup').then(() => true),
-    new Promise((resolve) => {
-      setTimeout(() => resolve(Boolean(customElements.get('hcw-popup'))), POPUP_WAIT_MS);
-    }),
-  ]);
-}
-
-/** 写成单句连排：<hcw-popup> 的文本节点不保留换行，多行文案会被折叠成一段 */
+/** 写成单句连排：Toast 只有一行，多行文案会被挤断 */
 function buildText(latest) {
-  return `发现新版本 v${latest}（当前 v${APP_VERSION}），主页更新日志见 changelog.html。`;
+  return '发现新版本 v' + latest + '（当前 v' + APP_VERSION + '），主页更新日志见 changelog.html。';
 }
 
 /**
- * 拉部署版本号。带 `?_=` 且 cache: 'no-store' 是必需的：
+ * 版本对比块的样式。样式节点跟着内容一起 append 进弹窗 shadow，
+ * 所以只作用于这一个弹窗；类名统一带 vc- 前缀，避免和别处渗透进来的选择器撞车。
+ * 颜色全部取设计令牌，深浅两套主题自动跟随。
+ */
+const VERSION_DIFF_STYLE = [
+  '.vc-diff { display: flex; flex-direction: column; gap: .75rem; }',
+  '.vc-track { display: flex; align-items: center; gap: .625rem; padding: .75rem .875rem;' +
+  ' border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--input-bg); }',
+  '.vc-chip { display: flex; flex: 1 1 0; flex-direction: column; gap: .1875rem; min-width: 0; }',
+  '.vc-chip-label { font-size: .6875rem; font-weight: 700; letter-spacing: .08em;' +
+  ' text-transform: uppercase; color: var(--text-secondary); }',
+  '.vc-chip-value { font-family: var(--font-mono); font-size: .9375rem; font-weight: 700;' +
+  ' color: var(--text-primary); overflow-wrap: anywhere; }',
+  '.vc-chip-new .vc-chip-value { color: var(--link-color); }',
+  '.vc-arrow { flex: none; color: var(--text-secondary); font-size: 1rem; line-height: 1; }',
+  '.vc-log { align-self: flex-start; font-size: .8125rem; font-weight: 600; color: var(--link-color);' +
+  ' text-decoration: none; border-radius: var(--radius-xs); }',
+  '.vc-log:hover { text-decoration: underline; }',
+  '.vc-log:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }',
+].join('\n');
+
+/** 一个版本号胶囊：小标题（当前 / 最新）+ 版本号本身 */
+function versionChip(value, kind, labelText) {
+  const chip = document.createElement('span');
+  chip.className = 'vc-chip vc-chip-' + kind;
+
+  const label = document.createElement('span');
+  label.className = 'vc-chip-label';
+  label.textContent = labelText;
+
+  const version = document.createElement('span');
+  version.className = 'vc-chip-value';
+  version.textContent = 'v' + value;
+
+  chip.append(label, version);
+  return chip;
+}
+
+/**
+ * 版本对比块：当前 vX → 最新 vY，外加一个更新日志入口。
+ * 全部用 textContent 拼，版本号即使来自远端数据也不会被当成 HTML 解析。
+ */
+function buildVersionDiff(current, latest) {
+  const root = document.createElement('div');
+  root.className = 'vc-diff';
+
+  const style = document.createElement('style');
+  style.textContent = VERSION_DIFF_STYLE;
+
+  const track = document.createElement('div');
+  track.className = 'vc-track';
+
+  const arrow = document.createElement('span');
+  arrow.className = 'vc-arrow';
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.textContent = '→';
+
+  track.append(versionChip(current, 'old', '当前'), arrow, versionChip(latest, 'new', '最新'));
+
+  const log = document.createElement('a');
+  log.className = 'vc-log';
+  log.href = '/changelog.html';
+  log.target = '_blank';
+  log.rel = 'noopener';
+  log.textContent = '查看更新日志';
+
+  root.append(style, track, log);
+  return root;
+}
+
+/**
+ * 拉部署版本号。带 ?_= 且 cache: 'no-store' 是必需的：
  * CDN 和手机浏览器都会把这份 JSON 缓存住，缓存住的旧值等于没检查。
  *
  * 主源是静态标记（纯静态、不依赖 Functions）；取不到再退回 /api/version——
@@ -139,7 +196,7 @@ function buildText(latest) {
  */
 async function fetchLatestVersion() {
   try {
-    const res = await fetch(`${DATA_URL}?_=${Date.now()}`, { cache: 'no-store' });
+    const res = await fetch(DATA_URL + '?_=' + Date.now(), { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       if (json && json.latestVersion) return String(json.latestVersion);
@@ -150,7 +207,7 @@ async function fetchLatestVersion() {
   }
 
   try {
-    const res = await fetch(`/api/version?_=${Date.now()}`, { cache: 'no-store' });
+    const res = await fetch('/api/version?_=' + Date.now(), { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       if (json && json.success && json.version) return String(json.version);
@@ -183,22 +240,23 @@ async function checkVersion() {
     try { seen = localStorage.getItem(SEEN_KEY) || ''; } catch { /* 隐私模式下 localStorage 会抛，当作没标记过 */ }
     if (seen === latest) return;
 
-    const text = buildText(latest);
-
     // 没有 <hcw-popup> 就只能退回只读的顶部提示
-    if (!(await popupAvailable())) {
+    if (!(await popupReady())) {
       // 不写标记：Toast 没有交互按钮，用户可能压根没看到，写了就等于让这条提示永久消失
-      showMessage(text, false, { type: 'info', duration: 6000 });
+      showMessage(buildText(latest), false, { type: 'info', duration: 6000 });
       return;
     }
 
-    const choice = await showConfirm({
-      text,
+    const choice = await showDialog({
+      eyebrow: '更新可用',
+      title: '发现新版本 v' + latest,
+      text: '更新会重新加载本页，正在填写的内容不会保留；也可以先看看这次改了什么。',
+      content: buildVersionDiff(APP_VERSION, latest),
       buttons: ['立即更新', '稍后'],
-      button_style: ['primary', ''],
+      button_style: ['primary', 'tp'],
     });
 
-    // showConfirm 返回的是**倒序**索引：0 =「稍后」，1 =「立即更新」
+    // showDialog 返回的是**倒序**索引：1 =「立即更新」，0 =「稍后」或直接关掉弹窗
     if (choice === 1) {
       // 刷新期间保持一个「正在更新」的提示，避免用户以为没反应而重复点击
       showMessage('正在更新到 v' + latest + '…', false, { type: 'info', duration: 6000 });

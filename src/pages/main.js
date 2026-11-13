@@ -172,12 +172,13 @@ if (bugback) bugback.addEventListener("click", bugbackf);
 
 async function bugbackf(){
   const inputvalue=await showPrompt({
-    text:"请输入BUG反馈内容",
-    buttons:['确定','取消'],
-    button_style:['primary','secondary'],
+    eyebrow:"反馈",
+    title:"BUG 反馈",
+    text:"描述你遇到的问题，越具体越容易复现。",
+    buttons:['提交','取消'],
+    button_style:['primary','tp'],
     input_is_area:true,
-    input_placeholder:"请输入BUG反馈内容",
-    input_value:""
+    input_attrs:{placeholder:"例如：在时刻表查询页点「立即使用」后没有任何反应"}
   })
   if(inputvalue){
     try {

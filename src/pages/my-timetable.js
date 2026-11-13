@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const confirmed = await showConfirm({
           text: `确定要删除 #${item.ID} 时刻表吗？此操作不可恢复。`,
           buttons: ['确定删除', '取消'],
-          button_style: ['danger', '']
+          button_style: ['variant=danger', 'tp']
         });
         if (!confirmed) return;
 

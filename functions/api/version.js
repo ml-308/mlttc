@@ -13,10 +13,10 @@
 //     所以不会出现 KV 那种「版本号与实际部署脱节」的问题）。
 //   取不到静态资源时退回下面的兜底常量。
 //
-// 出参：{ success: true, version: '1.3.0', notes: '' }
+// 出参：{ success: true, version: '1.3.1', notes: '' }
 
 /** 兜底版本号：取不到静态标记时返回，需与 src/version.js 保持一致 */
-const FALLBACK_VERSION = '1.3.0';
+const FALLBACK_VERSION = '1.3.1';
 
 /** 静态标记路径（仓库里的 lib/data/changelog.json） */
 const MARKER_PATH = '/lib/data/changelog.json';

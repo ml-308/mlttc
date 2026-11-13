@@ -340,10 +340,10 @@
         }
     </style>
     <div class="inner-root">
-        <label>
+        <label for="hcw-input-control">
             <slot name="label"></slot>
         </label>
-        <input>
+        <input id="hcw-input-control">
     </div>
 </template>
 
@@ -449,10 +449,10 @@
         }
     </style>
     <div class="inner-root">
-        <label>
+        <label for="hcw-textarea-control">
             <slot name="label"></slot>
         </label>
-        <textarea></textarea>
+        <textarea id="hcw-textarea-control"></textarea>
     </div>
 </template>
 
@@ -504,23 +504,24 @@
 
 <template id="template-hcw-popup">
     <style>
-        /* 卡片：正文块 → 1px 分隔线 → 操作区，三段靠一个 flex gap 加一条 hairline 分工。
-           正文只能挂在这一个 h2 上（popup.mjs 的 contentNode 就是它，输入变体也 append 在里面），
-           所以层次靠字号/行高/留白撑起来，不新增 DOM。 */
+        /* ── 弹窗卡片 ──────────────────────────────────────────────────
+           结构：标题区（eyebrow + 标题 + 描述）× 正文内容（输入控件 / 版本对比）× 操作区。
+           层级：eyebrow 给上下文 → 标题给结论（唯一的粗黑层）→ 描述用 secondary 收细节。
+           关闭钮绝对定位在右上角，不占文档流；操作区用一条 hairline 与正文分开。
+           布局量全部走 --hcw-popup-* 钩子，页面层可整体覆盖。 */
         .inner-root {
             position: relative;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
             width: 100%;
-            /* 卡片最大宽度，默认 420px：中文正文一行 ~21 字，是一屏一眼能扫完的行宽 */
+            /* 卡片最大宽度，默认 420px：中文一行 ~21 字，一眼扫得完 */
             max-width: var(--hcw-popup-max-width, 420px);
-            /* 卡片内距，默认 1.5rem（原 1.25rem 1.5rem，纵向补齐呼吸感） */
+            /* 卡片内距，默认 1.5rem */
             padding: var(--hcw-popup-padding, 1.5rem);
-            /* 正文块与操作区之间的间距，默认 1.25rem */
+            /* 三段骨架的间距，默认 1.25rem */
             gap: var(--hcw-popup-gap, 1.25rem);
             margin: 0;
-            /* 卡片圆角默认取 --radius-xl：比原 --radius-lg 更贴对话框，又不至于成胶囊 */
             border-radius: var(--hcw-popup-radius, var(--radius-xl));
             background-color: var(--bg-card);
             color: var(--text-primary);
@@ -529,34 +530,117 @@
             box-shadow: var(--shadow-xl);
             transition: var(--transition-fast);
             overflow: hidden;
-            /* 操作区按钮统一 44px 触控高度与胶囊内距：走 button 模板已有的变量钩子，不动按钮基础样式 */
+            /* 入场：卡片从下方轻轻浮起，与遮罩的淡入叠成一次呼吸 */
+            animation: hcw-popup-card-in var(--transition-normal) 0s 1 both;
+            /* 操作区按钮统一 44px 触控高度与胶囊内距：走 button 模板已有的变量钩子 */
             --hcw-button-min-height: var(--hcw-popup-button-height, 2.75rem);
             --hcw-button-padding: var(--hcw-popup-button-padding, .6rem 1.25rem);
+            --hcw-button-font-size: var(--hcw-popup-button-font-size, .9375rem);
         }
 
-        /* 正文块自身也是 flex 容器：showPrompt 会把 <hcw-input>/<hcw-textarea> 直接 append 进来，
-           用 gap 一处控制「文字 → 输入控件」的垂直节奏，避免 margin 叠加后各变体间距不一致 */
-        [name='text'] {
+        /* 卡片自身可聚焦（tabindex=-1），只作为焦点落点，不画焦点框 */
+        .inner-root:focus {
+            outline: none;
+        }
+
+        @keyframes hcw-popup-card-in {
+            from {
+                opacity: 0;
+                transform: translateY(.75rem) scale(.985);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        /* ── 标题区 ── */
+        .header {
             display: flex;
             flex-direction: column;
-            /* 正文与输入控件之间的间距，默认 1rem */
-            gap: var(--hcw-popup-content-gap, 1rem);
-            margin: 0;
-            /* 正文字号默认 1.0625rem（17px）：原 1.5rem 只适合当标题，长文本会读崩 */
-            font-size: var(--hcw-popup-text-font-size, 1.0625rem);
-            /* 行高 1.6：中文长段换行后行距够松 */
-            line-height: var(--hcw-popup-text-line-height, 1.6);
-            /* 自重 500：短句（如「确定要进行该操作吗？」）靠这一档撑出标题感，长段又不至于压眼 */
-            font-weight: var(--hcw-popup-text-weight, 500);
-            letter-spacing: var(--hcw-popup-text-letter-spacing, .01em);
-            color: var(--text-primary);
-            /* 长无空格串（URL / token / 订单号）必须能断行，否则撑破卡片 */
-            overflow-wrap: anywhere;
-            /* 中文短句尽量不出现末行孤字 */
-            text-wrap: pretty;
+            /* 标题与描述之间，默认 .5rem */
+            gap: var(--hcw-popup-header-gap, .5rem);
+            /* 给右上角关闭钮留出位置，长标题不会压到 × 上 */
+            padding-inline-end: var(--hcw-popup-header-padding-end, 1.75rem);
             min-width: 0;
         }
 
+        .header[hidden] {
+            display: none;
+        }
+
+        /* eyebrow：补上下文（「更新可用」「危险操作」），小字号 + 大字距，不抢标题 */
+        .eyebrow {
+            margin: 0;
+            font-size: var(--hcw-popup-eyebrow-font-size, .75rem);
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            line-height: 1.3;
+            color: var(--hcw-popup-eyebrow-color, var(--primary));
+        }
+
+        .eyebrow[hidden] {
+            display: none;
+        }
+
+        /* 标题：全卡唯一的粗黑层级：Spotify 用字重而不是字号堆层级 */
+        .title {
+            margin: 0;
+            font-size: var(--hcw-popup-title-font-size, 1.1875rem);
+            line-height: 1.35;
+            font-weight: 800;
+            letter-spacing: -.015em;
+            color: var(--text-primary);
+            /* 长无空格串（URL / 版本号）必须能断行，否则撑破卡片 */
+            overflow-wrap: anywhere;
+            text-wrap: pretty;
+        }
+
+        .title[hidden] {
+            display: none;
+        }
+
+        /* 描述：比标题低一档字号 + secondary 色，长段读起来不压眼 */
+        .text {
+            margin: 0;
+            font-size: var(--hcw-popup-text-font-size, .9375rem);
+            line-height: 1.65;
+            font-weight: 400;
+            letter-spacing: 0;
+            color: var(--text-secondary);
+            overflow-wrap: anywhere;
+            text-wrap: pretty;
+        }
+
+        .text[hidden] {
+            display: none;
+        }
+
+        /* 只有正文、没有标题时（旧调用方只传 text），让正文升格成标题：
+           单句确认（「确定要删除…吗？」）不该被压成灰色小字。 */
+        .header:not(:has(.title:not([hidden]))) .text {
+            font-size: var(--hcw-popup-title-font-size, 1.1875rem);
+            line-height: 1.35;
+            font-weight: 800;
+            letter-spacing: -.015em;
+            color: var(--text-primary);
+        }
+
+        /* ── 正文内容区（showPrompt 的输入控件、版本对比块挂这里） ── */
+        .content {
+            display: flex;
+            flex-direction: column;
+            gap: var(--hcw-popup-content-gap, .875rem);
+            min-width: 0;
+        }
+
+        .content:empty {
+            display: none;
+        }
+
+        /* ── 操作区 ── */
         [name='btn-group'] {
             display: flex;
             flex-wrap: wrap;
@@ -571,20 +655,61 @@
         }
 
         [name='btn-group'] hcw-button {
-            /* 按钮最小宽度，默认 6.5rem（原 max(5vw, 6.5rem)：5vw 在窄屏会缩成小目标） */
+            /* 按钮最小宽度，默认 6.5rem：窄屏也不会缩成小目标 */
             min-width: var(--hcw-popup-button-min-width, 6.5rem);
+        }
+
+        /* 关闭钮：32px 圆形热区，静止时只有一个 ×，悬停才浮现底色 */
+        .close {
+            position: absolute;
+            top: var(--hcw-popup-close-offset, .875rem);
+            inset-inline-end: var(--hcw-popup-close-offset, .875rem);
+            appearance: none;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: var(--hcw-popup-close-size, 2rem);
+            height: var(--hcw-popup-close-size, 2rem);
+            padding: 0;
+            border-radius: var(--radius-full);
+            cursor: pointer;
+            transition: var(--transition-fast);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .close[hidden] {
+            display: none;
+        }
+
+        .close svg {
+            display: block;
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .close:hover {
+            background-color: var(--button-bg-hl);
+            color: var(--text-primary);
+        }
+
+        .close:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
         }
 
         @media(max-width: 480px) {
             .inner-root {
-                /* 原 min-width:100vw 会把遮罩撑出横向滚动；改成吃满可用宽度、内距略收 */
+                /* 吃满可用宽度、内距略收；不再用 min-width:100vw，否则遮罩会被撑出横向滚动 */
                 max-width: none;
-                padding: var(--hcw-popup-padding-narrow, 1.125rem);
+                padding: var(--hcw-popup-padding-narrow, 1.25rem);
                 border-radius: var(--hcw-popup-radius-narrow, var(--radius-lg));
             }
 
             [name='btn-group'] {
-                /* 窄屏按钮改成整行等分上下排：触控目标更大，也不会挤成一条 */
+                /* 窄屏按钮整行等分上下排：触控目标更大，也不会挤成一条 */
                 flex-direction: column;
                 align-items: stretch;
             }
@@ -593,13 +718,29 @@
                 min-width: 0;
             }
         }
+
+        /* 用户要求减少动效时，卡片不再浮起（遮罩的淡入由 modal-root 自己处理） */
+        @media(prefers-reduced-motion: reduce) {
+            .inner-root {
+                animation: none;
+            }
+        }
     </style>
     <hcw-modal-root>
-        <div class="inner-root">
-            <h2 name="text"></h2>
-            <div name="btn-group">
-
+        <div class="inner-root" role="dialog" aria-modal="true" tabindex="-1">
+            <button class="close" name="close" type="button" aria-label="关闭" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round"></path>
+                </svg>
+            </button>
+            <div class="header" name="header" hidden>
+                <p class="eyebrow" name="eyebrow" hidden></p>
+                <h2 class="title" name="title" hidden></h2>
+                <p class="text" name="text" hidden></p>
             </div>
+            <div class="content" name="content"></div>
+            <div class="btn-group" name="btn-group"></div>
         </div>
     </hcw-modal-root>
 </template>
