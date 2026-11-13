@@ -171,9 +171,9 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('[my-timetable] 拉取错误报告提醒异常，已静默跳过', e);
       myReports = [];
     }
-    renderReportNotices();
+    renderNotices();
     // 时刻表卡片此时可能已渲染完成，补打一次高亮（幂等）
-    applyReportHighlight();
+    applyNoticeHighlight();
   }
 
   /** 生成只含纯文本的元素：用户/管理员输入的文本一律走 textContent，不拼 innerHTML */
@@ -184,13 +184,43 @@ document.addEventListener('DOMContentLoaded', () => {
     return el;
   }
 
-  /** 报告对应的时刻表 ID 集合（字符串化，便于与卡片 data-tid 比对） */
-  function reportTidSet() {
-    const set = new Set();
+  /**
+   * 统一的「需要修正」条目，两类来源并列显示：
+   *   1. 错误报告返还（TIMETABLE_REPORT.RESOLUTION = 'returned'）—— 带报告正文与管理员留言；
+   *   2. 管理员普通驳回（TIMETABLE.BACK = 1 且没有对应报告）—— 没有正文可显示，用通用说明。
+   *
+   * 同一条时刻表只出现一次：已被报告覆盖的驳回条目跳过，避免横幅里同一张表出现两遍。
+   * 两个数据源（报告接口、时刻表列表）各自独立到达，任一方为空时另一方的条目照常显示。
+   *
+   * @returns {Array<{kind:'report'|'rejected', tid:string, report?:object, item?:object}>}
+   */
+  function noticeEntries() {
+    const entries = [];
+    const seen = new Set();
+
     myReports.forEach((r) => {
-      if (!r || r.TID === undefined || r.TID === null) return;
-      const tid = String(r.TID).trim();
-      if (tid) set.add(tid);
+      if (!r) return;
+      const tid = (r.TID === undefined || r.TID === null) ? '' : String(r.TID).trim();
+      if (tid) seen.add(tid);
+      entries.push({ kind: 'report', tid, report: r });
+    });
+
+    myTimetables.forEach((item) => {
+      if (!item || !isRejected(item)) return;
+      const tid = (item.ID === undefined || item.ID === null) ? '' : String(item.ID).trim();
+      if (!tid || seen.has(tid)) return;   // 已有报告条目，或拿不到 ID → 不重复列
+      seen.add(tid);
+      entries.push({ kind: 'rejected', tid, item });
+    });
+
+    return entries;
+  }
+
+  /** 需要修正的时刻表 ID 集合（字符串化，便于与卡片 data-tid 比对） */
+  function noticeTidSet() {
+    const set = new Set();
+    noticeEntries().forEach((entry) => {
+      if (entry.tid) set.add(entry.tid);
     });
     return set;
   }
@@ -211,38 +241,54 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${start || '?'} ↔ ${end || '?'}`;
   }
 
-  /** 构造一条提醒（含「去修改」按钮） */
-  function buildReportItem(r) {
+  /**
+   * 构造一条提醒（含「去修改」按钮）
+   * 两类条目的字段名恰好一致（CITY/WAY/START/END），所以路线与站点文本复用同一套函数；
+   * 「报告返还」多显示报告正文、管理员留言与报告时间，「普通驳回」只给一句通用说明。
+   */
+  function buildNoticeItem(entry) {
+    const data = entry.kind === 'report' ? entry.report : entry.item;
     const li = document.createElement('li');
     li.className = 'my-report-item';
 
     const head = document.createElement('div');
     head.className = 'my-report-item-head';
-    head.appendChild(makeTextEl('span', 'my-report-item-id', `#${r.TID}`));
-    head.appendChild(makeTextEl('span', 'my-report-item-route', reportRouteText(r)));
+    head.appendChild(makeTextEl('span', 'my-report-item-id', `#${entry.tid || '未知ID'}`));
+    head.appendChild(makeTextEl('span', 'my-report-item-route', reportRouteText(data)));
     li.appendChild(head);
 
-    li.appendChild(makeTextEl('div', 'my-report-item-stations', reportStationsText(r)));
+    li.appendChild(makeTextEl('div', 'my-report-item-stations', reportStationsText(data)));
 
-    // 报告正文：用户输入的文本 → textContent
-    const contentRow = document.createElement('div');
-    contentRow.className = 'my-report-item-row';
-    contentRow.appendChild(makeTextEl('span', 'my-report-item-label', '报告内容'));
-    contentRow.appendChild(makeTextEl('span', 'my-report-item-value', r.CONTENT || '（无正文）'));
-    li.appendChild(contentRow);
+    if (entry.kind === 'report') {
+      const r = entry.report;
+      // 报告正文：用户输入的文本 → textContent
+      const contentRow = document.createElement('div');
+      contentRow.className = 'my-report-item-row';
+      contentRow.appendChild(makeTextEl('span', 'my-report-item-label', '报告内容'));
+      contentRow.appendChild(makeTextEl('span', 'my-report-item-value', r.CONTENT || '（无正文）'));
+      li.appendChild(contentRow);
 
-    // 管理员留言 RESOLVENOTE：管理员输入的文本 → textContent，有内容才显示
-    const note = r.RESOLVENOTE ? String(r.RESOLVENOTE).trim() : '';
-    if (note) {
-      const noteRow = document.createElement('div');
-      noteRow.className = 'my-report-item-row my-report-item-row--note';
-      noteRow.appendChild(makeTextEl('span', 'my-report-item-label', '管理员留言'));
-      noteRow.appendChild(makeTextEl('span', 'my-report-item-value', note));
-      li.appendChild(noteRow);
+      // 管理员留言 RESOLVENOTE：管理员输入的文本 → textContent，有内容才显示
+      const note = r.RESOLVENOTE ? String(r.RESOLVENOTE).trim() : '';
+      if (note) {
+        const noteRow = document.createElement('div');
+        noteRow.className = 'my-report-item-row my-report-item-row--note';
+        noteRow.appendChild(makeTextEl('span', 'my-report-item-label', '管理员留言'));
+        noteRow.appendChild(makeTextEl('span', 'my-report-item-value', note));
+        li.appendChild(noteRow);
+      }
+
+      li.appendChild(makeTextEl('div', 'my-report-item-time',
+        `报告时间：${r.WRITETIME ? String(r.WRITETIME) : '未知'}`));
+    } else {
+      // 普通驳回没有正文与留言（审核页的驳回不填原因），只给出做了什么、该干什么
+      const statusRow = document.createElement('div');
+      statusRow.className = 'my-report-item-row my-report-item-row--note';
+      statusRow.appendChild(makeTextEl('span', 'my-report-item-label', '审核结果'));
+      statusRow.appendChild(makeTextEl('span', 'my-report-item-value',
+        '管理员已驳回，请修正后重新提交审核'));
+      li.appendChild(statusRow);
     }
-
-    li.appendChild(makeTextEl('div', 'my-report-item-time',
-      `报告时间：${r.WRITETIME ? String(r.WRITETIME) : '未知'}`));
 
     // 「去修改」：与卡片上「修改时刻表」按钮同一跳转目标（按 TID 打开修改页）
     const action = document.createElement('hcw-button');
@@ -251,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
     action.textContent = '去修改';
     action.addEventListener('click', (e) => {
       e.stopPropagation();
-      window.location.href = `/timetable-result.html?id=${encodeURIComponent(r.TID)}`;
+      window.location.href = `/timetable-result.html?id=${encodeURIComponent(entry.tid)}`;
     });
     const actionBar = document.createElement('div');
     actionBar.className = 'my-report-item-actions';
@@ -263,53 +309,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /**
    * 渲染顶部提醒横幅
-   * 触发条件只有一条：reports.length > 0；为空（含接口失败/401/未登录）时清空并隐藏，
-   * 不留下空容器或占位空白。
+   * 触发条件：存在任一「需要修正」的条目（错误报告返还 或 普通驳回）；
+   * 两类都没有（含接口失败/401/未登录）时清空并隐藏，不留空容器或占位空白。
    */
-  function renderReportNotices() {
+  function renderNotices() {
     if (!ttReportNotice) return;
     // 先清空；下面所有内容都用 createElement + textContent 写入
     ttReportNotice.innerHTML = '';
-    if (myReports.length === 0) {
+
+    const entries = noticeEntries();
+    if (entries.length === 0) {
       ttReportNotice.classList.add('hidden');
       return;
     }
 
+    const reportCount = entries.filter((e) => e.kind === 'report').length;
+    const rejectCount = entries.filter((e) => e.kind === 'rejected').length;
+    let title;
+    if (reportCount > 0 && rejectCount > 0) {
+      title = `有 ${entries.length} 条时刻表需要修正后重新提交`
+        + `（${reportCount} 条因错误报告返还，${rejectCount} 条被驳回）`;
+    } else if (reportCount > 0) {
+      title = `有 ${reportCount} 条时刻表因错误报告被返还，请修正后重新提交`;
+    } else {
+      title = `有 ${rejectCount} 条时刻表被管理员驳回，请修正后重新提交`;
+    }
+
     const head = document.createElement('div');
     head.className = 'my-report-head';
-    head.appendChild(makeTextEl('span', 'my-report-title',
-      `有 ${myReports.length} 条时刻表因错误报告被返还，请修正后重新提交`));
+    head.appendChild(makeTextEl('span', 'my-report-title', title));
     ttReportNotice.appendChild(head);
 
     const list = document.createElement('ul');
     list.className = 'my-report-list';
-    myReports.forEach((r) => {
-      if (r) list.appendChild(buildReportItem(r));
-    });
+    entries.forEach((entry) => list.appendChild(buildNoticeItem(entry)));
     ttReportNotice.appendChild(list);
 
     ttReportNotice.classList.remove('hidden');
   }
 
   /**
-   * 给命中 TID 的卡片打高亮（左侧警示色 + 角标「因报告被返还」）
-   * 命中依据：卡片上的 data-tid（renderMyPage 写入）与报告 TID 字符串相等。
+   * 给「需要修正」的卡片打高亮（左侧警示条 + 角标）
+   * 命中依据：卡片上的 data-tid（renderMyPage 写入）与条目 TID 字符串相等。
+   * 角标文案按来源区分：错误报告返还 / 已被驳回。
    * 幂等：重复调用不会重复插入角标；未命中时会把角标移除。
    * 与现有「被驳回」状态并存：只加 class 与角标，不改状态文案/配色。
    */
-  function applyReportHighlight() {
+  function applyNoticeHighlight() {
     if (!ttList) return;
-    const tids = reportTidSet();
+    const kinds = new Map();
+    noticeEntries().forEach((entry) => {
+      if (!entry.tid) return;
+      // 同一条表既有报告又是驳回时，报告优先（信息更具体）
+      if (!kinds.has(entry.tid) || entry.kind === 'report') kinds.set(entry.tid, entry.kind);
+    });
+
     ttList.querySelectorAll('.result-item').forEach((card) => {
       const tid = card.dataset ? card.dataset.tid : '';
-      const hit = Boolean(tid) && tids.has(tid);
+      const kind = tid ? kinds.get(tid) : undefined;
+      const hit = Boolean(kind);
       card.classList.toggle('is-report-returned', hit);
 
       const existed = card.querySelector('.my-report-badge');
       if (hit && !existed) {
         const badge = document.createElement('span');
         badge.className = 'my-report-badge';
-        badge.textContent = '因报告被返还';
+        badge.textContent = kind === 'report' ? '因报告被返还' : '已被驳回';
         (card.querySelector('.result-item-header') || card).appendChild(badge);
       } else if (!hit && existed) {
         existed.remove();
@@ -323,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
     myTimetables.forEach((item, idx) => {
       const card = document.createElement('div');
       card.className = 'result-item';
-      // 记录时刻表 ID，供 applyReportHighlight 命中提醒（字符串化，避免类型差异）
+      // 记录时刻表 ID，供 applyNoticeHighlight 命中提醒（字符串化，避免类型差异）
       card.dataset.tid = String(item.ID);
       card.style.animationDelay = `${idx * 0.05}s`;
 
@@ -408,8 +473,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       ttList.appendChild(card);
     });
+    // 列表到货后横幅要重建：普通驳回的条目来自 myTimetables（不在报告接口里），
+    // 而横幅可能已经先按报告渲染过一次。渲染与高亮都是幂等的，重复调用安全。
+    renderNotices();
     // 卡片重建后重新打一次高亮（提醒可能比列表先到）
-    applyReportHighlight();
+    applyNoticeHighlight();
   }
 
   // 刷新按钮：两个数据源都重拉（时刻表清缓存后重查；提醒不进缓存，直接重拉）

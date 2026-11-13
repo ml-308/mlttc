@@ -541,6 +541,20 @@ export async function onRequestDelete({ request, env }) {
         await env.mlttcd.prepare('DELETE FROM TIMETABLE WHERE ID = ? AND WRITER = ?')
             .bind(id, writer).run();
 
+        // ─── 同步删除这条时刻表的错误报告 ──────────────────────
+        // 时刻表没了，挂在它上面的报告就是没有主体的孤儿记录；最常见的路径正是
+        // 「管理员把报告返还写入者 → 作者直接删除这条时刻表」，此时报告若留在库里，
+        // 管理端的报告列表里会一直挂着一条点进去什么都没有的条目。
+        // 删掉整条 TID 的报告（不论 open 还是已处理），与时刻表同生共死。
+        // ⚠️ 独立 try/catch：TIMETABLE_REPORT 尚未创建时不能让「删除时刻表」失败。
+        try {
+            await env.mlttcd.prepare(
+                'DELETE FROM TIMETABLE_REPORT WHERE TID = ?'
+            ).bind(id).run();
+        } catch (reportErr) {
+            console.warn('同步删除错误报告失败（TIMETABLE_REPORT 可能尚未创建）:', reportErr);
+        }
+
         // 维护首页统计（线路 -1、城市回收），失败不影响主流程
         statsOnDelete(env, existing.CITY).catch((e) => console.warn('统计维护失败:', e));
 
