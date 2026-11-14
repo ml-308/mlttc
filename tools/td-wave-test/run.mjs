@@ -24,6 +24,7 @@
 //   9. 塔数据形状（数值表 / 场上塔清单共用同一份 TOWER_TYPES）
 //  10. 场上塔清单 describeTowers：空场 / 顺序 / 光环加成 / 满级 / 金币门槛 / 返还额
 //  11. 「快速升级」目标 nextUpgradeTarget：建造顺序 / 跳过满级 / 全满级 / 价格取值 / 金币门槛 / 坏输入
+//  12. 导入合并 mergeProgress：导入的无尽进度必须胜出（不许退回「savedAt 谁新留谁」）
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -521,6 +522,26 @@ section('11. 「快速升级」目标 nextUpgradeTarget（纯函数，不碰 DOM
             cost: first.cost, canAfford: first.canAfford }));
     console.log('  nextUpgradeTarget(全满级 3 座, gold=99999)：' + nextUpgradeTarget(allMax, 99999));
     console.log('  nextUpgradeTarget([], gold=9999)：' + nextUpgradeTarget([], 9999));
+}
+
+section('12. 导入合并 mergeProgress（导入的无尽进度必须胜出）');
+{
+    const { mergeProgress } = mod;
+    // 注意：endlessRun 必须过 sanitizeRun 的校验（wave/gold/lives/kills/savedAt 均为数字、seed 非空）
+    const cur = { unlocked: 1, levelBest: {}, endlessBest: 3,
+        endlessRun: { wave: 1, gold: 150, lives: 20, kills: 0, seed: 'local-seed', towers: [], savedAt: 999999999 } };
+    const inc = { unlocked: 50, levelBest: { 3: 12 }, endlessBest: 99,
+        endlessRun: { wave: 12, gold: 500, lives: 15, kills: 300, seed: 'imported-seed', towers: [], savedAt: 1 } };
+    const out = mergeProgress(cur, inc);
+    // 这条是回归断言：页面一加载就写出当前这局的 run（savedAt=此刻），永远比导入的新，
+    // 若按「谁新留谁」合并，导入的无尽进度永远用不上 —— 曾经真的出现过这个 bug。
+    assert('导入的无尽进度胜出（即使 savedAt 更旧）', out.endlessRun && out.endlessRun.wave === 12,
+        '得到 ' + JSON.stringify(out.endlessRun));
+    assert('单调数据仍取大：unlocked / endlessBest / levelBest', out.unlocked === 50 && out.endlessBest === 99 && out.levelBest[3] === 12,
+        JSON.stringify({ u: out.unlocked, e: out.endlessBest, lb: out.levelBest }));
+    const keep = mergeProgress(cur, { unlocked: 1, levelBest: {}, endlessBest: 0, endlessRun: null });
+    assert('导入里没有无尽进度时，不覆盖本地的', keep.endlessRun && keep.endlessRun.wave === 1,
+        '得到 ' + JSON.stringify(keep.endlessRun));
 }
 
 // ─── 汇总 ────────────────────────────────────────────────────

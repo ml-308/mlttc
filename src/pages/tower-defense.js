@@ -325,6 +325,7 @@ export {
   encodeSave, decodeSave, levelTotalEnemies,   // 存档码往返 + 关卡总怪量：自检脚本直接断言
   describeTowers,   // 场上塔清单的数据化描述（纯函数，清单渲染与自检共用同一份口径）
   nextUpgradeTarget,   // 「快速升级」按钮的目标选择（纯函数：按建造顺序取第一个未满级的塔）
+  mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
 };
 
 /* ===================== 4. 运行时状态 ===================== */
@@ -1479,8 +1480,12 @@ function mergeProgress(cur, inc) {
   out.unlocked = Math.max(out.unlocked, inc.unlocked);
   out.endlessBest = Math.max(out.endlessBest, inc.endlessBest);
   for (const k in inc.levelBest) out.levelBest[Number(k)] = Math.max(out.levelBest[Number(k)] || 0, inc.levelBest[k]);
-  const a = out.endlessRun, b = inc.endlessRun;
-  out.endlessRun = !a ? b : !b ? a : (b.savedAt > a.savedAt ? b : a);
+  // 无尽进度是「单槽位」，不能按「谁新就留谁」合并：
+  // 页面一加载就会写出当前这局的 endlessRun（savedAt = 此刻），它永远比任何导入的旧存档新，
+  // 于是导入进度永远胜不出 → 表现就是「导入成功、却怎么也用不上」。
+  // 导入是用户的显式意图，因此只要导入里带了无尽进度，就用它。
+  // （关卡解锁 / 各关最好 / 最高波数是单调数据，仍按取大合并。）
+  out.endlessRun = inc.endlessRun || out.endlessRun;
   return out;
 }
 
