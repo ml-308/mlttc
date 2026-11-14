@@ -1687,6 +1687,34 @@ body.nav-open {
     display: none;
 }
 
+/* 分隔线 + GitHub 登录/注册入口（与注册页的 GitHub 按钮同一套视觉） */
+#globalLoginModal .auth-divider {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin: .35rem 0 .1rem;
+    color: var(--text-muted);
+    font-size: .75rem;
+}
+
+#globalLoginModal .auth-divider::before,
+#globalLoginModal .auth-divider::after {
+    content: '';
+    flex: 1 1 0;
+    height: 1px;
+    background: var(--border-light);
+}
+
+#globalLoginModal .auth-github-btn {
+    width: 100%;
+    min-width: 0;
+    font-size: .85rem;
+    /* 与注册页一致：靠边框区分次级动作，不抢主登录按钮的绿色 */
+    border: 1px solid var(--border);
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
 /* ============ 注册页：人机验证 + GitHub 注册（src/pages/register.js） ============ */
 
 .register-turnstile {

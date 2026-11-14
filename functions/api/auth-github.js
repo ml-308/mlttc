@@ -76,10 +76,12 @@ function timingSafeEqualString(a, b) {
  * 签发 state（回调侧用 verifyState 校验，两函数必须成对维护）
  * @param {string} secret env.JWT_SECRET
  * @param {'register'|'home'} from 授权完成后的落地页
- * @returns {Promise<string>} "<nonce>.<ts>.<from>.<sig>"
+ * @param {boolean} [remember=true] 是否持久登录（决定回调下发持久 Cookie 还是会话 Cookie）
+ * @returns {Promise<string>} "<nonce>.<ts>.<from>.<remember>.<sig>"
  */
-export async function signState(secret, from) {
-  const payload = `${randomHex(16)}.${Math.floor(Date.now() / 1000)}.${from}`;
+export async function signState(secret, from, remember = true) {
+  const flag = remember ? '1' : '0';
+  const payload = `${randomHex(16)}.${Math.floor(Date.now() / 1000)}.${from}.${flag}`;
   const signature = await hmacBase64Url(secret, payload);
   return `${payload}.${signature}`;
 }
@@ -88,28 +90,33 @@ export async function signState(secret, from) {
  * 校验 state：签名 + 时间窗
  * @param {string} secret env.JWT_SECRET
  * @param {string} state 回调带回的 state
- * @returns {Promise<{ok: boolean, from: 'register'|'home'}>}
- *          失败时 ok=false，from 一律回退 'home'（失败分支只会回注册页，用不到 from）
+ * @returns {Promise<{ok: boolean, from: 'register'|'home', remember: boolean}>}
+ *          失败时 ok=false，from 回退 'home'、remember 回退 true（失败分支用不到这两项）
  */
 export async function verifyState(secret, state) {
-  const FAILED = { ok: false, from: 'home' };
+  const FAILED = { ok: false, from: 'home', remember: true };
   if (typeof state !== 'string') return FAILED;
 
   const parts = state.split('.');
-  if (parts.length !== 4) return FAILED;
+  if (parts.length !== 5) return FAILED;
 
-  const [nonce, ts, from, signature] = parts;
+  const [nonce, ts, from, flag, signature] = parts;
   if (!nonce || !/^\d+$/.test(ts)) return FAILED;
 
-  // 签名覆盖 nonce + ts + from，任何一段被改都会对不上
-  const expected = await hmacBase64Url(secret, `${nonce}.${ts}.${from}`);
+  // 签名覆盖 nonce + ts + from + remember，任何一段被改都会对不上
+  const expected = await hmacBase64Url(secret, `${nonce}.${ts}.${from}.${flag}`);
   if (!timingSafeEqualString(expected, signature)) return FAILED;
 
   // 时间窗：只接受 600 秒内签发的 state，允许 60 秒时钟偏差
   const age = Math.floor(Date.now() / 1000) - Number(ts);
   if (age < -60 || age > STATE_TTL_SECONDS) return FAILED;
 
-  return { ok: true, from: from === 'register' ? 'register' : 'home' };
+  return {
+    ok: true,
+    from: from === 'register' ? 'register' : 'home',
+    // 只有明确写成 '0' 才算「不保持登录」，其余一律按持久登录处理
+    remember: flag !== '0'
+  };
 }
 
 /**
@@ -149,9 +156,11 @@ export async function onRequestGet({ request, env }) {
   }
 
   const url = new URL(request.url);
-  // 只认 register，其余（含未传）都回首页；归一化后放进 state 里被签名保护
+  // 只认 register，其余（含未传、login）都回首页；归一化后放进 state 里被签名保护
   const from = url.searchParams.get('from') === 'register' ? 'register' : 'home';
-  const state = await signState(jwtSecret, from);
+  // 「保持登录」由发起方决定（登录框的 cookie 同意勾选）：只有明确传 0 才是会话 Cookie
+  const remember = url.searchParams.get('remember') !== '0';
+  const state = await signState(jwtSecret, from, remember);
   const redirectUri = resolveRedirectUri(request, env);
 
   // 手工拼 query，确保 scope 是标准写法 read:user%20user:email

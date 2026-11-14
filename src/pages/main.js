@@ -327,6 +327,8 @@ function mountLoginConsent() {
       </label>
     </div>
     <div class="auth-turnstile" id="loginTurnstile"></div>
+    <div class="auth-divider"><span>或</span></div>
+    <hcw-button class="auth-github-btn" flat>使用 GitHub 登录 / 注册</hcw-button>
   `;
   // 放在「登录」按钮正上方；找不到按钮就追加到弹窗内容末尾
   const modalLoginBtn = document.getElementById('login-btn');
@@ -355,6 +357,27 @@ function mountLoginConsent() {
     wrap.dataset.touched = '1';
     saveRememberPref(rememberBox.checked);
   });
+
+  // GitHub 登录 / 注册：与账号密码登录共用同一道「政策同意」门禁，
+  // 并把「保持登录」的选择写进跳转参数 —— 后端会把它签进 state，
+  // 回调据此决定下发持久 Cookie 还是会话 Cookie，避免绕开 cookie 同意。
+  const githubBtn = wrap.querySelector('.auth-github-btn');
+  if (githubBtn) {
+    githubBtn.addEventListener('click', () => {
+      wrap.dataset.touched = '1';
+      if (policyBox && !policyBox.checked) {
+        showMessage('请先阅读并勾选同意《用户协议》与《隐私政策》', true);
+        if (consentBox) consentBox.classList.add('invalid');
+        policyBox.focus();
+        return;
+      }
+      if (consentBox) consentBox.classList.remove('invalid');
+      const remember = rememberBox ? rememberBox.checked : true;
+      saveRememberPref(remember);
+      // from=home：授权完成后回首页（登录与注册共用同一条回调，账号不存在会自动建号）
+      window.location.href = `/api/auth-github?from=home&remember=${remember ? '1' : '0'}`;
+    });
+  }
 
   return wrap;
 }

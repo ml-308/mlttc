@@ -232,12 +232,16 @@ export async function onRequestGet({ request, env }) {
       console.log(`[github-oauth] 已按 GitHub 授权新建账号 email=${email}`);
     }
 
-    // 7) 签发登录态：GitHub 登录一律按「保持登录」处理（30 天）
-    const token = await signToken({ userId, email }, env.JWT_SECRET, 2592000);
+    // 7) 签发登录态：有效期跟「保持登录」的选择走，与账号密码登录保持一致 ——
+    //    持久（30 天持久 Cookie）或会话（关浏览器即失效 + JWT 12 小时）。
+    //    该选择由发起方写进 state 并签名，回调侧无法被中途篡改。
+    const remember = stateCheck.remember !== false;
+    const expiresIn = remember ? 2592000 : 12 * 60 * 60;
+    const token = await signToken({ userId, email }, env.JWT_SECRET, expiresIn);
 
     const landing = from === 'register' ? '/register.html?auth=github' : '/index.html?auth=github';
     const response = redirect302(landing);
-    setAuthCookie(response, token, { persistent: true });
+    setAuthCookie(response, token, { persistent: remember });
     return response;
   } catch (err) {
     // 任何意外都不要把用户扔在 GitHub 的回调页上：回注册页并带原因
