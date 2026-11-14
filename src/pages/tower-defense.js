@@ -324,6 +324,7 @@ export {
   hashSeed, mulberry32, generateEndlessWave, generateLevel, buildLevelWave, buildPath, buildPathTiles,
   encodeSave, decodeSave, levelTotalEnemies,   // 存档码往返 + 关卡总怪量：自检脚本直接断言
   describeTowers,   // 场上塔清单的数据化描述（纯函数，清单渲染与自检共用同一份口径）
+  nextUpgradeTarget,   // 「快速升级」按钮的目标选择（纯函数：按建造顺序取第一个未满级的塔）
 };
 
 /* ===================== 4. 运行时状态 ===================== */
@@ -774,6 +775,28 @@ function describeTowers(towers, opts) {
     });
   }
   return rows;
+}
+
+/**
+ * 「快速升级」的目标（纯函数：不读 state、不碰 DOM、不读时钟）：按 towers 的数组顺序（= 建造顺序）
+ * 取**第一个**未满级的塔 —— 不是最便宜的、也不是等级最低的，就是第一个；没有目标返回 null。
+ * 返回 { index, tower, type, name, lv, nextLv, cost, canAfford }。
+ * cost[0] 是建造价、lv 是 1 基等级，所以「升到 lv+1」的价格就是 cost[lv]。
+ * 坏数据（null / 未知塔类型 / 等级不在 1..2）跳过继续找下一座，不抛异常。
+ */
+function nextUpgradeTarget(towers, gold) {
+  const list = Array.isArray(towers) ? towers : [];
+  const g = Number.isFinite(gold) ? gold : 0;
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i];
+    const def = t ? TOWER_TYPES[t.type] : null;
+    const lv = def ? Math.floor(Number(t.lv) || 0) : 0;
+    if (lv < 1 || lv >= 3) continue;          // 满级 / 等级异常：跳过，继续找下一座
+    const cost = def.cost[lv];
+    if (!(cost > 0)) continue;
+    return { index: i, tower: t, type: t.type, name: def.name, lv, nextLv: lv + 1, cost, canAfford: g >= cost };
+  }
+  return null;
 }
 
 /** 索敌：射程内沿路径进度最大（最靠近终点、最危险）的敌人 */
@@ -1344,6 +1367,32 @@ function syncHud() {
   if (hudCache.alive !== alive) { ui.alive.textContent = alive; hudCache.alive = alive; }
   if (hudCache.best !== state.best) { ui.best.textContent = state.best; hudCache.best = state.best; }
   renderTowerList();   // 每帧走到这里，但签名没变就只做一次字符串拼接，不写 DOM
+  syncQuickUpgrade();  // 同上：按钮三态由签名比较决定写不写
+}
+
+let qUpSig = '';   // 「快速升级」按钮上次写的签名（文案 + disabled + title），没变就不动 DOM
+
+/**
+ * 「快速升级」按钮三态：没有塔 / 全部满级 / 金币不足 → disabled（title 说明原因）；
+ * 可升级 → 可用，title 写清「把 X 升到 Lv.N（价格）」。每帧由 syncHud 调，沿用 tListSig 的签名比较办法。
+ */
+function syncQuickUpgrade() {
+  const btn = ui.btnQuickUp;
+  if (!btn) return;
+  const target = nextUpgradeTarget(state.towers, state.gold);
+  const text = target ? '快速升级（' + target.cost + '）' : '快速升级';
+  const title = !target
+    ? (state.towers.length === 0 ? '场上没有塔' : '所有塔已满级')
+    : (target.canAfford
+      ? '把 ' + target.name + ' 升到 Lv.' + target.nextLv + '（' + target.cost + ' 金币）'
+      : '金币不足：还差 ' + (target.cost - state.gold));
+  const off = !target || !target.canAfford;
+  const sig = text + '#' + off + '#' + title;
+  if (sig === qUpSig) return;
+  qUpSig = sig;
+  btn.textContent = text;
+  btn.disabled = off;
+  btn.title = title;
 }
 
 /** 塔按钮三态：选中 / 买不起 / 普通 */
@@ -1702,6 +1751,13 @@ function bindEvents() {
     ui.btnSpeed.classList.toggle('is-on', state.speed === 2);
   });
   ui.btnRestart.addEventListener('click', restart);
+  // 「快速升级」：把建造顺序上第一个未满级的塔升一级——扣钱/升级/累加 spend/落盘全在 upgradeTower 里
+  if (ui.btnQuickUp) ui.btnQuickUp.addEventListener('click', () => {
+    const target = nextUpgradeTarget(state.towers, state.gold);   // disabled 已拦过，这里再兜一层
+    if (!target || !target.canAfford) return;
+    upgradeTower(target.tower);
+    syncHud();                                        // 金币 / 清单 / 按钮上的价格立即刷新
+  });
   ui.btnAgain.addEventListener('click', restart);
 
   // 无尽「继续上次 / 重新开始」：重新开始 = 丢掉旧记录走 restart（restart 会 clearEndlessRun）
@@ -1797,6 +1853,7 @@ function boot() {
   ui.overTitle = byId('tdOverTitle'); ui.overSub = byId('tdOverSub');
   ui.btnAgain = byId('tdBtnAgain'); ui.btnNext = byId('tdBtnNext'); ui.btnList = byId('tdBtnList');
   ui.btnPause = byId('tdPause');
+  ui.btnQuickUp = byId('tdQuickUpgrade');   // 「快速升级」（在 .td-controls 里，跟着 .td-bar 一起显隐）
   ui.btnSpeed = byId('tdSpeed'); ui.btnRestart = byId('tdRestart'); ui.btnBack = byId('tdBack');
   ui.hud = byId('tdHud'); ui.bar = byId('tdBar'); ui.hint = byId('tdHint');
   ui.levels = byId('tdLevels'); ui.levelGrid = byId('tdLevelGrid'); ui.levelsProg = byId('tdLevelsProg');

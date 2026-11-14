@@ -423,6 +423,9 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            /* 多了一个「快速升级」按钮：放不下时先折行，绝不让按钮横向挤出屏幕
+               （≤720px 断点里本来就会强制 width:100% + 居中折行） */
+            flex-wrap: wrap;
         }
 
         .td-controls button {
@@ -439,9 +442,18 @@
             white-space: nowrap;
         }
 
-        .td-controls button:hover {
+        .td-controls button:hover:not(:disabled) {
             background: var(--bg-hover);
             border-color: var(--primary);
+        }
+
+        /* 不可用态（「快速升级」没有目标 / 金币不足）：压暗成与塔按钮 is-poor 同一手感，原因看 title */
+        .td-controls button:disabled {
+            opacity: .42;
+            cursor: not-allowed;
+            background: var(--bg-card);
+            border-color: var(--border-light);
+            color: var(--text-secondary);
         }
 
         .td-controls button.is-on {
@@ -953,7 +965,7 @@
          若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
          启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
          **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
-    <script src="/src/pages/tower-defense.js?v=1.6.6" type="module"></script>
+    <script src="/src/pages/tower-defense.js?v=1.6.7" type="module"></script>
 </head>
 
 <body class="td-page-body">
@@ -1056,6 +1068,8 @@
                 <button id="tdPause">暂停</button>
                 <button id="tdSpeed">1x</button>
                 <button id="tdRestart">重开</button>
+                <!-- 快速升级：把建造顺序上第一个未满级的塔升一级（文案/title/disabled 由 syncQuickUpgrade 管） -->
+                <button id="tdQuickUpgrade" disabled title="场上没有塔">快速升级</button>
                 <button id="tdBack" hidden>关卡列表</button>
             </div>
         </section>

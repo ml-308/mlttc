@@ -23,6 +23,7 @@
 //      关卡总怪量（关卡列表按钮上的数字）为正整数且缓存不改变结果
 //   9. 塔数据形状（数值表 / 场上塔清单共用同一份 TOWER_TYPES）
 //  10. 场上塔清单 describeTowers：空场 / 顺序 / 光环加成 / 满级 / 金币门槛 / 返还额
+//  11. 「快速升级」目标 nextUpgradeTarget：建造顺序 / 跳过满级 / 全满级 / 价格取值 / 金币门槛 / 坏输入
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -455,6 +456,71 @@ section('10. 场上塔清单 describeTowers（纯函数，不碰 DOM）');
             + ` range=${r.range} (${r.col}, ${r.row}) 升级=${r.upgradeCost} 返还=${r.sellRefund}`
             + ` canUpgrade=${r.canUpgrade} maxed=${r.maxed}`);
     }
+}
+
+section('11. 「快速升级」目标 nextUpgradeTarget（纯函数，不碰 DOM）');
+{
+    const { nextUpgradeTarget } = mod;
+    const tower = (type, lv, col = 0, row = 0, spend = 60) =>
+        ({ type, lv, col, row, x: 0, y: 0, cd: 0, spend, dmgBuff: 0, rateBuff: 0 });
+
+    // 11.1 空场 → null（undefined 也不抛）
+    const none0 = nextUpgradeTarget([], 9999);
+    const none1 = nextUpgradeTarget(undefined, 0);
+    assert('空塔数组 → null（undefined 也不抛异常）', none0 === null && none1 === null,
+        `${none0} / ${none1}`);
+
+    // 11.2 三座塔（Lv.1 / Lv.2 / Lv.1）→ 取数组第一个（index 0），不是等级最低、也不是建造最晚的
+    const three = [tower('arrow', 1, 1, 1, 60), tower('cannon', 2, 2, 2, 310), tower('frost', 1, 3, 3, 90)];
+    const first = nextUpgradeTarget(three, 1000);
+    assert('3 座塔（Lv.1/Lv.2/Lv.1）→ index 0（按建造顺序的第一个未满级，不是最便宜/等级最低）',
+        first && first.index === 0 && first.tower === three[0] && first.type === 'arrow'
+        && first.lv === 1 && first.nextLv === 2,
+        first ? `index=${first.index} type=${first.type} lv=${first.lv}` : 'null');
+
+    // 11.3 第一座满级 → 跳过它，取第二座
+    const skip = [tower('arrow', 3, 1, 1, 400), tower('frost', 1, 2, 2, 90)];
+    const second = nextUpgradeTarget(skip, 1000);
+    assert('第一座已满级（Lv.3）→ 返回 index 1（跳过满级的那座）',
+        second && second.index === 1 && second.type === 'frost', second ? `index=${second.index}` : 'null');
+
+    // 11.4 全部满级 → null
+    const allMax = [tower('arrow', 3), tower('cannon', 3), tower('aura', 3)];
+    assert('全部满级 → null', nextUpgradeTarget(allMax, 99999) === null);
+
+    // 11.5 cost 就是 TOWER_TYPES[type].cost[lv]（Lv.1 与 Lv.2 各验一次，lv 是 1 基等级）
+    const c1 = nextUpgradeTarget([tower('arrow', 1)], 0);
+    const c2 = nextUpgradeTarget([tower('arrow', 2)], 0);
+    const costOk = c1.cost === TOWER_TYPES.arrow.cost[1] && c2.cost === TOWER_TYPES.arrow.cost[2]
+        && c1.cost !== TOWER_TYPES.arrow.cost[0] && c1.nextLv === 2 && c2.nextLv === 3;
+    assert('cost = TOWER_TYPES[type].cost[lv]（Lv.1→cost[1], Lv.2→cost[2]，不是建造价 cost[0]）', costOk,
+        `lv1=${c1.cost} lv2=${c2.cost} 建造价=${TOWER_TYPES.arrow.cost[0]}`);
+
+    // 11.6 金币门槛：恰好够（gold === cost）为 true，差 1 为 false
+    const exact = nextUpgradeTarget([tower('arrow', 1)], c1.cost);
+    const poor = nextUpgradeTarget([tower('arrow', 1)], c1.cost - 1);
+    assert('canAfford：gold === cost → true，gold === cost - 1 → false',
+        exact.canAfford === true && poor.canAfford === false,
+        `${c1.cost} → ${exact.canAfford} / ${c1.cost - 1} → ${poor.canAfford}`);
+
+    // 11.7 坏输入：非数组 / 含 null / 未知类型 → 不抛，能正常返回结果或 null
+    let badThrew = '';
+    let badResult = 'ok';
+    try {
+        const arrWithNull = nextUpgradeTarget([null, tower('arrow', 1)], 500);
+        const unknown = nextUpgradeTarget([tower('nope', 1), null], 500);
+        if (!arrWithNull || arrWithNull.index !== 1) badResult = 'arrWithNull 未跳过坏元素';
+        if (unknown !== null) badResult = '未知塔类型未返回 null';
+    } catch (err) { badThrew = String(err && err.message); }
+    assert('非数组 / 含 null 元素 / 未知塔类型：不抛异常，跳过坏数据处理后面的塔',
+        badThrew === '' && badResult === 'ok', badThrew || badResult);
+
+    // 真实调用取样（报告里贴的就是这几行）
+    console.log('  nextUpgradeTarget(3 座塔 Lv.1/Lv.2/Lv.1, gold=1000)：'
+        + JSON.stringify({ index: first.index, type: first.type, lv: first.lv, nextLv: first.nextLv,
+            cost: first.cost, canAfford: first.canAfford }));
+    console.log('  nextUpgradeTarget(全满级 3 座, gold=99999)：' + nextUpgradeTarget(allMax, 99999));
+    console.log('  nextUpgradeTarget([], gold=9999)：' + nextUpgradeTarget([], 9999));
 }
 
 // ─── 汇总 ────────────────────────────────────────────────────
