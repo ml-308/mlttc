@@ -1430,8 +1430,9 @@ const CLEAR_SEC_MAX = 240;   // 护栏：第 90 波必须在 240 秒内清完（
         runaways.map((e) => e.hp + ':' + isRunawayEnemy(e)).join(' '));
 
     // 21.12 塔数上限 + 满场压测（塔极多、怪极少时不炸）
-    assert('MAX_TOWERS = 80 且计划类纯函数仍在（批量升级 / 快速升级只操作已有的塔，不受上限影响）',
-        MAX_TOWERS === 80 && typeof mod.planBatchUpgrade === 'function' && typeof mod.nextUpgradeTarget === 'function',
+    // 上限只用来拦「继续无节制铺满全图」，不裁剪既有存档；曾经是 80 并把玩家整图布局削掉了
+    assert('MAX_TOWERS = 400（只拦病态铺塔，不裁剪存档）且计划类纯函数仍在',
+        MAX_TOWERS === 400 && typeof mod.planBatchUpgrade === 'function' && typeof mod.nextUpgradeTarget === 'function',
         'MAX_TOWERS=' + MAX_TOWERS);
     const many = [];
     const kinds = ['arrow', 'cannon', 'frost', 'aura'];

@@ -82,7 +82,10 @@ const HIGH_LV_UNLOCK_WAVE = 50;       // 无尽模式第 50 波后才允许升�
  * 80 座已远超清掉一波所需的火力，所以它是纯兜底：超限时 placeTower 拒绝建造（不扣钱），
  * 已有塔的升级 / 超频 / 拆除都不受影响。
  */
-const MAX_TOWERS = 80;
+// 塔数量软上限：**只用于拦截"继续无节制铺满全图"**，绝不裁剪既有存档。
+// 曾经设为 80 并配合「超限只恢复前 80 座」，结果把玩家合法攒出的整图布局削掉了 ——
+// 数据丢失比掉帧严重得多。降到 400 后正常玩家碰不到，同时仍能挡住病态存档。
+const MAX_TOWERS = 400;
 /** 特效降载阈值（见 perfSkipFx）：同屏敌人数 / 塔数超过它就不再生成粒子与飘字 */
 const FX_CROWD_ENEMIES = 200;
 const FX_CROWD_TOWERS = 40;
@@ -3868,9 +3871,9 @@ function resumeEndlessRun() {
   state.wave = run.wave - 1;                    // startWave 会 +1 → 正好从该波开头重来
   state.nextWaveIn = 1500;
   let skipped = 0;
-  let overCap = 0;                              // 旧存档可能铺了远超上限的塔：只恢复前 MAX_TOWERS 座
+  let overCap = 0;                              // 仅防病态存档（> MAX_TOWERS 座）；正常存档一座都不丢
   for (const t of run.towers) {
-    if (state.towers.length >= MAX_TOWERS) { overCap += 1; continue; }
+    if (state.towers.length >= MAX_TOWERS) { overCap += 1; continue; }   // 只有超过 400 座这种病态存档才会走到这里
     const def = ALL_TOWER_TYPES[t.type];
     if (!def || !isBuildable(state, t.col, t.row) || towerAt(state, t.col, t.row)) { skipped += 1; continue; }
     state.towers.push({
@@ -3899,7 +3902,7 @@ function resumeEndlessRun() {
     };
   }
   if (skipped > 0) console.warn('[tower-defense] 续玩跳过 ' + skipped + ' 座非法塔位（越界/在路径上/重叠）');
-  if (overCap > 0) console.warn('[tower-defense] 续玩时塔数超过上限 ' + MAX_TOWERS + ' 座，已忽略多出的 ' + overCap + ' 座');
+  if (overCap > 0) console.warn('[tower-defense] 存档塔数超过病态上限 ' + MAX_TOWERS + ' 座，已忽略多出的 ' + overCap + ' 座');
   state.resumeDone = true;                      // 已经选过「继续」，别再拦一次
   state.awaitingResume = false;
   hideOverlay(); clearTowerSelect();
