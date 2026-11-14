@@ -54,7 +54,11 @@ async function loadStats() {
   if (!grid) return; // 非首页，无速览区
 
   try {
-    const res = await fetch('/api/stats', { credentials: 'include' });
+    // 带时间戳 + cache:'no-store'：即使有 CDN/浏览器缓存层，也一定拿到当前值
+    const res = await fetch('/api/stats?_=' + Date.now(), {
+      credentials: 'include',
+      cache: 'no-store'
+    });
     if (!res.ok) { hideStats(); return; }
 
     const json = await res.json();

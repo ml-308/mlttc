@@ -112,7 +112,15 @@ function jsonStats(lines, cities, updated) {
     lines,
     cities,
     updated
-  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      // 统计是「改完就该立刻生效」的数据，不允许任何一层缓存它：
+      // 否则刚重算完的值会被边缘/浏览器缓存住，看起来像「改了没生效」。
+      'Cache-Control': 'no-store, no-cache, must-revalidate'
+    }
+  });
 }
 
 export async function onRequestGet({ env }) {
