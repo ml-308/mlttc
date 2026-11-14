@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>塔防 - MLTTC</title>
+    <!--
+      塔防小游戏（第一步：页面 + 引擎核心 + 无尽模式）。
+      复用站点样式：style/index.css（它已 @import main.css），颜色一律引用站点变量，
+      因此深浅色主题（右上角 🌙）切换后画布与面板都会跟着变。
+      游戏逻辑全部在 /src/pages/tower-defense.js（零依赖、自包含），本页只负责结构与皮肤。
+    -->
+    <link rel="stylesheet" href="style/index.css">
+    <link rel="stylesheet" href="style/main.css">
+    <style>
+        /* ---------- 页面骨架 ---------- */
+        body.td-page-body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            font-family: var(--font-family, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* 顶部登录条（与 game.html 同款：不是 hcw-body-header，用 #headerAuthArea） */
+        .game-auth-header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 10px 16px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-light);
+            width: 100%;
+            box-sizing: border-box;
+            z-index: 100;
+        }
+
+        .game-auth-header .auth-btn {
+            background: var(--button-bg);
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+            padding: 6px 16px;
+            border-radius: var(--radius-full, 500px);
+            cursor: pointer;
+            font-size: .85rem;
+            font-family: inherit;
+            transition: background .2s;
+        }
+
+        .game-auth-header .auth-btn:hover {
+            background: var(--bg-hover);
+        }
+
+        /* ---------- 主内容 ---------- */
+        .td-wrap {
+            width: 100%;
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 16px 16px 32px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .td-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .td-title {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .td-mode {
+            font-size: .74rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: var(--radius-full, 500px);
+            color: var(--primary);
+            background: var(--primary-bg);
+            border: 1px solid var(--primary);
+            white-space: nowrap;
+        }
+
+        /* ---------- 状态栏 ---------- */
+        .td-hud {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+
+        .td-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 7px 4px;
+            border-radius: var(--radius-sm, .5rem);
+            background: var(--bg-hover);
+            border: 1px solid var(--border-light);
+            font-size: .7rem;
+            color: var(--text-secondary);
+            line-height: 1.2;
+        }
+
+        .td-stat b {
+            font-size: 1.02rem;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .td-stat.td-lives b {
+            color: var(--danger);
+        }
+
+        .td-stat.td-gold b {
+            color: var(--warning);
+        }
+
+        /* ---------- 画布舞台 ---------- */
+        .td-stage {
+            position: relative;
+            line-height: 0;
+            align-self: center;
+            width: 100%;
+            max-width: 768px;
+        }
+
+        #tdCanvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: var(--radius-md, .5rem);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            touch-action: none;
+            cursor: crosshair;
+            background: var(--bg-card);
+        }
+
+        /* 塔详情面板（升级 / 出售），绝对定位在画布之上，由 JS 摆位 */
+        .td-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 6;
+            min-width: 148px;
+            padding: 10px;
+            border-radius: var(--radius-md, .5rem);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-lg);
+            line-height: 1.4;
+            font-size: .76rem;
+            color: var(--text-secondary);
+            display: none;
+        }
+
+        .td-panel.show {
+            display: block;
+        }
+
+        .td-panel h4 {
+            margin: 0 0 6px;
+            font-size: .84rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .td-panel ul {
+            margin: 0 0 8px;
+            padding: 0;
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .td-panel .td-acts {
+            display: flex;
+            gap: 6px;
+        }
+
+        .td-panel button {
+            flex: 1;
+            padding: 6px 8px;
+            font-size: .74rem;
+            font-family: inherit;
+            border-radius: var(--radius-sm, .5rem);
+            border: 1px solid var(--border);
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: background .15s;
+        }
+
+        .td-panel button:hover:not(:disabled) {
+            background: var(--primary-bg);
+            border-color: var(--primary);
+        }
+
+        .td-panel button:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .td-panel button.td-up {
+            border-color: var(--primary);
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        /* ---------- 结算浮层 ---------- */
+        .td-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md, .5rem);
+            background: color-mix(in srgb, var(--bg-page) 82%, transparent);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .td-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .td-overlay h2 {
+            margin: 0 0 4px;
+            font-size: 1.35rem;
+            color: var(--primary);
+        }
+
+        .td-overlay p {
+            margin: 2px 0;
+            font-size: .86rem;
+            color: var(--text-secondary);
+        }
+
+        .td-overlay .td-big {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .td-overlay button {
+            margin-top: 12px;
+            padding: 9px 24px;
+            font-size: .88rem;
+            font-weight: 700;
+            font-family: inherit;
+            border-radius: var(--radius-full, 500px);
+            border: none;
+            background: var(--primary);
+            color: var(--on-primary, #000);
+            cursor: pointer;
+        }
+
+        /* ---------- 底部：塔按钮 + 控制 ---------- */
+        .td-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: stretch;
+            gap: 10px;
+        }
+
+        .td-towers {
+            flex: 1 1 340px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .td-tower-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            padding: 8px 4px;
+            border-radius: var(--radius-md, .5rem);
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: .76rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color .15s, background .15s, transform .1s;
+            position: relative;
+        }
+
+        .td-tower-btn .td-tchip {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .td-tower-btn .td-tcost {
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--warning);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .td-tower-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--primary);
+        }
+
+        /* 选中态：绿框 + 绿底 */
+        .td-tower-btn.is-selected {
+            border-color: var(--primary);
+            background: var(--primary-bg);
+            box-shadow: 0 0 0 2px var(--primary-bg);
+        }
+
+        /* 金币不足：压暗 + 不可点 */
+        .td-tower-btn.is-poor {
+            opacity: .42;
+            cursor: not-allowed;
+            border-color: var(--border-light);
+            background: var(--bg-card);
+        }
+
+        .td-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .td-controls button {
+            padding: 8px 14px;
+            font-size: .78rem;
+            font-weight: 600;
+            font-family: inherit;
+            border-radius: var(--radius-sm, .5rem);
+            border: 1px solid var(--border-light);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: background .15s, border-color .15s;
+            white-space: nowrap;
+        }
+
+        .td-controls button:hover {
+            background: var(--bg-hover);
+            border-color: var(--primary);
+        }
+
+        .td-controls button.is-on {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-bg);
+        }
+
+        .td-hint {
+            margin: 0;
+            font-size: .76rem;
+            color: var(--text-secondary);
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        /* ---------- 窄屏 ---------- */
+        @media (max-width: 720px) {
+            .td-wrap {
+                padding: 12px 10px 24px;
+            }
+
+            .td-title {
+                font-size: 1.2rem;
+            }
+
+            .td-hud {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .td-stat b {
+                font-size: .92rem;
+            }
+
+            .td-towers {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .td-controls {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* 无障碍：降低动效时关掉过渡 */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                transition-duration: .001ms !important;
+                animation-duration: .001ms !important;
+            }
+        }
+    </style>
+    <script src="/src/auth-header.js" type="module"></script>
+    <script src="lib/ui/init.mjs" type="module"></script>
+    <script src="/lib/ui/popup.mjs" type="module"></script>
+    <script src="/src/pages/main.js" type="module"></script>
+    <script src="/src/pages/tower-defense.js" type="module"></script>
+</head>
+
+<body class="td-page-body">
+
+    <!-- 顶部登录 / 主题切换（与 game.html 结构一致） -->
+    <div class="game-auth-header" id="headerAuthArea">
+        <hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题"
+            style="font-size:1.2rem;background:none;border:none;cursor:pointer;">🌙</hcw-button>
+        <button class="auth-btn" id="globalLoginBtn">登录</button>
+    </div>
+
+    <main class="td-wrap">
+        <header class="td-head">
+            <h1 class="td-title"><span aria-hidden="true">🏰</span>塔防</h1>
+            <span class="td-mode" id="tdMode">无尽模式</span>
+        </header>
+
+        <!-- 状态栏 -->
+        <section class="td-hud" aria-label="战况">
+            <div class="td-stat"><span>波次</span><b id="tdWave">0</b></div>
+            <div class="td-stat td-lives"><span>生命</span><b id="tdLives">20</b></div>
+            <div class="td-stat td-gold"><span>金币</span><b id="tdGold">150</b></div>
+            <div class="td-stat"><span>击杀</span><b id="tdKills">0</b></div>
+            <div class="td-stat"><span>剩余敌人</span><b id="tdAlive">0</b></div>
+            <div class="td-stat"><span>最高波数</span><b id="tdBest">0</b></div>
+        </section>
+
+        <!-- 画布 + 塔面板 + 结算浮层 -->
+        <section class="td-stage" id="tdStage">
+            <canvas id="tdCanvas" width="768" height="448"></canvas>
+
+            <div class="td-panel" id="tdPanel" role="dialog" aria-label="塔操作">
+                <h4><span id="tdPanelName">箭塔</span><span id="tdPanelLv">Lv.1</span></h4>
+                <ul>
+                    <li id="tdPanelDmg">伤害 8</li>
+                    <li id="tdPanelRate">攻速 1.6/s</li>
+                    <li id="tdPanelRange">射程 110</li>
+                </ul>
+                <div class="td-acts">
+                    <button class="td-up" id="tdBtnUpgrade">升级</button>
+                    <button id="tdBtnSell">出售</button>
+                </div>
+            </div>
+
+            <div class="td-overlay" id="tdOverlay">
+                <div>
+                    <h2>防线被攻破了</h2>
+                    <div class="td-big" id="tdOverWave">0</div>
+                    <p>到达波次</p>
+                    <p id="tdOverBest">最高波数：0</p>
+                    <button id="tdBtnAgain">再来一局</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 塔按钮 + 控制 -->
+        <section class="td-bar">
+            <div class="td-towers" id="tdTowers">
+                <button class="td-tower-btn" data-tower="arrow" title="单体高频，性价比之王">
+                    <span class="td-tchip" style="background:#1DB954"></span>
+                    箭塔
+                    <span class="td-tcost">60</span>
+                </button>
+                <button class="td-tower-btn" data-tower="cannon" title="溅射伤害，克制成群小兵">
+                    <span class="td-tchip" style="background:#E8A33D"></span>
+                    炮塔
+                    <span class="td-tcost">110</span>
+                </button>
+                <button class="td-tower-btn" data-tower="frost" title="减速，配合其它塔">
+                    <span class="td-tchip" style="background:#4CC9F0"></span>
+                    冰塔
+                    <span class="td-tcost">90</span>
+                </button>
+                <button class="td-tower-btn" data-tower="aura" title="增幅周围塔，自身不攻击">
+                    <span class="td-tchip" style="background:#B693FD"></span>
+                    光环塔
+                    <span class="td-tcost">130</span>
+                </button>
+            </div>
+            <div class="td-controls">
+                <button id="tdPause">暂停</button>
+                <button id="tdSpeed">1x</button>
+                <button id="tdRestart">重开</button>
+            </div>
+        </section>
+
+        <p class="td-hint">
+            点击空格子放塔 · 点击已有塔升级或出售 · 敌人走到右侧终点扣 1 点生命
+        </p>
+    </main>
+
+    <!-- 登录模态框（main.js 的 #globalLoginBtn 需要它） -->
+    <div id="globalLoginModal" class="modal" style="align-items: center; display: none;">
+        <div hcw-modal>
+            <div hcw-modal-title>
+                <h3>登录系统</h3>
+                <hcw-button tp icon id="closeModalBtn">&times;</hcw-button>
+            </div>
+            <div hcw-modal-body>
+                <hcw-input primary label="用户名" type="text" id="username" placeholder="邮箱/昵称" autocomplete="off"
+                    required></hcw-input>
+                <hcw-input label="密码" type="password" id="password" placeholder="请输入密码" required></hcw-input>
+                <div id="ErrorLogin" class="error-msg">
+                    <p>用户名或密码错误，请重新输入</p>
+                </div>
+                <hcw-button primary large id="login-btn" type="submit">登 录</hcw-button>
+                <hcw-button id='RegisterBtn' large href="register.html">
+                    注册账户
+                </hcw-button>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
