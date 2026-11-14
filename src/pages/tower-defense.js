@@ -410,6 +410,7 @@ export {
   encodeSave, decodeSave, levelTotalEnemies,   // 存档码往返 + 关卡总怪量：自检脚本直接断言
   describeTowers,   // 场上塔清单的数据化描述（纯函数，清单渲染与自检共用同一份口径）
   nextUpgradeTarget,   // 「快速升级」按钮的目标选择（纯函数：按建造顺序取第一个未满级的塔）
+  planBatchUpgrade,    // 「批量升级」的先算后扣计划（纯函数：等级最低优先、同级先建者，金币不够就少升几座）
   mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
   towerStatRows,   // 塔数值表的行 HTML（纯函数：自检断言「并进特殊塔后不出现 NaN / undefined」）
   towerStat,       // 某塔某等级的实际数值（Lv.1~3 读数组、Lv.4+ 现算外推：战斗 / 清单 / 快速升级同源）
@@ -917,6 +918,28 @@ function upgradeTower(tower) {
   return true;
 }
 
+/**
+ * 执行一份「批量升级」计划（plan 由 planBatchUpgrade 现算，这里不再挑塔、不再判价格）。
+ * 要点：**金币只扣一次**（plan.totalCost 已含全部目标价之和），逐座只做 lv+1 / 累加 spend / 撒粒子，
+ * 存档也只落一次 —— 不能循环调 upgradeTower()：那样会逐座扣钱、每座都写一次存档，
+ * 而且中途任何一座被拒就会留下半截状态。
+ * 返回实际升级的座数（计划为空 / canDo 为 false 时返回 false）。
+ */
+function applyBatchUpgrade(plan) {
+  if (!plan || !plan.canDo || !Array.isArray(plan.targets) || plan.targets.length === 0) return false;
+  state.gold -= plan.totalCost;                 // ← 唯一的扣款点
+  for (let i = 0; i < plan.targets.length; i += 1) {
+    const p = plan.targets[i];
+    const tw = p && p.tower;
+    if (!tw) continue;
+    tw.lv = Math.min(MAX_TOWER_LEVEL, p.nextLv);   // 计划里已排除满级，这里再兜一层上限
+    tw.spend = (Number(tw.spend) || 0) + p.cost;
+    addParticles(tw.x, tw.y, 4, ALL_TOWER_TYPES[tw.type] ? ALL_TOWER_TYPES[tw.type].color : palette.text);
+  }
+  noteEndlessRun();                             // ← 唯一的落盘点（一次批量 = 一条存档）
+  return plan.targets.length;
+}
+
 /** 出售：返还总投入的 60%（向下取整） */
 function sellTower(tower) {
   const idx = state.towers.indexOf(tower);
@@ -1014,6 +1037,65 @@ function nextUpgradeTarget(towers, gold, highUnlocked) {
     }
   }
   return best;
+}
+
+/* 批量升级的座数区间：输入框的 min/max 与纯函数的夹取共用这两个常量（不许两边各写一份） */
+const BATCH_UP_MIN = 1;
+const BATCH_UP_MAX = 100;
+
+/**
+ * 「批量升级」计划（纯函数：不读 state、不碰 DOM、不读时钟）—— **先算计划，再一次性扣款**。
+ *
+ * 挑选规则与 nextUpgradeTarget 完全一致：挑**等级最低**的塔，同级取数组下标更小的（= 先建的）；
+ * 跳过满级、跳过等级异常、跳过 Lv.4+ 未解锁时停在 Lv.3 的塔。
+ * 「那么多座塔**各**升一级」→ 同一座塔在一次批量里最多出现一次（挑过的立刻移出候选），
+ * 所以顺序就是「等级升序、同级按建造顺序」，而不是按数组原序（建造顺序）平铺。
+ * 价格按 towerStat(type, lv).upgradeCost 累加；**金币不够付下一座就停**（部分可执行：能升几座算几座）。
+ * count 夹到 1..BATCH_UP_MAX（<1 → 1，>100 → 100，非数字 → 1）；towers 非数组 → 空计划。
+ * 返回 { targets: [{ index, tower, type, name, lv, nextLv, cost }], totalCost, canDo }。
+ *
+ * 为什么必须一次算完：边升边扣的话，中途钱不够会留下「A 升了、B 没升、钱扣了一半」的半截状态，
+ * 玩家既看不懂也退不回来；先算成一份完整计划，扣款就只剩一次减法。
+ */
+function planBatchUpgrade(towers, gold, count, highUnlocked) {
+  const list = Array.isArray(towers) ? towers : [];
+  const g = Number.isFinite(gold) ? gold : 0;
+  const unlocked = !!highUnlocked;
+  const want = Math.floor(Number(count));
+  const n = Number.isFinite(want) ? Math.min(BATCH_UP_MAX, Math.max(BATCH_UP_MIN, want)) : BATCH_UP_MIN;
+  // 候选 = 可升级的塔下标 + 一份等级镜像（挑走的记 Infinity，等于「已用」，只看不改真塔）
+  const ids = [];
+  const lvs = [];
+  for (let i = 0; i < list.length; i += 1) {
+    const t = list[i];
+    const def = t ? ALL_TOWER_TYPES[t.type] : null;
+    const lv = def ? Math.floor(Number(t.lv) || 0) : 0;
+    if (lv < 1 || lv >= MAX_TOWER_LEVEL) continue;   // 满级 / 等级异常：跳过
+    if (lv >= 3 && !unlocked) continue;              // Lv.4+ 未解锁：Lv.3 也算到顶
+    ids.push(i);
+    lvs.push(lv);
+  }
+  const targets = [];
+  let totalCost = 0;
+  while (targets.length < n) {
+    let pick = -1;
+    let pickLv = Infinity;
+    for (let j = 0; j < ids.length; j += 1) {
+      if (lvs[j] < pickLv) { pickLv = lvs[j]; pick = j; }   // 严格小于 → 平手保留更早建造的
+    }
+    if (pick < 0) break;                                    // 没有可升级的塔了
+    const t = list[ids[pick]];
+    const cost = towerStat(t.type, pickLv).upgradeCost;
+    if (!(cost > 0)) { lvs[pick] = Infinity; continue; }    // 价格异常：移出候选，不占名额
+    if (totalCost + cost > g) break;                        // 钱不够付下一座：停（部分可执行）
+    targets.push({
+      index: ids[pick], tower: t, type: t.type, name: ALL_TOWER_TYPES[t.type].name,
+      lv: pickLv, nextLv: pickLv + 1, cost,
+    });
+    totalCost += cost;
+    lvs[pick] = Infinity;                                   // 每座塔一次批量只升一级
+  }
+  return { targets, totalCost, canDo: targets.length > 0 };
 }
 
 /** 索敌：射程内沿路径进度最大（最靠近终点、最危险）的敌人 */
@@ -1875,6 +1957,7 @@ function syncHud() {
   if (hudCache.best !== state.best) { ui.best.textContent = state.best; hudCache.best = state.best; }
   renderTowerList();   // 每帧走到这里，但签名没变就只做一次字符串拼接，不写 DOM
   syncQuickUpgrade();  // 同上：按钮三态由签名比较决定写不写
+  syncBatchUpgrade();  // 「批量升级」同上（文案里的合计价随金币/塔等级变，签名比较照样只写一次）
   syncSkillButtons();  // 技能栏三态同上（冷却秒数只反映到秒，不会每帧写）
 }
 
@@ -1912,6 +1995,67 @@ function syncQuickUpgrade() {
   const sig = text + '#' + off + '#' + title;
   if (sig === qUpSig) return;
   qUpSig = sig;
+  btn.textContent = text;
+  btn.disabled = off;
+  btn.title = title;
+}
+
+let bUpSig = '';   // 「批量升级」按钮上次写的签名（文案 + disabled + title），没变就不动 DOM
+
+/**
+ * 输入框里的「座数」，**始终是夹好的 1..100**（nan / 空串 / 'abc' / 0 / -5 → 1，999 → 100）。
+ * 按钮状态与实际执行都走这里取值，所以哪怕玩家在框里留着 999，一次也只会升 100 座。
+ */
+function batchCount() {
+  const el = ui.batchCount;
+  const raw = el ? Math.floor(Number(el.value)) : NaN;
+  if (!Number.isFinite(raw)) return BATCH_UP_MIN;
+  return Math.min(BATCH_UP_MAX, Math.max(BATCH_UP_MIN, raw));
+}
+
+/** 把输入框里的值原地夹好（失焦 / change 时用）：999 → 100、'' → 1、'abc' → 1 */
+function clampBatchCountInput() {
+  const el = ui.batchCount;
+  if (!el) return BATCH_UP_MIN;
+  const v = batchCount();
+  const want = String(v);
+  if (el.value !== want) el.value = want;   // 只在真的越界时才写，不打断正常输入
+  return v;
+}
+
+/**
+ * 「批量升级」按钮三态（与 syncQuickUpgrade 同一套写法：每帧由 syncHud 调，签名没变就不写 DOM）。
+ *   无可升级的塔 → disabled，title 说清是「场上没有塔 / 都到 Lv.3 了 / 全满级」；
+ *   有塔但钱连第一座都不够 → disabled，title「金币不足」；
+ *   有能升的 → 可用，文案「批量升级（合计 X）」，title「升级 N 座（合计 X 金币）」。
+ * 「有没有可升级的塔」用 nextUpgradeTarget(…, Infinity, …) 问，就是那个已经过 71 条断言的函数，
+ * 不另写一份判断 —— 否则「都到 Lv.3」这种边界一定会跟单座按钮说的不一样。
+ */
+function syncBatchUpgrade() {
+  const btn = ui.btnBatchUp;
+  if (!btn) return;
+  const unlocked = canUpgradeBeyond3();
+  const count = batchCount();
+  const plan = planBatchUpgrade(state.towers, state.gold, count, unlocked);
+  const any = plan.canDo ? null : nextUpgradeTarget(state.towers, Infinity, unlocked);   // 忽略金币：场上还有没有能升的
+  let text = '批量升级';
+  let title;
+  let off = false;
+  if (plan.canDo) {
+    const got = plan.targets.length;
+    text = '批量升级（合计 ' + plan.totalCost + '）';
+    title = '升级 ' + got + ' 座（合计 ' + plan.totalCost + ' 金币）'
+      + (got < count ? '·金币只够升 ' + got + ' 座' : '');
+  } else {
+    off = true;
+    title = any
+      ? '金币不足'
+      : (state.towers.length === 0 ? '场上没有可升级的塔'
+        : (unlocked ? '所有塔已满级' : '场上塔都到 Lv.3 了：第 ' + HIGH_LV_UNLOCK_WAVE + ' 波后解锁更高等级'));
+  }
+  const sig = text + '#' + off + '#' + title;
+  if (sig === bUpSig) return;
+  bUpSig = sig;
   btn.textContent = text;
   btn.disabled = off;
   btn.title = title;
@@ -2188,6 +2332,9 @@ function syncView() {
   show(ui.hud, playing); show(ui.stage, playing); show(ui.bar, playing); show(ui.hint, playing);
   // 技能栏只在无尽模式：闯关模式没有「主动技能」这条玩法（解锁波次也是按无尽曲线定的）
   show(ui.skills, playing && state.mode === 'endless');
+  // 批量升级（座数输入 + 按钮）整组同样只在无尽模式：闯关最多 28 波、没有 Lv.4+ 玩法，用不上
+  show(ui.batchBox, playing && state.mode === 'endless');
+  show(ui.btnBatchUp, playing && state.mode === 'endless');
   show(ui.tInfo, playing);   // 场上塔清单只在对局中显示；回关卡列表 / 切模式一起收起
   show(ui.levels, menu);
   if (ui.btnBack) ui.btnBack.hidden = state.mode !== 'level';
@@ -2201,6 +2348,7 @@ function syncView() {
   if (menu) buildLevelGrid();
   syncSkillButtons();   // 模式一变，技能栏整排的解锁文案就变（签名比较，没变不写）
   syncTowerButtons();   // 同上：闯关模式要摘掉特殊塔
+  syncBatchUpgrade();   // 同上：换模式后「批量升级」的显隐与文案立刻对齐
   if (playing) setupCanvas();   // 从 hidden 恢复时元素才有宽度，必须重算 backing store
 }
 
@@ -2408,6 +2556,21 @@ function bindEvents() {
     upgradeTower(target.tower);            // 被拒（满级 / 未解锁 / 钱不够）时它自己会提示
     syncHud();                             // 金币 / 清单 / 按钮上的价格立即刷新
   });
+  // 「批量升级」：先算整份计划 → 一次扣款 → 逐座 +1 级（只扣一次钱、只落一次盘，见 applyBatchUpgrade）。
+  // 计划为空（没塔 / 全满级 / Lv.3 未解锁 / 连第一座都买不起）时直接返回，不提示也不扣钱。
+  if (ui.btnBatchUp) ui.btnBatchUp.addEventListener('click', () => {
+    const plan = planBatchUpgrade(state.towers, state.gold, clampBatchCountInput(), canUpgradeBeyond3());
+    if (!plan.canDo) return;
+    applyBatchUpgrade(plan);
+    syncHud();                             // 金币 / 场上塔清单 / 合计价立即刷新
+  });
+  // 座数输入框：input 时只重算按钮（取值一律走 batchCount 的夹取，所以 999 也只算 100 座），
+  // change / blur 再把框里那个越界的数字就地改成夹好的值，不打断中间的正常输入。
+  if (ui.batchCount) {
+    ui.batchCount.addEventListener('input', () => syncBatchUpgrade());
+    ui.batchCount.addEventListener('change', () => { clampBatchCountInput(); syncBatchUpgrade(); });
+    ui.batchCount.addEventListener('blur', () => { clampBatchCountInput(); syncBatchUpgrade(); });
+  }
   ui.btnAgain.addEventListener('click', restart);
 
   // 无尽「继续上次 / 重新开始」：重新开始 = 丢掉旧记录走 restart（restart 会 clearEndlessRun）
@@ -2504,6 +2667,10 @@ function boot() {
   ui.btnAgain = byId('tdBtnAgain'); ui.btnNext = byId('tdBtnNext'); ui.btnList = byId('tdBtnList');
   ui.btnPause = byId('tdPause');
   ui.btnQuickUp = byId('tdQuickUpgrade');   // 「快速升级」（在 .td-controls 里，跟着 .td-bar 一起显隐）
+  ui.btnBatchUp = byId('tdBatchUpgrade');   // 「批量升级」（同上，另加「只在无尽模式」一道闸，见 syncView）
+  ui.batchCount = byId('tdBatchCount');     // 批量升级的座数输入框（1..100，夹取见 batchCount）
+  // 整组 = 包着输入框的 <label class="td-batch">：它自己带 display:inline-flex，hidden 要靠 CSS 让位
+  ui.batchBox = ui.batchCount && ui.batchCount.closest ? ui.batchCount.closest('.td-batch') : null;
   ui.btnSpeed = byId('tdSpeed'); ui.btnRestart = byId('tdRestart'); ui.btnBack = byId('tdBack');
   ui.hud = byId('tdHud'); ui.bar = byId('tdBar'); ui.hint = byId('tdHint');
   ui.levels = byId('tdLevels'); ui.levelGrid = byId('tdLevelGrid'); ui.levelsProg = byId('tdLevelsProg');

@@ -763,6 +763,101 @@ section('15. 无尽模式「真的无尽」：波次无上限 + 血量不溢出'
     assert('正常范围（40→60→80→100 波）单波总血量仍严格递增（封顶没波及日常区间）', rising);
 }
 
+//  16. 「批量升级」计划 planBatchUpgrade：先算后扣、等级最低优先、同级先建、钱不够就少升几座
+section('16. 「批量升级」计划 planBatchUpgrade（先算后扣：等级最低优先 / 同级先建 / 钱不够就少升几座）');
+{
+    const { planBatchUpgrade, towerStat, MAX_TOWER_LEVEL } = mod;
+    const tower = (type, lv, col = 0, row = 0, spend = 60) =>
+        ({ type, lv, col, row, x: 0, y: 0, cd: 0, spend, dmgBuff: 0, rateBuff: 0 });
+    const costOf = (type, lv) => towerStat(type, lv).upgradeCost;   // 与运行时同一份价格口径
+    const show = (p) => (p.targets.length ? p.targets.map((t) => '#' + t.index + '/Lv.' + t.lv + '/' + t.cost).join(' ')
+        : '（空计划）') + ' 合计=' + p.totalCost + ' canDo=' + p.canDo;
+
+    // 16.1 count 夹取：0 / -5 / 非数字 → 1 座；999 → 100 座（200 座塔的场景，上限确实生效）
+    const many = [];
+    for (let i = 0; i < 200; i += 1) many.push(tower('arrow', 1));
+    const cZero = planBatchUpgrade(many, 9e9, 0, true);
+    const cNeg = planBatchUpgrade(many, 9e9, -5, true);
+    const cBad = planBatchUpgrade(many, 9e9, 'abc', true);
+    const cHuge = planBatchUpgrade(many, 9e9, 999, true);
+    const cMid = planBatchUpgrade(many, 9e9, 5, true);
+    assert('count 夹到 1..100：0 / -5 / 非数字 → 1 座，999 → 100 座（200 座塔的场景，上限确实生效）',
+        cZero.targets.length === 1 && cNeg.targets.length === 1 && cBad.targets.length === 1
+        && cHuge.targets.length === 100 && cMid.targets.length === 5,
+        `${cZero.targets.length}/${cNeg.targets.length}/${cBad.targets.length}/${cHuge.targets.length}/${cMid.targets.length}`);
+
+    // 16.2 挑选顺序：等级升序，不是数组（建造）顺序 —— [Lv.1, Lv.4, Lv.2] 取 2 座 → Lv.1 再 Lv.2
+    const spread = [tower('arrow', 1, 1, 1, 60), tower('cannon', 4, 2, 2, 700), tower('frost', 2, 3, 3, 150)];
+    const two = planBatchUpgrade(spread, 9e9, 2, true);
+    assert('挑选顺序：[Lv.1, Lv.4, Lv.2] 取 2 座 → 先 Lv.1(index 0) 再 Lv.2(index 2)，不是按建造顺序',
+        two.targets.length === 2 && two.targets[0].index === 0 && two.targets[0].lv === 1
+        && two.targets[1].index === 2 && two.targets[1].lv === 2 && two.targets[1].nextLv === 3,
+        show(two));
+
+    // 16.3 同级取先建：两座都 Lv.2、只要 1 座 → index 0
+    const tie = [tower('arrow', 2, 1, 1, 200), tower('frost', 2, 2, 2, 200)];
+    const one = planBatchUpgrade(tie, 9e9, 1, true);
+    assert('同级取先建：两座都 Lv.2、只升 1 座 → index 0（下标更小 = 先建）',
+        one.targets.length === 1 && one.targets[0].index === 0, show(one));
+
+    // 16.4 部分执行：钱只够 2 座、要 5 座 → 只给 2 座，totalCost 正好是这两座之和且不超过金币
+    const five = [tower('arrow', 1), tower('frost', 1), tower('cannon', 1), tower('aura', 1), tower('arrow', 1)];
+    const pA = costOf('arrow', 1), pF = costOf('frost', 1), pC = costOf('cannon', 1);
+    const near = pA + pF + pC - 1;                       // 差 1 金币才够第三座
+    const partial = planBatchUpgrade(five, near, 5, true);
+    assert('部分执行：钱只够 2 座（差 1 金币够第三座）、要求 5 座 → 只返回 2 座，totalCost = 这两座之和且 <= 金币',
+        partial.targets.length === 2 && partial.canDo === true
+        && partial.targets[0].index === 0 && partial.targets[1].index === 1
+        && partial.totalCost === pA + pF && partial.totalCost <= near,
+        show(partial) + ` 金币=${near}`);
+
+    // 16.5 钱连第一座都不够 → 空计划（按钮据此 disabled + 「金币不足」）
+    const broke = planBatchUpgrade([tower('arrow', 1)], pA - 1, 5, true);
+    assert('钱连第一座都不够 → targets 为空、canDo === false、totalCost === 0',
+        broke.targets.length === 0 && broke.canDo === false && broke.totalCost === 0,
+        show(broke) + ` 金币=${pA - 1}`);
+
+    // 16.6 未解锁高等级时 Lv.3 算到顶：只挑 Lv.2 那座；解锁后两座都能被挑中
+    const lock = [tower('arrow', 3, 1, 1, 400), tower('frost', 2, 2, 2, 150)];
+    const lockedPlan = planBatchUpgrade(lock, 9e9, 5, false);
+    const openPlan = planBatchUpgrade(lock, 9e9, 5, true);
+    assert('未解锁 Lv.4+ 时跳过 Lv.3：[Lv.3, Lv.2] 只要 Lv.2 那座；highUnlocked=true 时两座都进计划',
+        lockedPlan.targets.length === 1 && lockedPlan.targets[0].index === 1
+        && openPlan.targets.length === 2 && openPlan.targets[0].index === 1 && openPlan.targets[1].index === 0,
+        'locked: ' + show(lockedPlan) + '  open: ' + show(openPlan));
+
+    // 16.7 全部满级 → 空计划
+    const allMax = [tower('arrow', MAX_TOWER_LEVEL), tower('cannon', MAX_TOWER_LEVEL)];
+    const maxedPlan = planBatchUpgrade(allMax, 9e9, 5, true);
+    assert(`全部满级（Lv.${MAX_TOWER_LEVEL}）→ 空计划、canDo === false、totalCost === 0`,
+        maxedPlan.targets.length === 0 && maxedPlan.canDo === false && maxedPlan.totalCost === 0,
+        show(maxedPlan));
+
+    // 16.8 纯函数：算计划不改塔（lv / spend 一个都没动），坏输入也不抛
+    const beforeJson = JSON.stringify(spread.map((t) => [t.lv, t.spend]));
+    planBatchUpgrade(spread, 9e9, 3, true);
+    let bad = 'ok';
+    try {
+        if (planBatchUpgrade(undefined, 100, 3, true).targets.length !== 0) bad = 'undefined 未返回空计划';
+        if (planBatchUpgrade([null, tower('nope', 1)], 9e9, 3, true).targets.length !== 0) bad = '坏元素未跳过';
+        if (planBatchUpgrade([tower('arrow', 1)], 9e9, 3, true).targets.length !== 1) bad = '正常输入未返回计划';
+    } catch (err) { bad = String(err && err.message); }
+    assert('纯函数：算计划不改塔的 lv / spend；非数组、含 null 与未知塔类型都不抛异常',
+        JSON.stringify(spread.map((t) => [t.lv, t.spend])) === beforeJson && bad === 'ok', bad);
+
+    // 真实调用取样（报告里贴的就是这三行：3 座塔、要求 2 座、不同金币）
+    const sample = [tower('arrow', 1, 1, 1, 60), tower('frost', 2, 2, 2, 150), tower('cannon', 1, 3, 3, 90)];
+    const sA = costOf('arrow', 1), sC = costOf('cannon', 1);
+    for (const g of [0, sA + sC - 1, sA + sC, 9e9]) {
+        const p = planBatchUpgrade(sample, g, 2, true);
+        console.log('  planBatchUpgrade(3 座 Lv.1/Lv.2/Lv.1, gold=' + g + ', count=2)：' + JSON.stringify({
+            targets: p.targets.map((t) => ({ index: t.index, type: t.type, lv: t.lv, nextLv: t.nextLv, cost: t.cost })),
+            totalCost: p.totalCost, canDo: p.canDo,
+        }));
+    }
+}
+
+
 // ─── 汇总 ────────────────────────────────────────────────────
 
 const total = passed + failures.length;

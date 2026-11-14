@@ -462,6 +462,39 @@
             background: var(--primary-bg);
         }
 
+        /* ---------- 批量升级（无尽模式：座数输入 + 按钮成一组） ---------- */
+        /* 整组是 .td-controls 里的一个 flex 项，放不下就跟着父级 flex-wrap 折行，不做绝对定位 */
+        .td-batch {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: .78rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        /* 自己带 display:inline-flex，视图切换靠 hidden，必须显式让位 */
+        .td-batch[hidden] {
+            display: none !important;
+        }
+
+        .td-batch input {
+            width: 4.4em;
+            padding: 8px 6px;
+            font-size: .78rem;
+            font-family: inherit;
+            text-align: center;
+            border-radius: var(--radius-sm, .5rem);
+            border: 1px solid var(--border-light);
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        .td-batch input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
         .td-hint {
             margin: 0;
             font-size: .76rem;
@@ -843,6 +876,18 @@
                 flex-wrap: wrap;
             }
 
+            /* 窄屏的批量升级组：允许整组折行、输入框压窄一档，靠 min-width:0 + em 宽度不横向溢出 */
+            .td-batch {
+                font-size: .72rem;
+                min-width: 0;
+            }
+
+            .td-batch input {
+                width: 3.6em;
+                padding: 6px 4px;
+                font-size: .72rem;
+            }
+
             /* 场上塔清单：清单本身在文档流里（不是绝对定位），不可能被下方的提示压住；
                窄屏只处理「不横向溢出」——一行的内容自动折行，两个按钮各占一半宽度并整行下移 */
             .td-tinfo {
@@ -1096,7 +1141,7 @@
          若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
          启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
          **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
-    <script src="/src/pages/tower-defense.js?v=1.6.13-2" type="module"></script>
+    <script src="/src/pages/tower-defense.js?v=1.6.13-3" type="module"></script>
 </head>
 
 <body class="td-page-body">
@@ -1206,6 +1251,10 @@
                 <button id="tdRestart">重开</button>
                 <!-- 快速升级：把建造顺序上第一个未满级的塔升一级（文案/title/disabled 由 syncQuickUpgrade 管） -->
                 <button id="tdQuickUpgrade" disabled title="场上没有塔">快速升级</button>
+                <!-- 批量升级：一次把「座数」那么多座塔各升一级，总价一次扣掉（计划/扣款见 planBatchUpgrade /
+                     applyBatchUpgrade；整组只在无尽模式出现，显隐由 syncView 管） -->
+                <label class="td-batch"><input type="number" id="tdBatchCount" min="1" max="100" step="1" value="5"> 座</label>
+                <button id="tdBatchUpgrade" type="button" disabled title="场上没有可升级的塔">批量升级</button>
                 <button id="tdBack" hidden>关卡列表</button>
             </div>
         </section>
