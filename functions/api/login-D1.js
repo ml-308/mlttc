@@ -13,9 +13,13 @@
 // 依赖：env.mlttcd（USER 表）、env.JWT_SECRET、env.TURNSTILE_SECRET（可选）
 // 密码校验：PBKDF2-SHA256 / 100000 次迭代 / 256bit，与 register-D1.js 的
 //           hashPassword 配对（存储格式 "saltHex:hashHex"）
+//
+// 响应构造统一走 ../_lib/response：带 success/message 的用 json()，
+// 「message 与 error 同时给出」的用 jsonError()。响应体逐字未变。
 import { signToken, setAuthCookie, setUserNameCookie } from '../auth';
 import { enforceRateLimit, LIMITS } from '../ratelimit';
 import { verifyTurnstile } from '../turnstile';
+import { json, jsonError } from '../_lib/response';
 
 // 密码验证函数（与注册时的 hashPassword 配对使用）
 async function verifyPassword(password, storedValue) {
@@ -54,18 +58,12 @@ export async function onRequestPost({ request, env }) {
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return new Response(JSON.stringify({ success: false, message: '无效的请求数据' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '无效的请求数据' }, 400);
     }
 
     const { email, password } = body;
     if (!email || !password) {
-      return new Response(JSON.stringify({ success: false, message: '账号和密码不能为空' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '账号和密码不能为空' }, 400);
     }
 
     // 人机验证：必须在验密码、查库之前拦截。
@@ -74,13 +72,11 @@ export async function onRequestPost({ request, env }) {
     if (!turnstile.ok) {
       // message 与 error 同时给出：前端各处的读取习惯不一致（见 ratelimit.js 同样处理）
       const msg = '人机验证未通过，请重试';
-      return new Response(JSON.stringify({ success: false, message: msg, error: msg }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return jsonError(msg, 400);
     }
 
     // 若输入包含 @ 则按邮箱匹配，否则按昵称匹配
+    // （两个分支互斥，每次请求只会查一次库，不存在可合并的往返）
     const input = email.trim();
     let user;
     if (input.includes('@')) {
@@ -94,19 +90,13 @@ export async function onRequestPost({ request, env }) {
     }
 
     if (!user) {
-      return new Response(JSON.stringify({ success: false, message: '邮箱或密码错误' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '邮箱或密码错误' }, 401);
     }
 
     // 验证密码
     const isPasswordValid = await verifyPassword(password, user.password);
     if (!isPasswordValid) {
-      return new Response(JSON.stringify({ success: false, message: '邮箱或密码错误' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '邮箱或密码错误' }, 401);
     }
 
     // 「保持登录」：只有明确传 false 才算不保持，缺省 / 其它值一律按 true 处理
@@ -121,19 +111,13 @@ export async function onRequestPost({ request, env }) {
     const token = await signToken({ userId: user.id, email: user.email }, env.JWT_SECRET, expiresIn);
 
     // 构造响应并设置 Cookie
-    const response = new Response(JSON.stringify({ success: true, message: '登录成功' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const response = json({ success: true, message: '登录成功' }, 200);
     setAuthCookie(response, token, { persistent: rememberCookie });
     // 页头靠 user_name 显示登录态；以前只有前端密码登录成功时才写它，
     // 服务端这条路补齐后，「注册自动登录」「GitHub 登录」也能立刻显示已登录
     setUserNameCookie(response, user.NAME, { persistent: rememberCookie });
     return response;
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, message: '服务器错误' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json({ success: false, message: '服务器错误' }, 500);
   }
 }

@@ -8,14 +8,14 @@
 //             timetables:[ { ID, CITY, WAY, START, END, SPECIAL, STARTTIME, WRITETIME } ] }
 //       400 email 非法
 //       404 用户不存在
-//       429 请求过于频繁（由 ratelimit 组件原样返回）
 //       500 服务器错误
 //
 // 隐私：响应里**绝不出现原始 email**，只给 emailMasked（见 maskEmail）。
 //       email 本身只是查询条件与作者链接的参数，不随响应下发。
 // 错误体约定：message 与 error 同时给出同一条文案（前端读取习惯不统一，同 ratelimit）。
 // 注意：本接口是同源调用，不需要 CORS 头（不要照抄 profile.js 的 setCorsHeaders）。
-import { enforceRateLimit, LIMITS } from '../ratelimit';
+//
+// 查询次数：用户资料与其已上线时刻表用一条 LEFT JOIN 一次取回（原为两次往返）。
 
 /** email 长度上限 */
 const MAX_EMAIL_LEN = 100;
@@ -68,10 +68,8 @@ function maskEmail(email) {
 
 export async function onRequestGet({ request, env }) {
   try {
-    // 频率限制：额度宽松（每次主页加载都会调 1 次），只为挡住脚本批量抓取
-    const limited = await enforceRateLimit(request, env, LIMITS.userRead);
-    if (limited) return limited;
-
+    // 不做 KV 限流：本接口是纯读，每请求一次 KV 读写会先撞到「写 1000/天」的免费额度；
+    // 滥用由 Cloudflare 面板的 WAF 规则挡。
     // ─── 入参校验 ────────────────────────────────
     // email 统一转小写：注册时就是小写入库（register-D1.js），登录查询也这么处理
     const rawEmail = new URL(request.url).searchParams.get('email');
@@ -89,30 +87,45 @@ export async function onRequestGet({ request, env }) {
       return errorResponse('邮箱格式不正确', 400);
     }
 
-    // ─── 用户资料 ────────────────────────────────
-    // 列名写法跟随现有代码：profile.js 用的是 id, email, NAME, city, registertime, adm
-    const user = await env.mlttcd.prepare(
-      'SELECT NAME, city, registertime FROM USER WHERE EMAIL = ?'
-    ).bind(email).first();
-    if (!user) {
+    // ─── 用户资料 + 该用户已上线的时刻表（一条 LEFT JOIN 取回）────
+    // 原来是两次往返（先查 USER，再查 TIMETABLE），这里合成一条：
+    //   · 用户不存在  → 0 行 → 下面照旧返回 404
+    //   · 无已上线时刻表 → 1 行，且 TIMETABLE 侧各列全为 NULL（下面按 ID 过滤掉）
+    //   · 列名冲突：USER 有 city、TIMETABLE 有 CITY，而 SQLite 列名不区分大小写，
+    //     同一行对象里会撞在一起；所以用户侧三列必须起 user_* 别名，TIMETABLE
+    //     侧保持原列名（这样下发字段名与两次查询版逐字一致）
+    // PASS = 1 即审核通过（对外可见）；只取公开主页需要的字段，不含 TIMEONE/TIMETWO
+    const { results } = await env.mlttcd.prepare(
+      `SELECT u.NAME AS user_name, u.city AS user_city, u.registertime AS user_registertime,
+              t.ID, t.CITY, t.WAY, t.START, t.END, t.SPECIAL, t.STARTTIME, t.WRITETIME
+         FROM USER u
+         LEFT JOIN TIMETABLE t ON t.WRITER = u.EMAIL AND t.PASS = 1
+        WHERE u.EMAIL = ?1
+        ORDER BY t.WRITETIME DESC
+        LIMIT 100`
+    ).bind(email).all();
+
+    if (!results || results.length === 0) {
       return errorResponse('用户不存在', 404);
     }
 
-    // ─── 该用户已上线的时刻表 ────────────────────
-    // PASS = 1 即审核通过（对外可见）；只取公开主页需要的字段，不含 TIMEONE/TIMETWO
-    const { results } = await env.mlttcd.prepare(
-      'SELECT ID, CITY, WAY, START, END, SPECIAL, STARTTIME, WRITETIME FROM TIMETABLE WHERE WRITER = ?1 AND PASS = 1 ORDER BY WRITETIME DESC LIMIT 100'
-    ).bind(email).all();
+    // 剥掉 LEFT JOIN 带出的用户侧别名列，剩下的就是原样下发的时刻表字段
+    const timetables = [];
+    for (const row of results) {
+      if (row.ID === null || row.ID === undefined) continue; // LEFT JOIN 补的空行
+      const { user_name, user_city, user_registertime, ...rest } = row;
+      timetables.push(rest);
+    }
 
     return jsonResponse({
       success: true,
       user: {
-        NAME: user.NAME,
-        city: user.city,
-        registertime: user.registertime,
+        NAME: results[0].user_name,
+        city: results[0].user_city,
+        registertime: results[0].user_registertime,
         emailMasked: maskEmail(email)
       },
-      timetables: results || []
+      timetables
     }, 200);
   } catch (err) {
     console.error('读取用户公开资料失败:', err);

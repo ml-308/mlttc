@@ -1,9 +1,35 @@
 {
-  "latestVersion": "1.6.0",
-  "generatedAt": "2026-11-13T15:29:50.344Z",
-  "count": 12,
+  "latestVersion": "1.6.1",
+  "generatedAt": "2026-11-14T02:14:23.784Z",
+  "count": 13,
   "source": "CHANGELOG.md",
   "releases": [
+    {
+      "version": "1.6.1",
+      "date": "2026-11-13",
+      "sections": [
+        {
+          "title": "⚡ 性能：少读 D1、少写 KV",
+          "items": [
+            "**读接口不再消耗 KV 额度**。`enforceRateLimit()` 每次调用是 **1 次 KV 读 + 1 次 KV 写**，而 Cloudflare KV 免费额度的「写」只有 **1000/天** —— 每个请求都写一次是最先撞墙的地方。现在只有敏感操作还过 KV：登录、注册、改资料、批量导入、写/删时刻表、提交报告、反馈、GitHub 授权；以及 admin 站的写操作与登录。**搜索、`/api/profile`、`/api/stats`、用户主页、报告列表、admin 的列表与详情、HTML 页面导航全部不再写 KV**，读请求的滥用交给 Cloudflare 面板侧的 WAF / Rate limiting。",
+            "**admin 站一条典型操作链路**（打开面板 → 翻审核列表 → 看详情）的 KV 消耗：**9 读 / 9 写 → 0**。只有点「通过 / 驳回 / 处置报告」这类写操作才会消耗。",
+            "**页头不再每次加载都问 `/api/profile`**：加 5 分钟时间窗短路（`sessionStorage`），登录成功与退出时清掉时间窗。改前每次页面加载 1 次 D1 读 + 1 组 KV 读写，改后窗口内为 0。",
+            "**合并冗余往返**：`/api/stats` 稳态 4 → 1（首次初始化 8 → 5）；`/api/user-profile` 2 → 1（改为一条 `LEFT JOIN`，并已用 `node:sqlite` 对拍 4 组用例证明输出与旧版逐字等价）；`/api/report` 无 email 分支 3 → 2；admin 驳回分支 2 → 1（条件 `UPDATE` + `meta.changes` 判 404）；`admin-stats` 两条查询并入一次 `batch()`。"
+          ]
+        },
+        {
+          "title": "🛠 内部：结构整理",
+          "items": [
+            "新增主站 `functions/_lib/`：`response.js`（`json` / `jsonError`）、`auth-guard.js`（`requireUser` / `requireAdmin`）、`params.js`（`cleanParam` / `requireString`）。",
+            "收敛重复代码：40+ 处手写 `new Response(JSON.stringify(...))` 改用 `json()` / `jsonError()`；admin 站 4 份重复的「Bearer + `role === 'admin'`」鉴权分支收敛为 `_lib/auth-guard.js` 的 `requireAdmin()`。",
+            "替换严格遵守「响应体与状态码逐字不变」：原本只回 `{error}` 的分支仍只回 `{error}`（`jsonError` 会追加 `success` / `message`，因此这些分支只换成 `json()`）。个别分支顺带补上了本来缺失的 `Content-Type: application/json` 头，响应体不变。",
+            "三个已无调用方的限流键（`search` / `profileRead` / `userRead`）保留定义并标注「当前无调用方」，将来需要时可一键恢复。",
+            "测试：5 个套件保持全绿（`42/42`、`77/77`、`68/68`、`23 页 0 失败`、`143/143`）。注意 `timetable-import-D1.js` 的 `_lib` 引用**必须带 `.js`**（该文件被 Node 直接 import 做自测，Node 的 ESM 解析要求显式扩展名），已加注释防止被「统一风格」改掉。",
+            "版本号 1.6.0 → 1.6.1。"
+          ]
+        }
+      ]
+    },
     {
       "version": "1.6.0",
       "date": "2026-11-13",
@@ -422,6 +448,16 @@
     }
   ],
   "entries": [
+    {
+      "hash": "654e998",
+      "date": "2026-11-14",
+      "subject": "登录框支持 GitHub 登录/注册，并让 GitHub 流程尊重 cookie 同意"
+    },
+    {
+      "hash": "093d86d",
+      "date": "2026-11-13",
+      "subject": "全站动效补齐 —— 统一 token/骨架屏/微交互/错峰入场（v1.6.0）"
+    },
     {
       "hash": "c9426e0",
       "date": "2026-11-13",

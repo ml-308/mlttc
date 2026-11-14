@@ -240,14 +240,66 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
  * 失败（401 / 网络异常 / 限流）时保持现状，不把用户从「已登录」误踢成「未登录」——
  * 唯一的例外是明确的 401：那说明会话真的没了，清掉残留的 user_name 更符合直觉。
  */
+
+// ─── 校验时间窗（省掉「每次页面加载都打一次 /api/profile」）────────
+// /api/profile 会打一次 D1；而页头需要的结论（显示登录按钮还是隐藏）几乎不会
+// 在 5 分钟内反复变化，所以用 sessionStorage 记下上次校验时间：
+//   · user_name Cookie 存在、且距上次校验不足 5 分钟 → 直接信任现有显示，不再请求
+//   · 其余情况（没有 cookie / 超过 5 分钟 / 读存储抛错）→ 照常校验，成功或 401 后记录时间
+// 语义不变：401 仍清 cookie 并显示登录按钮；200 仍隐藏按钮并刷新 user_name；
+// 429 / 5xx / 网络异常仍然保持现状、不更新时间戳（下一次加载会重新校验）。
+const AUTH_CHECKED_KEY = 'mlttc-auth-checked';
+const AUTH_CHECK_TTL_MS = 5 * 60 * 1000; // 5 分钟
+
+/** 读上次校验时间戳；读不到 / 解析失败 / sessionStorage 不可用时返回 0（= 需要校验） */
+function readAuthCheckedAt() {
+  try {
+    const ts = Number(sessionStorage.getItem(AUTH_CHECKED_KEY));
+    return Number.isFinite(ts) && ts > 0 ? ts : 0;
+  } catch {
+    return 0; // 隐私模式等场景 sessionStorage 会抛错 → 退回每次都校验
+  }
+}
+
+/** 记录「刚刚校验过」；存不进去也不影响正确性，只是下次会再校验一次 */
+function markAuthCheckedNow() {
+  try {
+    sessionStorage.setItem(AUTH_CHECKED_KEY, String(Date.now()));
+  } catch {
+    /* 存不了就算了 */
+  }
+}
+
+/** 作废时间戳：登录成功 / 退出登录后必须调用，否则会被旧的「已校验」窗口误判 */
+function clearAuthChecked() {
+  try {
+    sessionStorage.removeItem(AUTH_CHECKED_KEY);
+  } catch {
+    /* 同上 */
+  }
+}
+
+// 全站的登录成功（/src/pages/main.js）与退出登录都通过 mlttc:auth-changed 广播，
+// 这里挂上作废，保证身份刚变化时下一次加载一定重新校验。
+// 注意：本模块在校验成功后自己也会派发该事件，所以 markAuthCheckedNow() 必须
+// 写在派发之后（见下面 syncAuthWithServer），否则会被这里刚清掉。
+window.addEventListener('mlttc:auth-changed', clearAuthChecked);
+
 async function syncAuthWithServer() {
   const loginBtn = document.getElementById('globalLoginBtn');
+
+  // 时间窗短路：cookie 有显示名 + 5 分钟内校验过 → 信任现有显示，不再打接口
+  if (getCookie('user_name') !== null && Date.now() - readAuthCheckedAt() < AUTH_CHECK_TTL_MS) {
+    return;
+  }
+
   try {
     const res = await fetch('/api/profile', { credentials: 'include' });
     if (res.status === 401) {
       // 会话确实失效：清掉显示用的 cookie，避免「显示已登录但操作全 401」
       document.cookie = 'user_name=; Path=/; Max-Age=0; SameSite=Lax';
       if (loginBtn) loginBtn.style.display = 'inline-block';
+      markAuthCheckedNow();
       return;
     }
     if (!res.ok) return; // 429 / 5xx 等：保持当前显示，不要误踢
@@ -259,6 +311,9 @@ async function syncAuthWithServer() {
     document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=2592000; SameSite=Lax`;
     if (loginBtn) loginBtn.style.display = 'none';
     window.dispatchEvent(new CustomEvent('mlttc:auth-changed'));
+    // 记录本次校验时间：必须放在上面派发之后——本模块自己也监听 auth-changed 清时间戳，
+    // 顺序反了会把自己刚记录的时间立刻清掉，5 分钟窗口就失效了
+    markAuthCheckedNow();
   } catch {
     /* 网络异常：保持现状 */
   }

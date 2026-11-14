@@ -17,6 +17,19 @@
 //     // …正常逻辑
 //   }
 //
+// ─── 谁该过 KV 限流（设计原则，别再加回读接口）───────────────
+// Cloudflare KV 免费额度：读 10 万/天，**写仅 1000/天**。
+// 而 consume() 每被调用一次就是 **1 次 KV 读 + 1 次 KV 写**（写回计数），
+// 所以「每个请求都限流」会先在写额度上撞墙（1000 次/天 ≈ 每小时 41 次全站请求），
+// 一撞墙就是全站 5xx —— 比被刷更糟。
+//
+// 因此只有两类接口保留 KV 限流：
+//   1. 会改数据的敏感写接口：write / import / remove / profileUpdate / feedback / report
+//   2. 有被爆破或代刷价值的入口：login / register / emailCheck / githubAuth
+// 纯读接口（/api/profile、/api/stats、/api/user-profile）**一律不过 KV**，
+// 它们的滥用交给 Cloudflare 面板的 WAF / Rate limiting 规则在边缘层挡，
+// 那是边缘拦截，不消耗 KV 额度。
+//
 // ⚠️ 已知局限（选型决定，不是 bug）：
 //   1. KV 是最终一致的，多地并发请求时计数可能偏少 → 挡不住分布式高频刷，
 //      只适合挡「单机脚本 / 手抖连点」这类请求过多。要挡分布式请用 Cloudflare
@@ -146,13 +159,20 @@ export async function enforceRateLimit(request, env, rule) {
  *
  * 调整建议：阈值调小是「更严」，调大是「更松」；
  * 每个接口用独立的 name → 独立计数桶，互不影响。
+ *
+ * ⚠️ 阈值与行为一律未改动：本次只给纯读接口去掉了调用点（见文件头「谁该过 KV 限流」），
+ *    下面每个条目的数值都保持原样，包括已经没有人调用的那三条（保留定义，别删）。
  */
 export const LIMITS = {
-  /** 时刻表搜索 / 详情查询（读多，额度给大一些） */
+  /** 时刻表搜索 / 详情查询（读多，额度给大一些）
+   *  当前无调用方：读接口一律不过 KV 限流（/api/stats 与 timetable-D1.js 的 GET
+   *  都不再使用本键，见文件头）；保留定义供将来需要时启用。 */
   search: { name: 'search', max: 30, window: 60 },
   /** 邮箱查重、注册白名单校验（防批量探测邮箱是否已注册） */
   emailCheck: { name: 'email-check', max: 20, window: 60 },
-  /** 个人资料读取（每次页面加载都会调 2~4 次，额度必须宽松） */
+  /** 个人资料读取（每次页面加载都会调 2~4 次，额度必须宽松）
+   *  当前无调用方：/api/profile 是纯读，已不再过 KV 限流（见文件头）；
+   *  保留定义供将来需要时启用。 */
   profileRead: { name: 'profile-read', max: 60, window: 60 },
   /** 新增 / 修改时刻表 */
   write: { name: 'write', max: 10, window: 600 },
@@ -171,7 +191,9 @@ export const LIMITS = {
   feedback: { name: 'feedback', max: 5, window: 600 },
   /** 时刻表错误报告（防灌水：10 分钟 5 次） */
   report: { max: 5, window: 600, name: 'report' },
-  /** 他人公开主页读取（每次页面加载调 1 次，额度必须宽松） */
+  /** 他人公开主页读取（每次页面加载调 1 次，额度必须宽松）
+   *  当前无调用方：/api/user-profile 与 report.js 的 GET 都是纯读，已不再过 KV 限流
+   *  （见文件头）；保留定义供将来需要时启用。 */
   userRead: { max: 60, window: 60, name: 'user-profile' },
   /** GitHub OAuth（登录 + 回调共用一套额度：防刷 state / 刷 code 换 token） */
   githubAuth: { max: 10, window: 600, name: 'github-auth' }

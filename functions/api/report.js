@@ -33,7 +33,7 @@
 //                                        CITY, WAY, START, END } ] }
 //       401 未登录 / 登录已过期（过期时顺带清除 Cookie）
 //       404 用户不存在（token 里没有 email，回查 USER 也查不到）
-//       429 请求过于频繁（由 ratelimit 组件原样返回，复用 LIMITS.userRead）
+//       429 请求过于频繁（POST 由 ratelimit 组件原样返回；GET 已不再限流，见 onRequestGet）
 //       500 服务器错误
 //      表或新列尚未创建（用户还没执行新版 TIMETABLE_REPORT.sql）时**不 500**：
 //      降级 200 { success:true, reports:[], note:'...' } + console.warn
@@ -44,34 +44,16 @@
 //       也是同一做法；只给 error 会让一部分调用方显示成笼统的「提交失败」。
 import { verifyToken, getCookie, clearAuthCookie } from '../auth';
 import { enforceRateLimit, LIMITS } from '../ratelimit';
+import { json, jsonError } from '../_lib/response';
 
 /** 内容长度上限（字） */
 const MAX_CONTENT_LEN = 500;
 /** 时刻表 ID 长度上限（TIMETABLE.ID 是 12 位数字字符串，留出余量） */
 const MAX_ID_LEN = 20;
 
-/**
- * 构造 JSON 响应
- * @param {object} body 响应体
- * @param {number} status HTTP 状态码
- * @returns {Response}
- */
-function jsonResponse(body, status) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  });
-}
-
-/**
- * 构造错误响应：message 与 error 同值（见文件头「错误体约定」）
- * @param {string} message 给用户看的文案
- * @param {number} status HTTP 状态码
- * @returns {Response}
- */
-function errorResponse(message, status) {
-  return jsonResponse({ success: false, message, error: message }, status);
-}
+// 响应构造统一走 functions/_lib/response.js（响应体与状态码逐字不变）：
+//   json(body, status)     —— 原本地包装函数的函数体，只有 JSON.stringify + status
+//   jsonError(msg, status) —— 仍产出 { success:false, message, error }（见文件头「错误体约定」）
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -82,14 +64,14 @@ export async function onRequestPost({ request, env }) {
     // 验证登录
     const token = getCookie(request, 'auth_token');
     if (!token) {
-      return errorResponse('请先登录', 401);
+      return jsonError('请先登录', 401);
     }
 
     let payload;
     try {
       payload = await verifyToken(token, env.JWT_SECRET);
     } catch (e) {
-      const response = errorResponse('登录已过期，请重新登录', 401);
+      const response = jsonError('登录已过期，请重新登录', 401);
       clearAuthCookie(response);
       return response;
     }
@@ -97,46 +79,56 @@ export async function onRequestPost({ request, env }) {
     // 解析请求体
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object') {
-      return errorResponse('无效的请求数据', 400);
+      return jsonError('无效的请求数据', 400);
     }
 
     // 校验时刻表 ID
     const rawId = body.id;
     if (!rawId || typeof rawId !== 'string' || rawId.trim().length === 0) {
-      return errorResponse('缺少时刻表ID', 400);
+      return jsonError('缺少时刻表ID', 400);
     }
     const tid = rawId.trim();
     if (tid.length > MAX_ID_LEN) {
-      return errorResponse('时刻表ID不合法', 400);
+      return jsonError('时刻表ID不合法', 400);
     }
 
     // 校验报告内容
     const rawContent = body.content;
     if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
-      return errorResponse('报告内容不能为空', 400);
+      return jsonError('报告内容不能为空', 400);
     }
     const content = rawContent.trim();
     if (content.length > MAX_CONTENT_LEN) {
-      return errorResponse(`报告内容过长，请限制在${MAX_CONTENT_LEN}字以内`, 400);
+      return jsonError(`报告内容过长，请限制在${MAX_CONTENT_LEN}字以内`, 400);
     }
 
-    // 邮箱优先取自 JWT payload；payload 里没有时才回查 USER 表（同 bugback.js）
+    // 邮箱兜底 + 时刻表存在性预检
+    // payload 里没有 email 时（同 bugback.js）原本要跑两条 SQL：先查 USER、再查 TIMETABLE。
+    // 这里合并成 1 次 D1 往返：两个标量子查询写在同一句 SELECT 里，按出现顺序求值，
+    // 因此判定顺序仍是「先用户、后时刻表」——「用户不存在 404」照旧先于
+    // 「时刻表不存在 404」，状态码与文案一个字都没变。
+    // payload 已带 email 时仍只查一次 TIMETABLE（不会多做一次 USER 查询，
+    // 保持原有的失败面：USER 表只在该查的时候才被访问）。
     if (!payload.email) {
-      const user = await env.mlttcd.prepare(
-        'SELECT EMAIL FROM USER WHERE id = ?'
-      ).bind(payload.userId).first();
-      if (!user || !user.EMAIL) {
-        return errorResponse('用户不存在', 404);
+      const precheck = await env.mlttcd.prepare(
+        `SELECT (SELECT EMAIL FROM USER WHERE id = ?1) AS EMAIL,
+                (SELECT ID FROM TIMETABLE WHERE ID = ?2) AS TID`
+      ).bind(payload.userId, tid).first();
+      if (!precheck || !precheck.EMAIL) {
+        return jsonError('用户不存在', 404);
       }
-      payload.email = user.EMAIL;
-    }
-
-    // 存在性校验：报告必须挂在一条真实存在的时刻表上
-    const timetable = await env.mlttcd.prepare(
-      'SELECT ID, CITY FROM TIMETABLE WHERE ID = ?'
-    ).bind(tid).first();
-    if (!timetable) {
-      return errorResponse('时刻表不存在', 404);
+      if (!precheck.TID) {
+        return jsonError('时刻表不存在', 404);
+      }
+      payload.email = precheck.EMAIL;
+    } else {
+      // 存在性校验：报告必须挂在一条真实存在的时刻表上
+      const timetable = await env.mlttcd.prepare(
+        'SELECT ID FROM TIMETABLE WHERE ID = ?'
+      ).bind(tid).first();
+      if (!timetable) {
+        return jsonError('时刻表不存在', 404);
+      }
     }
 
     // 落库：WRITETIME 用 ISO 字符串，与 TIMETABLE.WRITETIME / USER.registertime 一致
@@ -144,13 +136,13 @@ export async function onRequestPost({ request, env }) {
       "INSERT INTO TIMETABLE_REPORT (TID, EMAIL, CONTENT, STATUS, WRITETIME) VALUES (?1, ?2, ?3, 'open', ?4)"
     ).bind(tid, payload.email, content, new Date().toISOString()).run();
 
-    return jsonResponse({
+    return json({
       success: true,
       message: '报告已提交，感谢您的反馈'
     }, 201);
   } catch (err) {
     console.error('时刻表错误报告提交失败:', err);
-    return errorResponse('服务器错误', 500);
+    return jsonError('服务器错误', 500);
   }
 }
 
@@ -160,22 +152,23 @@ export async function onRequestPost({ request, env }) {
 // ────────────────────────────────────────────────────────────────
 export async function onRequestGet({ request, env }) {
   try {
-    // 频率限制：页面加载时调一次，复用个人资料读取的宽松额度
-    // （LIMITS.userRead = 每 IP 每分钟 60 次），不新增限流键
-    const limited = await enforceRateLimit(request, env, LIMITS.userRead);
-    if (limited) return limited;
+    // 频率限制：读路径已移除（省 KV 写额度）
+    // 原因：enforceRateLimit() 每次调用 = 1 次 KV 读 + 1 次 KV 写，而 KV 免费额度的写只有
+    // 1000/天；本接口是「我的时刻表」页每次加载都会调的读路径，会把写额度烧光，
+    // 连累真正需要限流的写接口。读接口的滥用改由 Cloudflare 面板的 WAF / Rate limiting
+    // 规则兜住（不消耗 KV）。POST 的 LIMITS.report 保留不动（防灌水）。
 
     // 验证登录
     const token = getCookie(request, 'auth_token');
     if (!token) {
-      return errorResponse('请先登录', 401);
+      return jsonError('请先登录', 401);
     }
 
     let payload;
     try {
       payload = await verifyToken(token, env.JWT_SECRET);
     } catch (e) {
-      const response = errorResponse('登录已过期，请重新登录', 401);
+      const response = jsonError('登录已过期，请重新登录', 401);
       clearAuthCookie(response);
       return response;
     }
@@ -187,7 +180,7 @@ export async function onRequestGet({ request, env }) {
         'SELECT EMAIL FROM USER WHERE id = ?'
       ).bind(payload.userId).first();
       if (!user || !user.EMAIL) {
-        return errorResponse('用户不存在', 404);
+        return jsonError('用户不存在', 404);
       }
       payload.email = user.EMAIL;
     }
@@ -207,12 +200,12 @@ export async function onRequestGet({ request, env }) {
          LIMIT 100`
       ).bind(email).all();
 
-      return jsonResponse({ success: true, reports: results || [] }, 200);
+      return json({ success: true, reports: results || [] }, 200);
     } catch (queryErr) {
       // 表不存在（新版 TIMETABLE_REPORT.sql 未执行）或缺 RESOLUTION/RESOLVENOTE 等新列：
       // 降级为空列表，不让「我的时刻表」页整块报错
       console.warn('查询返还给作者的错误报告失败（TIMETABLE_REPORT 可能尚未创建或缺列）:', queryErr);
-      return jsonResponse({
+      return json({
         success: true,
         reports: [],
         note: '错误报告查询失败，TIMETABLE_REPORT 表可能尚未创建或缺少新列'
@@ -220,6 +213,6 @@ export async function onRequestGet({ request, env }) {
     }
   } catch (err) {
     console.error('读取返还错误报告失败:', err);
-    return errorResponse('服务器错误', 500);
+    return jsonError('服务器错误', 500);
   }
 }

@@ -15,13 +15,16 @@
 //   3. GET 的搜索条件先各自加括号，再与权限条件用 AND 拼接：
 //      (PASS = 1 AND 城市 AND 线路) AND (关键词A OR 关键词B)
 //      缺少外层括号会让 AND 抢先结合，使城市过滤被绕过
-//   4. 参数长度限制见 validateSearchParam；频率限制统一走 ../ratelimit（见 LIMITS）
+//   4. 参数长度限制见 _lib/params.js 的 cleanParam；频率限制统一走 ../ratelimit（见 LIMITS）
 //
 // ⚠️ 频率限制已抽到 functions/ratelimit.js，本文件只 import 使用，不再本地实现。
-//    额度：GET → LIMITS.search、POST → LIMITS.write、DELETE → LIMITS.remove
+//    额度：POST → LIMITS.write、DELETE → LIMITS.remove
+//    GET 已不再限流（读路径不消耗 KV 写额度，理由见 onRequestGet 里第 1 条注释）
 
 import { enforceRateLimit, LIMITS } from '../ratelimit';
 import { statsOnInsert, statsOnDelete } from '../stats-helper';
+import { json } from '../_lib/response';
+import { cleanParam } from '../_lib/params';
 
 // 生成12位安全随机数字（字符串）
 function generate12DigitString() {
@@ -41,10 +44,7 @@ export async function onRequestPost({ request, env }) {
 
     const body = await request.json().catch(() => null);
     if (!body) {
-        return new Response(JSON.stringify({ error: '无效的请求数据' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return json({ error: '无效的请求数据' }, 400);
     }
 
     let { id, city, way, start, end, special, time1, time2, etime, writetime, writer } = body;
@@ -52,10 +52,10 @@ export async function onRequestPost({ request, env }) {
     // ─── 更新模式（id 存在时）─────────────────────────
     if (id) {
         if (!writer || typeof writer !== 'string' || writer.trim().length === 0) {
-            return new Response(JSON.stringify({ error: '作者不能为空' }), { status: 400 });
+            return json({ error: '作者不能为空' }, 400);
         }
         if (!writetime || typeof writetime !== 'string' || writetime.trim().length === 0) {
-            return new Response(JSON.stringify({ error: '写入时间不能为空' }), { status: 400 });
+            return json({ error: '写入时间不能为空' }, 400);
         }
 
         // 动态构建 UPDATE SET 子句
@@ -106,9 +106,7 @@ export async function onRequestPost({ request, env }) {
         params.push('-');
 
         if (sets.length === 0) {
-            return new Response(JSON.stringify({ error: '没有提供需要更新的字段' }), {
-                status: 400, headers: { 'Content-Type': 'application/json' }
-            });
+            return json({ error: '没有提供需要更新的字段' }, 400);
         }
 
         // 始终更新写入时间
@@ -131,13 +129,9 @@ export async function onRequestPost({ request, env }) {
                 ).bind(id).first();
 
                 if (!existing) {
-                    return new Response(JSON.stringify({ error: '记录不存在' }), {
-                        status: 404, headers: { 'Content-Type': 'application/json' }
-                    });
+                    return json({ error: '记录不存在' }, 404);
                 }
-                return new Response(JSON.stringify({ error: '无权修改此记录' }), {
-                    status: 403, headers: { 'Content-Type': 'application/json' }
-                });
+                return json({ error: '无权修改此记录' }, 403);
             }
 
             // ─── 作者改表后自动销单（错误报告）──────────────────
@@ -166,47 +160,45 @@ export async function onRequestPost({ request, env }) {
                 console.warn('自动销单失败（TIMETABLE_REPORT 可能尚未创建或缺列）:', reportErr);
             }
 
-            return new Response(JSON.stringify({
+            return json({
                 success: true,
                 id: id,
                 message: '更新成功'
-            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            }, 200);
         } catch (err) {
             console.error('更新错误:', err);
-            return new Response(JSON.stringify({ error: '数据库更新失败' }), {
-                status: 500, headers: { 'Content-Type': 'application/json' }
-            });
+            return json({ error: '数据库更新失败' }, 500);
         }
     }
 
     // ─── 新增模式（无 id）─────────────────────────
     // ----- 参数校验 -----
     if (!city || typeof city !== 'string' || city.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '城市不能为空' }), { status: 400 });
+        return json({ error: '城市不能为空' }, 400);
     }
     if (!way || typeof way !== 'string' || way.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '线路不能为空' }), { status: 400 });
+        return json({ error: '线路不能为空' }, 400);
     }
     if (!start || typeof start !== 'string' || start.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '起点不能为空' }), { status: 400 });
+        return json({ error: '起点不能为空' }, 400);
     }
     if (!end || typeof end !== 'string' || end.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '终点不能为空' }), { status: 400 });
+        return json({ error: '终点不能为空' }, 400);
     }
     if (!time1 || typeof time1 !== 'string' || time1.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '时刻表1不能为空' }), { status: 400 });
+        return json({ error: '时刻表1不能为空' }, 400);
     }
     if (!time2 || typeof time2 !== 'string' || time2.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '时刻表2不能为空' }), { status: 400 });
+        return json({ error: '时刻表2不能为空' }, 400);
     }
     if (!etime || typeof etime !== 'string' || etime.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '执行时间不能为空' }), { status: 400 });
+        return json({ error: '执行时间不能为空' }, 400);
     }
     if (!writer || typeof writer !== 'string' || writer.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '作者不能为空' }), { status: 400 });
+        return json({ error: '作者不能为空' }, 400);
     }
     if (!writetime || typeof writetime !== 'string' || writetime.trim().length === 0) {
-        return new Response(JSON.stringify({ error: '写入时间不能为空' }), { status: 400 });
+        return json({ error: '写入时间不能为空' }, 400);
     }
 
     // 处理 special 字段（可选）
@@ -218,13 +210,10 @@ export async function onRequestPost({ request, env }) {
     ).bind(city.trim(), way.trim(), start.trim(), end.trim(), time1.trim(), time2.trim()).first();
 
     if (existingRoute) {
-        return new Response(JSON.stringify({
+        return json({
             success: false,
             message: '该时刻表已存在'
-        }), {
-            status: 409,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        }, 409);
     }
 
     // ----- 生成唯一 ID（循环查重）-----
@@ -262,20 +251,14 @@ export async function onRequestPost({ request, env }) {
         // 维护首页统计（线路 +1、城市并入），失败不影响主流程
         statsOnInsert(env, city.trim()).catch((e) => console.warn('统计维护失败:', e));
 
-        return new Response(JSON.stringify({
+        return json({
             success: true,
             id: newId,
             message: '添加成功'
-        }), {
-            status: 201,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        }, 201);
     } catch (err) {
         console.error('插入错误:', err);
-        return new Response(JSON.stringify({ error: '数据库写入失败' }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return json({ error: '数据库写入失败' }, 500);
     }
 }
 
@@ -284,26 +267,18 @@ export async function onRequestPost({ request, env }) {
 
 // ─── 参数校验辅助 ─────────────────────────────────────────────
 
-/**
- * 校验并规范化搜索参数（去掉首尾空白，并限制最大长度）
- * @param {*} value 原始参数值
- * @param {number} maxLen 允许的最大长度
- * @returns {string|null} 合法时返回去空格后的字符串，非法时返回 null（调用方应忽略该条件）
- */
-function validateSearchParam(value, maxLen) {
-  if (!value || typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > maxLen) return null;
-  return trimmed;
-}
+// 参数清洗统一走 functions/_lib/params.js 的 cleanParam()：
+// 语义与原本地 validateSearchParam 完全一致（非字符串 / 去空格后为空 / 超长 → null）
 
 //Get
 export async function onRequestGet({request,env}){
     try {
-        // 1. 频率限制检查（超限直接 429）
-        const rateLimitResponse = await enforceRateLimit(request, env, LIMITS.search);
-        if (rateLimitResponse) return rateLimitResponse;
-
+        // 1. 频率限制：读路径已移除（省 KV 写额度）
+        //    enforceRateLimit() 每次调用 = 1 次 KV 读 + 1 次 KV 写，而 KV 免费额度的写只有
+        //    1000/天；本接口的 GET 是首页/列表页/详情页最高频的读路径，会把写额度烧光，
+        //    连累真正需要限流的写接口（POST/DELETE）被误伤。
+        //    读接口的滥用改由 Cloudflare 面板的 WAF / Rate limiting 规则兜住（不消耗 KV）。
+        //    ⚠️ POST（LIMITS.write）与 DELETE（LIMITS.remove）的限流原样保留。
         const url = new URL(request.url);
         const city = url.searchParams.get("city");
         const way = url.searchParams.get("way");
@@ -311,12 +286,12 @@ export async function onRequestGet({request,env}){
 
         if (id && id !== '0') {
             // ID 查询（精确匹配，受控参数）
-            const cleanId = validateSearchParam(id, 20);
+            const cleanId = cleanParam(id, 20);
             if (!cleanId) {
-                return new Response(JSON.stringify({
+                return json({
                     success: false,
                     message: 'ID 格式无效'
-                }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+                }, 400);
             }
 
             console.log("按 ID 查询");
@@ -329,29 +304,26 @@ export async function onRequestGet({request,env}){
                 ).bind(cleanId).first();
 
                 if (!row) {
-                    return new Response(JSON.stringify({
+                    return json({
                         success: false,
                         message: '未找到该记录'
-                    }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+                    }, 404);
                 }
 
-                return new Response(JSON.stringify({
+                return json({
                     success: true,
                     data: row
-                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                }, 200);
             } catch (err) {
                 console.error('ID 查询错误:', err);
-                return new Response(JSON.stringify({ error: '服务器内部错误' }), {
-                    status: 500,
-                    headers: { 'Content-Type': 'application/json' }
-                });
+                return json({ error: '服务器内部错误' }, 500);
             }
         }
 
         // ─── 按作者(邮箱)查询 ──────────────────────────
         const writer = url.searchParams.get('writer');
         if (writer) {
-            const cleanWriter = validateSearchParam(writer, 100);
+            const cleanWriter = cleanParam(writer, 100);
             if (cleanWriter) {
                 console.log("按作者查询:", cleanWriter);
                 try {
@@ -362,17 +334,14 @@ export async function onRequestGet({request,env}){
                          WHERE t.WRITER = ? ORDER BY t.WRITETIME DESC`
                     ).bind(cleanWriter).all();
 
-                    return new Response(JSON.stringify({
+                    return json({
                         success: true,
                         data: results,
                         count: results.length
-                    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                    }, 200);
                 } catch (err) {
                     console.error('作者查询错误:', err);
-                    return new Response(JSON.stringify({ error: '服务器内部错误' }), {
-                        status: 500,
-                        headers: { 'Content-Type': 'application/json' }
-                    });
+                    return json({ error: '服务器内部错误' }, 500);
                 }
             }
         }
@@ -386,14 +355,14 @@ export async function onRequestGet({request,env}){
             const orGroups = []; // 用于 OR 分组
 
             if (city) {
-                const cleanCity = validateSearchParam(city, 20);
+                const cleanCity = cleanParam(city, 20);
                 if (cleanCity) {
                     conditions.push('t.CITY LIKE ? ');   // 添加 t. 前缀
                     params.push(`%${cleanCity}%`);
                 }
             }
             if (way) {
-                const cleanWay = validateSearchParam(way, 50);
+                const cleanWay = cleanParam(way, 50);
                 if (cleanWay) {
                     conditions.push('t.WAY LIKE ? ');    // 添加 t. 前缀
                     params.push(`%${cleanWay}%`);
@@ -401,7 +370,7 @@ export async function onRequestGet({request,env}){
             }
 
             // 通用关键词 q：跨 CITY、WAY、START、END 多字段模糊搜索
-            const cleanQ = validateSearchParam(q, 50);
+            const cleanQ = cleanParam(q, 50);
             if (cleanQ) {
                 const qConditions = [
                     't.CITY LIKE ?',   // 添加 t. 前缀
@@ -430,10 +399,10 @@ export async function onRequestGet({request,env}){
                 whereClauses.push('t.PASS = 1');
                 query += ' ' + whereClauses.join(' AND ');
             } else {
-                return new Response(JSON.stringify({
+                return json({
                     success: false,
                     message: '参数格式无效'
-                }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+                }, 400);
             }
 
             query += ' LIMIT 200';
@@ -443,22 +412,19 @@ export async function onRequestGet({request,env}){
                 const { results } = await env.mlttcd.prepare(query).bind(...params).all();
 
                 if (results.length === 0) {
-                    return new Response(JSON.stringify({
+                    return json({
                         success: false,
                         message: '未找到符合条件的时刻表'
-                    }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+                    }, 404);
                 }
 
-                return new Response(JSON.stringify({
+                return json({
                     success: true,
                     data: results
-                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                }, 200);
             } catch (err) {
                 console.error('模糊查询错误:', err);
-                return new Response(JSON.stringify({ error: '服务器内部错误' ,debug:err.stack,message:err.message}), {
-                    status: 500,
-                    headers: { 'Content-Type': 'application/json' }
-                });
+                return json({ error: '服务器内部错误' ,debug:err.stack,message:err.message}, 500);
             }
         }
 
@@ -470,29 +436,26 @@ export async function onRequestGet({request,env}){
                 const listQuery = 'SELECT DISTINCT CITY, WAY FROM TIMETABLE ORDER BY CITY, WAY';
                 const { results } = await env.mlttcd.prepare(listQuery).all();
 
-                return new Response(JSON.stringify({
+                return json({
                     success: true,
                     data: results
-                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                }, 200);
             } catch (err) {
                 console.error('列出线路错误:', err);
-                return new Response(JSON.stringify({ error: '服务器内部错误' ,debug:err.stack,message:err.message}), {
-                    status: 500,
-                    headers: { 'Content-Type': 'application/json' }
-                });
+                return json({ error: '服务器内部错误' ,debug:err.stack,message:err.message}, 500);
             }
         }
 
-        return new Response(JSON.stringify({
+        return json({
             success: false,
             message: '请提供 id 或 city+way 参数'
-        }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        }, 400);
     } catch (err) {
-        return new Response(JSON.stringify({
+        return json({
             error: '服务器内部错误',
             debug: err.stack,        // 保留调试信息，定位其他潜在问题后建议移除
             message: err.message
-        }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        }, 500);
     }
 }
 
@@ -505,18 +468,12 @@ export async function onRequestDelete({ request, env }) {
 
         const body = await request.json().catch(() => null);
         if (!body) {
-            return new Response(JSON.stringify({ error: '无效的请求数据' }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return json({ error: '无效的请求数据' }, 400);
         }
 
         const { id, writer } = body;
         if (!id || !writer) {
-            return new Response(JSON.stringify({ error: '参数不完整' }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return json({ error: '参数不完整' }, 400);
         }
 
         // 验证该记录存在且作者匹配
@@ -525,17 +482,11 @@ export async function onRequestDelete({ request, env }) {
         ).bind(id).first();
 
         if (!existing) {
-            return new Response(JSON.stringify({ error: '记录不存在' }), {
-                status: 404,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return json({ error: '记录不存在' }, 404);
         }
 
         if (existing.WRITER !== writer) {
-            return new Response(JSON.stringify({ error: '无权删除此记录' }), {
-                status: 403,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return json({ error: '无权删除此记录' }, 403);
         }
 
         await env.mlttcd.prepare('DELETE FROM TIMETABLE WHERE ID = ? AND WRITER = ?')
@@ -558,15 +509,12 @@ export async function onRequestDelete({ request, env }) {
         // 维护首页统计（线路 -1、城市回收），失败不影响主流程
         statsOnDelete(env, existing.CITY).catch((e) => console.warn('统计维护失败:', e));
 
-        return new Response(JSON.stringify({
+        return json({
             success: true,
             message: '删除成功'
-        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }, 200);
     } catch (err) {
         console.error('删除错误:', err);
-        return new Response(JSON.stringify({ error: '删除失败' }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return json({ error: '删除失败' }, 500);
     }
 }

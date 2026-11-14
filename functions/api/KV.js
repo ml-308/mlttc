@@ -10,8 +10,12 @@
 //   404 {message:'邮箱正确但没有注册权限', way:2}
 //   400 {message:'缺少 key 参数', way:0}
 //   500 {message:'服务器错误', way:0}
+//
+// 注意：本文件只做「响应构造」的整理（改用 ../_lib/response 的 json()），
+//      KV 读取次数与返回体逐字未变（KV 按调用计费/计次，不可合并）。
 
 import { enforceRateLimit, LIMITS } from '../ratelimit';
+import { json } from '../_lib/response';
 
 export async function onRequestGet({ request, env }) {
   try {
@@ -22,28 +26,16 @@ export async function onRequestGet({ request, env }) {
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
     if (!key) {
-      return new Response(JSON.stringify({message: '缺少 key 参数' ,way:0}), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ message: '缺少 key 参数', way: 0 }, 400);
     }
 
+    // KV 读取仍然只有这一次（命中与未命中走同一次 get，无法也不该合并）
     const value = await env.mlttckv.get(key);
     if (value === null) {
-      return new Response(JSON.stringify({ message: '邮箱正确但没有注册权限' ,way:2}), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ message: '邮箱正确但没有注册权限', way: 2 }, 404);
     }
-      return new Response(JSON.stringify({success: true,message:"邮箱正确且可以注册",value:value,way:1}),{
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    return json({ success: true, message: '邮箱正确且可以注册', value, way: 1 }, 200);
   } catch (err) {
-    return new Response(JSON.stringify({message: '服务器错误' ,way:0}), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json({ message: '服务器错误', way: 0 }, 500);
   }
-
 }

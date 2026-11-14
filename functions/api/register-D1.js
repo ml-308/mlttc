@@ -20,10 +20,16 @@
 //   4. 同意留痕：console.log 记录条款版本与同意时间，便于日后核查
 //
 // 频率限制：GET 走 LIMITS.emailCheck、POST 走 LIMITS.register（见 ../ratelimit）
+//
+// 响应构造统一走 ../_lib/response：带 success/message 的用 json()，
+// 「message 与 error 同时给出」的用 jsonError()。响应体逐字未变。
+// 查询点未做合并：邮箱查重与 ID 查重循环的判断顺序、以及「撞库就重试」的
+// 语义都要保留（理由见 onRequestPost 内注释）。
 
 import { enforceRateLimit, LIMITS } from '../ratelimit';
 import { verifyTurnstile } from '../turnstile';
 import { signToken, setAuthCookie, setUserNameCookie } from '../auth';
+import { json, jsonError } from '../_lib/response';
 
 // 生成12位安全随机数字字符串
 function generate12DigitString() {
@@ -73,10 +79,7 @@ export async function onRequestGet({ request, env }) {
   const email = url.searchParams.get('email');
 
   if (!email) {
-    return new Response(JSON.stringify({ success: false, message: '邮箱参数缺失' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json({ success: false, message: '邮箱参数缺失' }, 400);
   }
 
   try {
@@ -85,21 +88,12 @@ export async function onRequestGet({ request, env }) {
     ).bind(email.trim().toLowerCase()).first();
 
     if (existing) {
-      return new Response(JSON.stringify({ success: false, message: '邮箱已存在' }), {
-        status: 409,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '邮箱已存在' }, 409);
     }
 
-    return new Response(JSON.stringify({ success: true, message: '邮箱未被使用' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json({ success: true, message: '邮箱未被使用' }, 200);
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, message: '服务器错误' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json({ success: false, message: '服务器错误' }, 500);
   }
 }
 
@@ -112,42 +106,30 @@ export async function onRequestPost({ request, env }) {
 
     const body = await request.json().catch(() => null);
     if (!body) {
-      return new Response(JSON.stringify({ success: false, message: '无效的请求数据' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '无效的请求数据' }, 400);
     }
 
     const { email, password, agree, policyVersion, agreedAt } = body;
 
     // 必须明确同意《用户协议》与《隐私政策》后方可注册（服务端强制校验，防止绕过前端）
     if (agree !== true) {
-      return new Response(JSON.stringify({
+      return json({
         success: false,
         message: '请先阅读并同意《用户协议》与《隐私政策》后再注册'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 400);
     }
 
     // 同意留痕：记录条款版本与同意时间，便于日后核查
     console.log(`[consent] email=${email} version=${policyVersion || 'unknown'} agreedAt=${agreedAt || new Date().toISOString()}`);
 
     if (!email || !password) {
-      return new Response(JSON.stringify({ success: false, message: '邮箱和密码不能为空' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '邮箱和密码不能为空' }, 400);
     }
 
     // 邮箱格式校验
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
-      return new Response(JSON.stringify({ success: false, message: '邮箱格式不正确' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '邮箱格式不正确' }, 400);
     }
 
     // 人机验证：放在写库之前拦截（未配置 TURNSTILE_SECRET 时 skipped:true → 放行）
@@ -155,10 +137,7 @@ export async function onRequestPost({ request, env }) {
     if (!turnstile.ok) {
       // message 与 error 同时给出：前端各处的读取习惯不一致（见 ../ratelimit.js）
       const msg = '人机验证未通过，请重试';
-      return new Response(JSON.stringify({ success: false, message: msg, error: msg }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return jsonError(msg, 400);
     }
 
     // 检查邮箱是否已存在
@@ -166,13 +145,13 @@ export async function onRequestPost({ request, env }) {
       'SELECT id FROM USER WHERE email = ?'
     ).bind(email.trim().toLowerCase()).first();
     if (existingEmail) {
-      return new Response(JSON.stringify({ success: false, message: '该邮箱已注册' }), {
-        status: 409,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return json({ success: false, message: '该邮箱已注册' }, 409);
     }
 
     // 生成唯一用户 ID
+    // 这里保留「先查重、再 INSERT」的两次往返，不并成 INSERT 失败后重试：
+    //   撞库时 INSERT 会抛异常，被外层 catch 吞成 500「服务器错误」，
+    //   要重试就得加异常分类与重试循环，逻辑更绕且容易误伤真实写库失败
     let id;
     let idExists = true;
     while (idExists) {
@@ -198,10 +177,7 @@ export async function onRequestPost({ request, env }) {
       new Date().toISOString()
     ).run();
 
-    const response = new Response(JSON.stringify({ success: true, message: '注册成功' }), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const response = json({ success: true, message: '注册成功' }, 201);
 
     // 注册成功后顺手签发登录态（可选能力，由 rememberCookie 控制是否持久化）
     // 缺省 true → 30 天持久化 Cookie；false → 会话 Cookie + JWT 12 小时。
@@ -227,9 +203,6 @@ export async function onRequestPost({ request, env }) {
 
     return response;
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, message: '服务器错误' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return json({ success: false, message: '服务器错误' }, 500);
   }
 }

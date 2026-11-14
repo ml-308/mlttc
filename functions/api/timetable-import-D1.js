@@ -23,6 +23,10 @@
 //   后续若要收紧，正确做法是在 auth.js 侧统一验证并同步改造单条接口，而不是只改这里。
 
 import { enforceRateLimit, LIMITS } from '../ratelimit.js';
+// 注意：本文件被 tools/import-api-test 用 Node 直接 import（不经 esbuild 打包），
+// 而 Node 的 ESM 解析要求显式扩展名 —— 所以这里的引用必须带 .js，
+// 与其它 functions 文件的无后缀写法不同，不要为了「统一风格」把它去掉。
+import { json, jsonError } from '../_lib/response.js';
 
 // ─── 常量 ─────────────────────────────────────────────────────
 
@@ -76,19 +80,10 @@ const INSERT_SQL = `INSERT INTO TIMETABLE (ID, CITY, WAY, START, END, SPECIAL, T
 
 // ─── 响应辅助 ─────────────────────────────────────────────────
 
-/**
- * 统一构造 JSON 响应（message 与 error 同时给出，兼容前端两种读取习惯）
- * @param {object} body
- * @param {number} status
- * @param {object} [extraHeaders]
- * @returns {Response}
- */
-function jsonResponse(body, status, extraHeaders) {
-    return new Response(JSON.stringify(body), {
-        status,
-        headers: Object.assign({ 'Content-Type': 'application/json' }, extraHeaders || {})
-    });
-}
+// 响应构造统一走 functions/_lib/response.js：
+//   错误分支统一用 jsonError(msg, status, { errors }) —— 产出
+//   { success:false, message, error, errors }，与本地旧包装函数完全一致；
+//   成功分支用 json(body, status)
 
 /**
  * 构造 400 参数错误响应
@@ -97,7 +92,7 @@ function jsonResponse(body, status, extraHeaders) {
  */
 function badRequestResponse(errors) {
     const message = errors.length > 0 ? errors[0].message : '参数校验未通过';
-    return jsonResponse({ success: false, message, error: message, errors }, 400);
+    return jsonError(message, 400, { errors });
 }
 
 /**
@@ -107,7 +102,7 @@ function badRequestResponse(errors) {
  */
 function conflictResponse(errors) {
     const message = '部分时刻表已存在';
-    return jsonResponse({ success: false, message, error: message, errors }, 409);
+    return jsonError(message, 409, { errors });
 }
 
 // ─── ID 生成 ─────────────────────────────────────────────────
@@ -242,7 +237,12 @@ function dupKey(item) {
 export async function onRequest(context) {
     if (!context || !context.request || context.request.method !== 'POST') {
         const message = '只支持 POST 方法';
-        return jsonResponse({ success: false, message, error: message }, 405, { Allow: 'POST' });
+        // 405 必须带 Allow 头，_lib/response.js 的 json() 不接受自定义头，
+        // 故全文件仅此一处保留手工构造（响应体与状态码不变，只多带一个 Allow: POST）
+        return new Response(JSON.stringify({ success: false, message, error: message }), {
+            status: 405,
+            headers: { 'Content-Type': 'application/json', Allow: 'POST' }
+        });
     }
     return onRequestPost(context);
 }
@@ -255,7 +255,7 @@ export async function onRequestPost({ request, env }) {
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
         const message = '无效的请求数据';
-        return jsonResponse({ success: false, message, error: message, errors: [] }, 400);
+        return jsonError(message, 400, { errors: [] });
     }
 
     const errors = [];
@@ -328,7 +328,7 @@ export async function onRequestPost({ request, env }) {
     } catch (err) {
         console.error('批量查重错误:', err);
         const message = '数据库查询失败';
-        return jsonResponse({ success: false, message, error: message }, 500);
+        return jsonError(message, 500);
     }
 
     if (existingRows.length > 0) {
@@ -354,7 +354,7 @@ export async function onRequestPost({ request, env }) {
     } catch (err) {
         console.error('ID 生成错误:', err);
         const message = '服务器内部错误';
-        return jsonResponse({ success: false, message, error: message }, 500);
+        return jsonError(message, 500);
     }
 
     // ----- 事务性写入 -----
@@ -381,10 +381,10 @@ export async function onRequestPost({ request, env }) {
     } catch (err) {
         console.error('批量写入错误:', err);
         const message = '数据库写入失败';
-        return jsonResponse({ success: false, message, error: message }, 500);
+        return jsonError(message, 500);
     }
 
-    return jsonResponse({
+    return json({
         success: true,
         inserted: rows.length,
         items: rows.map((item, index) => ({ row: index + 1, id: ids[index] }))
