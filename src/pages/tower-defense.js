@@ -1132,21 +1132,22 @@ function eventToCell(ev) {
 function onPointerDown(ev) {
   if (ev.cancelable) ev.preventDefault();
   const cell = eventToCell(ev);
-  if (!cell) return;
+  if (!cell) { hideTowerInfo(); return; }   // 画布外的落点也算「点了非塔位置」
   state.hover.col = cell.col;
   state.hover.row = cell.row;
   if (state.gameOver) return;
   const existing = towerAt(state, cell.col, cell.row);
-  if (existing) { showTowerPanel(existing); return; }
+  if (existing) { showTowerInfo(existing); return; }
   if (state.selectedType) {
     if (placeTower(state.selectedType, cell.col, cell.row)) {
       // 金币不够下一座就自动取消选中，省一次点击
       if (state.gold < TOWER_TYPES[state.selectedType].cost[0]) state.selectedType = null;
       syncTowerButtons();
+      hideTowerInfo();            // 刚放下的塔不算「选中」：卡片收起，点它才展开
     }
     return;
   }
-  hideTowerPanel();
+  hideTowerInfo();
 }
 
 /** 悬停高亮只跟鼠标走（触摸不跟踪，避免手指抬起后留个假高亮） */
@@ -1158,44 +1159,60 @@ function onPointerMove(ev) {
   state.hover.row = cell.row;
 }
 
-/* ===================== 12. 塔面板 / HUD / 结算浮层 ===================== */
+/* ===================== 12. 塔信息卡片 / HUD / 结算浮层 ===================== */
 const ui = {};   // DOM 引用集中在 boot() 里一次性取好
+let tInfoSig = '';   // 卡片上次渲染的签名（塔 / 等级 / 投入 / 金币 / buff），没变就不写 DOM
 
-function showTowerPanel(tower) {
+/**
+ * 选中一座塔：画布下方的塔信息卡片就是唯一的升级 / 出售入口。
+ * 原来的画布内浮层（#tdPanel）已移除——它和卡片是同一份信息，两个入口只会让状态、
+ * 摆位（窄屏会盖住画布底部格子）和刷新时机三处都要同步；现在只留卡片。
+ */
+function showTowerInfo(tower) {
   state.selectedTower = tower;
   state.selectedType = null;
   syncTowerButtons();
-  refreshPanel();
-  ui.panel.classList.add('show');
+  refreshTowerInfo();
 }
 
-function hideTowerPanel() {
+/** 清选中态：卡片隐藏并作废缓存签名，绝不留上一座塔的旧数字 */
+function hideTowerInfo() {
   state.selectedTower = null;
-  if (ui.panel) ui.panel.classList.remove('show');
+  tInfoSig = '';
+  if (ui.tInfo) ui.tInfo.hidden = true;
 }
 
-/** 刷新面板内容 + 摆位（摆在塔右下方，越界时向内夹） */
-function refreshPanel() {
+/**
+ * 卡片内容：塔名 / 等级 / 伤害与攻速（含光环 buff，与旧浮层同一口径）/ 射程 / 已投入 / 返还额，
+ * 以及带价格的升级按钮、带返还额的出售按钮。未选中（或塔类型已不存在）时直接隐藏。
+ * 签名没变就不写 DOM —— syncHud 每帧都会走到这里。
+ */
+function refreshTowerInfo() {
+  const card = ui.tInfo;
+  if (!card) return;
   const t = state.selectedTower;
-  if (!t || !ui.panel) return;
-  const def = TOWER_TYPES[t.type];
+  const def = t ? TOWER_TYPES[t.type] : null;
+  if (!def) { card.hidden = true; tInfoSig = ''; return; }
   const lv = t.lv - 1;
-  ui.panelName.textContent = def.name;
-  ui.panelLv.textContent = 'Lv.' + t.lv;
-  if (t.type === 'aura') {
-    ui.panelDmg.textContent = '攻速增幅 +' + Math.round(def.auraRate[lv] * 100) + '%';
-    ui.panelRate.textContent = '伤害增幅 +' + Math.round(def.auraDmg[lv] * 100) + '%';
-  } else {
-    ui.panelDmg.textContent = '伤害 ' + Math.round(def.dmg[lv] * (1 + t.dmgBuff));
-    ui.panelRate.textContent = '攻速 ' + (def.rate[lv] * (1 + t.rateBuff)).toFixed(2) + '/s';
-  }
-  ui.panelRange.textContent = '射程 ' + def.range[lv];
   const upCost = t.lv < 3 ? def.cost[t.lv] : null;
-  ui.btnUpgrade.textContent = upCost == null ? '已满级' : '升级 ' + upCost;
-  ui.btnUpgrade.disabled = upCost == null || state.gold < upCost;
-  ui.btnSell.textContent = '出售 +' + Math.floor(t.spend * BALANCE.sellRatio);
-  ui.panel.style.left = Math.min((((t.col + 1) * GRID.tile) / VIEW.w) * 100, 68) + '%';
-  ui.panel.style.top = Math.min(Math.max(((t.row * GRID.tile) / VIEW.h) * 100, 0), 60) + '%';
+  const refund = Math.floor(t.spend * BALANCE.sellRatio);
+  const sig = t.type + '|' + t.lv + '|' + t.spend + '|' + state.gold + '|' + t.dmgBuff + '|' + t.rateBuff;
+  if (sig === tInfoSig && !card.hidden) return;
+  tInfoSig = sig;
+  card.hidden = false;                       // 只切 hidden 属性，显示方式统一由 CSS 决定
+  ui.tInfoName.textContent = def.name;
+  ui.tInfoLv.textContent = 'Lv.' + t.lv + '/3';
+  // 光环塔自身不攻击：显示的是它给别人的增幅（与数值表、旧浮层口径一致）
+  const parts = t.type === 'aura'
+    ? ['攻速增幅 +' + Math.round(def.auraRate[lv] * 100) + '%', '伤害增幅 +' + Math.round(def.auraDmg[lv] * 100) + '%']
+    : ['伤害 ' + Math.round(def.dmg[lv] * (1 + t.dmgBuff)), '攻速 ' + (def.rate[lv] * (1 + t.rateBuff)).toFixed(2) + '/s'];
+  parts.push('射程 ' + def.range[lv], '已投入 ' + t.spend, '出售返还 ' + refund);
+  ui.tInfoStats.innerHTML = parts.map((p) => '<span>' + p + '</span>').join('');
+  ui.tInfoUp.textContent = upCost == null ? '已满级' : '升级（' + upCost + '）';
+  ui.tInfoUp.disabled = upCost == null || state.gold < upCost;
+  ui.tInfoUp.title = upCost == null ? '已满级（Lv.3），不能再升'
+    : (state.gold < upCost ? '金币不足：还差 ' + (upCost - state.gold) : '花 ' + upCost + ' 金币升到 Lv.' + (t.lv + 1));
+  ui.tInfoSell.textContent = '出售（返还 ' + refund + '）';
 }
 
 /** HUD：值变了才写 DOM，避免每帧 6 次无效写入 */
@@ -1212,7 +1229,7 @@ function syncHud() {
   const alive = state.enemies.length;
   if (hudCache.alive !== alive) { ui.alive.textContent = alive; hudCache.alive = alive; }
   if (hudCache.best !== state.best) { ui.best.textContent = state.best; hudCache.best = state.best; }
-  if (state.selectedTower) refreshPanel();
+  if (state.selectedTower) refreshTowerInfo();
 }
 
 /** 塔按钮三态：选中 / 买不起 / 普通 */
@@ -1230,6 +1247,7 @@ function syncTowerButtons() {
  * 「下一关」只在闯关通关且还有下一关时出现；「关卡列表」只在闯关模式出现。
  */
 function showOverlay() {
+  hideTowerInfo();   // 对局结算：卡片收起，别把「上一波那只塔」的数字留在结算画面上
   const lv = state.level;
   const isLevel = state.mode === 'level' && !!lv;
   const win = state.result === 'win';
@@ -1255,7 +1273,16 @@ function hideOverlay() {
  * 现读 TOWER_TYPES[key][i]；光环塔没有 dmg / rate 字段，伤害与攻速显示「—」，加成写在特效列。
  */
 function buildTowerStats() {
-  if (!ui.towerStatsBody) return;
+  // 不静默 return：容器取不到说明 DOM 与 JS 的 id 对不上了，留一条 warn 便于一眼定位，
+  // 而不是像以前那样「什么也没有、也没有报错」。
+  const box = ui.towerStatsBody;
+  if (!box) { console.warn('[tower-defense] 塔数值表容器缺失 #tdTowerStatsBody'); return; }
+  // 防御：塔数据为空时宁可不生成，也不要留一张只有表头的假表
+  if (!TOWER_TYPES || Object.keys(TOWER_TYPES).length === 0) {
+    console.warn('[tower-defense] TOWER_TYPES 为空，跳过塔数值表生成');
+    box.innerHTML = '';
+    return;
+  }
   const head = ['塔', '等级', '造价', '伤害', '攻速', '射程', '特效'];
   let rows = '';
   for (const key in TOWER_TYPES) {
@@ -1272,7 +1299,7 @@ function buildTowerStats() {
         + '<td>' + (d.rate ? d.rate[i].toFixed(1) + '/s' : '—') + '</td><td>' + d.range[i] + '</td><td>' + fx + '</td></tr>';
     }
   }
-  ui.towerStatsBody.innerHTML = '<table><thead><tr><th>' + head.join('</th><th>') + '</th></tr></thead><tbody>'
+  box.innerHTML = '<table><thead><tr><th>' + head.join('</th><th>') + '</th></tr></thead><tbody>'
     + rows + '</tbody></table>';
 }
 
@@ -1389,7 +1416,7 @@ function startLevel(L) {
   const cfg = generateLevel(L);
   if (cfg.level > progress.unlocked) return;   // 兜底：未解锁的关不许进
   state.mode = 'level'; state.level = cfg; state.inRun = true;
-  hideOverlay(); hideTowerPanel();
+  hideOverlay(); hideTowerInfo();
   resetGame();
   ui.btnPause.textContent = '暂停'; ui.btnPause.classList.remove('is-on');
   ui.btnSpeed.textContent = '1x'; ui.btnSpeed.classList.remove('is-on');
@@ -1403,7 +1430,7 @@ function setMode(mode) {
   state.level = state.mode === 'level' ? generateLevel(progress.unlocked) : null;
   state.inRun = state.mode === 'endless';    // 无尽直接开局；闯关先进关卡列表
   state.paused = false; state.gameOver = false; state.result = ''; state.waveActive = false;
-  hideOverlay(); hideTowerPanel();
+  hideOverlay(); hideTowerInfo();
   if (state.inRun) resetGame();
   state.resumeDone = false;                  // 换模式 = 新语境，重新问一次「继续还是重开」
   lastTs = 0; acc = 0;
@@ -1417,7 +1444,7 @@ function backToList() {
   state.waveActive = false; state.selectedTower = null; state.selectedType = null;
   state.enemies.length = 0; state.bullets.length = 0;
   state.particles.length = 0; state.floaters.length = 0;
-  hideOverlay(); hideTowerPanel();
+  hideOverlay(); hideTowerInfo();
   syncView(); syncTowerButtons();
 }
 
@@ -1469,7 +1496,7 @@ function togglePause() {
 function restart() {
   if (state.mode === 'endless') clearEndlessRun();   // 主动重开：旧的可续记录作废（别续到已放弃的一局）
   state.resumeDone = false;
-  resetGame(); hideOverlay(); hideTowerPanel();
+  resetGame(); hideOverlay(); hideTowerInfo();
   lastTs = 0; acc = 0;
   ui.btnPause.textContent = '暂停'; ui.btnPause.classList.remove('is-on');
   ui.btnSpeed.textContent = '1x'; ui.btnSpeed.classList.remove('is-on');
@@ -1514,7 +1541,7 @@ function resumeEndlessRun() {
   if (skipped > 0) console.warn('[tower-defense] 续玩跳过 ' + skipped + ' 座非法塔位（越界/在路径上/重叠）');
   state.resumeDone = true;                      // 已经选过「继续」，别再拦一次
   state.awaitingResume = false;
-  hideOverlay(); hideTowerPanel();
+  hideOverlay(); hideTowerInfo();
   lastTs = 0; acc = 0;
   ui.btnPause.textContent = '暂停'; ui.btnPause.classList.remove('is-on');
   ui.btnSpeed.textContent = '1x'; ui.btnSpeed.classList.remove('is-on');
@@ -1532,19 +1559,27 @@ function bindEvents() {
       const type = btn.dataset.tower;
       if (state.gold < TOWER_TYPES[type].cost[0]) return;   // 买不起：不选中
       state.selectedType = state.selectedType === type ? null : type;
-      hideTowerPanel();
+      hideTowerInfo();
       syncTowerButtons();
     });
   });
 
-  ui.btnUpgrade.addEventListener('click', () => {
-    if (state.selectedTower && upgradeTower(state.selectedTower)) { refreshPanel(); syncTowerButtons(); }
+  if (ui.tInfoUp) ui.tInfoUp.addEventListener('click', () => {
+    // 复用现成的 upgradeTower（扣钱 / 升级 / 落盘），只在这里补一次卡片与按钮刷新
+    if (state.selectedTower && upgradeTower(state.selectedTower)) { refreshTowerInfo(); syncHud(); }
   });
-  ui.btnSell.addEventListener('click', () => {
+  if (ui.tInfoSell) ui.tInfoSell.addEventListener('click', () => {
     if (!state.selectedTower) return;
-    sellTower(state.selectedTower);
-    hideTowerPanel();
+    sellTower(state.selectedTower);   // 复用现成的 sellTower；它内部会把 selectedTower 置空
+    hideTowerInfo();                  // 卖掉的塔不能再留在卡片里
     syncHud();
+  });
+  // 塔数值表自愈：展开时若还是空壳就重建一次（boot 时机 / 缓存导致首次为空都能恢复）
+  if (ui.towerStats) ui.towerStats.addEventListener('toggle', () => {
+    if (ui.towerStats.open && ui.towerStatsBody && !ui.towerStatsBody.firstChild) {
+      console.warn('[tower-defense] 塔数值表展开时为空，重建一次');
+      buildTowerStats();
+    }
   });
   ui.btnPause.addEventListener('click', togglePause);
   ui.btnSpeed.addEventListener('click', () => {
@@ -1605,7 +1640,7 @@ function bindEvents() {
   // 键盘：空格暂停、1~4 选塔、Esc 收面板（桌面调试友好）
   document.addEventListener('keydown', (ev) => {
     if (ev.key === ' ') { ev.preventDefault(); togglePause(); }
-    else if (ev.key === 'Escape') hideTowerPanel();
+    else if (ev.key === 'Escape') hideTowerInfo();
     else if (ev.key >= '1' && ev.key <= '4') { const b = ui.towerBtns[Number(ev.key) - 1]; if (b) b.click(); }
   });
 
@@ -1641,9 +1676,9 @@ function boot() {
   draw.ctx = ui.canvas.getContext('2d');
   ui.wave = byId('tdWave'); ui.lives = byId('tdLives'); ui.gold = byId('tdGold');
   ui.kills = byId('tdKills'); ui.alive = byId('tdAlive'); ui.best = byId('tdBest');
-  ui.panel = byId('tdPanel'); ui.panelName = byId('tdPanelName'); ui.panelLv = byId('tdPanelLv');
-  ui.panelDmg = byId('tdPanelDmg'); ui.panelRate = byId('tdPanelRate'); ui.panelRange = byId('tdPanelRange');
-  ui.btnUpgrade = byId('tdBtnUpgrade'); ui.btnSell = byId('tdBtnSell');
+  // 塔信息卡片（画布下方的升级 / 出售入口）
+  ui.tInfo = byId('tdTowerInfo'); ui.tInfoName = byId('tdTinfoName'); ui.tInfoLv = byId('tdTinfoLv');
+  ui.tInfoStats = byId('tdTinfoStats'); ui.tInfoUp = byId('tdTinfoUpgrade'); ui.tInfoSell = byId('tdTinfoSell');
   ui.overlay = byId('tdOverlay'); ui.overWave = byId('tdOverWave'); ui.overBest = byId('tdOverBest');
   ui.overTitle = byId('tdOverTitle'); ui.overSub = byId('tdOverSub');
   ui.btnAgain = byId('tdBtnAgain'); ui.btnNext = byId('tdBtnNext'); ui.btnList = byId('tdBtnList');
@@ -1655,6 +1690,7 @@ function boot() {
   ui.modeBadge = byId('tdMode');
   ui.towerBtns = Array.prototype.slice.call(document.querySelectorAll('.td-tower-btn'));
   // 塔数值表容器 + 存档面板 + 无尽「继续上次」条
+  ui.towerStats = byId('tdTowerStats');
   ui.towerStatsBody = byId('tdTowerStatsBody'); ui.resumeBar = byId('tdResumeBar');
   ui.btnResume = byId('tdBtnResume'); ui.btnResumeFresh = byId('tdBtnResumeFresh');
   ui.saveOut = byId('tdSaveOut'); ui.saveIn = byId('tdSaveIn'); ui.saveFile = byId('tdSaveFile');

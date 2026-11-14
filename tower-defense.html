@@ -156,79 +156,91 @@
             background: var(--bg-card);
         }
 
-        /* 塔详情面板（升级 / 出售），绝对定位在画布之上，由 JS 摆位 */
-        .td-panel {
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 6;
-            min-width: 148px;
-            padding: 10px;
+        /* 塔信息卡片：常驻在画布下方，选中塔后显示，升级 / 出售的唯一入口 */
+        .td-tinfo {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 12px;
+            padding: 9px 12px;
             border-radius: var(--radius-md, .5rem);
             background: var(--bg-card);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--primary);
             line-height: 1.4;
             font-size: .76rem;
             color: var(--text-secondary);
+            min-width: 0;
+        }
+
+        /* hidden 由 JS 切换：显式关掉 flex，别让上面的 display 盖掉 hidden 属性 */
+        .td-tinfo[hidden] {
             display: none;
         }
 
-        .td-panel.show {
-            display: block;
-        }
-
-        .td-panel h4 {
-            margin: 0 0 6px;
-            font-size: .84rem;
-            color: var(--text-primary);
+        .td-tinfo-head {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            align-items: baseline;
             gap: 8px;
+            min-width: 0;
         }
 
-        .td-panel ul {
-            margin: 0 0 8px;
-            padding: 0;
-            list-style: none;
+        .td-tinfo-head b {
+            font-size: .86rem;
+            color: var(--text-primary);
+        }
+
+        .td-tinfo-head span {
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .td-tinfo-stats {
             display: flex;
-            flex-direction: column;
-            gap: 2px;
+            flex-wrap: wrap;
+            gap: 2px 10px;
+            min-width: 0;
+            font-variant-numeric: tabular-nums;
         }
 
-        .td-panel .td-acts {
+        .td-tinfo-stats span {
+            white-space: nowrap;
+        }
+
+        .td-tinfo-acts {
             display: flex;
             gap: 6px;
+            margin-left: auto;
         }
 
-        .td-panel button {
-            flex: 1;
-            padding: 6px 8px;
+        .td-tinfo-acts button {
+            padding: 6px 12px;
             font-size: .74rem;
+            font-weight: 700;
             font-family: inherit;
+            white-space: nowrap;
             border-radius: var(--radius-sm, .5rem);
             border: 1px solid var(--border);
             background: var(--bg-hover);
             color: var(--text-primary);
             cursor: pointer;
-            transition: background .15s;
+            transition: background .15s, border-color .15s;
         }
 
-        .td-panel button:hover:not(:disabled) {
+        .td-tinfo-acts button:hover:not(:disabled) {
             background: var(--primary-bg);
             border-color: var(--primary);
         }
 
-        .td-panel button:disabled {
+        .td-tinfo-acts button:disabled {
             opacity: .45;
             cursor: not-allowed;
         }
 
-        .td-panel button.td-up {
+        #tdTinfoUpgrade {
             border-color: var(--primary);
             color: var(--primary);
-            font-weight: 700;
         }
 
         /* ---------- 结算浮层 ---------- */
@@ -757,32 +769,30 @@
                 flex-wrap: wrap;
             }
 
-            /* 塔面板改成底部弹出条：不再压住画布主体（!important 盖掉 JS 写的内联 left/top） */
-            .td-panel {
-                left: 8px !important;
-                right: 8px;
-                top: auto !important;
-                bottom: 8px;
-                max-width: none;
-                min-width: 0;
+            /* 塔信息卡片：卡片本身在文档流里（不是绝对定位），不可能被下方的塔栏压住；
+               这里只做「窄屏不横向溢出」——数值自动折行，两个按钮各占一半宽度 */
+            .td-tinfo {
+                padding: 8px 10px;
+                gap: 4px 10px;
             }
 
-            .td-panel ul {
-                flex-direction: row;
-                flex-wrap: wrap;
-                gap: 4px 12px;
+            .td-tinfo-stats {
+                gap: 2px 8px;
+            }
+
+            .td-tinfo-acts {
+                width: 100%;
+                margin-left: 0;
+            }
+
+            .td-tinfo-acts button {
+                flex: 1 1 0;
+                min-width: 0;
             }
 
             .td-level-grid {
                 grid-template-columns: repeat(5, minmax(0, 1fr));
                 gap: 5px;
-            }
-        }
-
-        /* 平板：塔面板限最大宽度，别盖住半个画布 */
-        @media (min-width: 721px) and (max-width: 900px) {
-            .td-panel {
-                max-width: 210px;
             }
         }
 
@@ -822,6 +832,28 @@
             /* 画布宽高比 768:448 ≈ 1.714，按剩余高度反推最大宽度，避免把塔栏挤出屏幕 */
             .td-stage {
                 max-width: max(280px, calc((100vh - 210px) * 1.714));
+            }
+
+            /* 横屏窄高时卡片再压薄一档，保证画布 + 卡片 + 塔栏三块都能落在首屏 */
+            .td-tinfo {
+                padding: 5px 8px;
+                gap: 2px 8px;
+                font-size: .7rem;
+            }
+
+            .td-tinfo-head b {
+                font-size: .78rem;
+            }
+
+            .td-tinfo-acts {
+                width: 100%;
+                margin-left: 0;
+            }
+
+            .td-tinfo-acts button {
+                flex: 1 1 0;
+                min-width: 0;
+                padding: 4px 8px;
             }
         }
 
@@ -887,22 +919,9 @@
             <div class="td-level-grid" id="tdLevelGrid"></div>
         </section>
 
-        <!-- 画布 + 塔面板 + 结算浮层 -->
+        <!-- 画布 + 结算浮层 -->
         <section class="td-stage" id="tdStage">
             <canvas id="tdCanvas" width="768" height="448"></canvas>
-
-            <div class="td-panel" id="tdPanel" role="dialog" aria-label="塔操作">
-                <h4><span id="tdPanelName">箭塔</span><span id="tdPanelLv">Lv.1</span></h4>
-                <ul>
-                    <li id="tdPanelDmg">伤害 8</li>
-                    <li id="tdPanelRate">攻速 1.6/s</li>
-                    <li id="tdPanelRange">射程 110</li>
-                </ul>
-                <div class="td-acts">
-                    <button class="td-up" id="tdBtnUpgrade">升级</button>
-                    <button id="tdBtnSell">出售</button>
-                </div>
-            </div>
 
             <div class="td-overlay" id="tdOverlay">
                 <div>
@@ -918,6 +937,16 @@
                 </div>
             </div>
         </section>
+
+        <!-- 塔信息卡片：点画布上的塔后在下方常驻显示，升级 / 出售都在这里；未选中时 hidden 不占空间 -->
+        <div class="td-tinfo" id="tdTowerInfo" aria-live="polite" hidden>
+            <div class="td-tinfo-head"><b id="tdTinfoName">—</b><span id="tdTinfoLv">—</span></div>
+            <div class="td-tinfo-stats" id="tdTinfoStats"></div>
+            <div class="td-tinfo-acts">
+                <button id="tdTinfoUpgrade" type="button">升级</button>
+                <button id="tdTinfoSell" type="button">出售</button>
+            </div>
+        </div>
 
         <!-- 所有塔数值表：默认收起（不挤压画布），表格内容由 JS 从 TOWER_TYPES 现生成 -->
         <details class="td-tstats" id="tdTowerStats">
@@ -958,7 +987,7 @@
         </section>
 
         <p class="td-hint" id="tdHint">
-            点击空格子放塔 · 点击已有塔升级或出售 · 敌人走到右侧终点扣 1 点生命
+            点击空格子放塔 · 点击已有塔在下方卡片里升级或出售 · 敌人走到右侧终点扣 1 点生命
         </p>
 
         <!-- 存档导出 / 导入：默认收起。存档码 = 'TD1-' + base64(JSON)，文件 = 同一份 progress JSON -->

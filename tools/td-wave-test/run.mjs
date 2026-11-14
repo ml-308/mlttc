@@ -33,7 +33,7 @@ const source = readFileSync(srcPath, 'utf8');
 
 const mod = await import('data:text/javascript;base64,' + Buffer.from(source, 'utf8').toString('base64'));
 
-const { generateEndlessWave, generateLevel, buildLevelWave, LEVEL_MAX, BALANCE, MAP_TEMPLATES } = mod;
+const { generateEndlessWave, generateLevel, buildLevelWave, LEVEL_MAX, BALANCE, MAP_TEMPLATES, TOWER_TYPES } = mod;
 const SEED = 'mlttc-td-demo';
 const WAVES = 100;
 
@@ -342,6 +342,40 @@ section('8. 存档码 encodeSave / decodeSave（往返 + 非法输入）');
         `L50 ${totals[49]} vs ${again}`);
     console.log(`  关卡总怪量：L1=${totals[0]} L50=${totals[49]} L100=${totals[99]}`);
     console.log(`  100 关首次全算耗时 ${cost}ms（页面里缓存在 Map，之后进列表命中缓存为 0）`);
+}
+
+// ─── 9. 塔数据形状（塔数值表与塔信息卡片共用同一份 TOWER_TYPES） ───
+
+section('9. TOWER_TYPES 数据形状（数值表 / 塔信息卡片共用）');
+{
+    // 数值表与卡片都用 lv-1 下标读 dmg / rate / range / cost，长度不足就会渲染出 NaN
+    const keys = Object.keys(TOWER_TYPES);
+    const bad = [];
+    const three = (v) => Array.isArray(v) && v.length === 3;
+    for (const k of keys) {
+        const d = TOWER_TYPES[k];
+        if (!(three(d.cost) && d.cost.every((v) => v > 0))) bad.push(`${k}:cost`);
+        if (!three(d.range)) bad.push(`${k}:range`);
+        if (d.auraRate) {
+            if (!three(d.auraRate)) bad.push(`${k}:auraRate`);
+            if (!three(d.auraDmg)) bad.push(`${k}:auraDmg`);
+        } else if (!(three(d.dmg) && three(d.rate))) bad.push(`${k}:dmg/rate`);
+        if (d.splash && !three(d.splash)) bad.push(`${k}:splash`);
+        if (d.slow && !(three(d.slow) && three(d.slowMs))) bad.push(`${k}:slow`);
+    }
+    assert(`${keys.length} 种塔的 cost / range / 伤害或光环 三档齐全（卡片取 lv-1 不越界）`,
+        keys.length === 4 && bad.length === 0, bad.join(' '));
+    assert('升级价逐级递增（cost[0] < cost[1] < cost[2]）',
+        keys.every((k) => TOWER_TYPES[k].cost[2] > TOWER_TYPES[k].cost[1] && TOWER_TYPES[k].cost[1] > TOWER_TYPES[k].cost[0]),
+        keys.filter((k) => !(TOWER_TYPES[k].cost[2] > TOWER_TYPES[k].cost[1] && TOWER_TYPES[k].cost[1] > TOWER_TYPES[k].cost[0])).join(' '));
+    // 卡片与 sellTower 用同一个公式 floor(spend × sellRatio)：卖塔永远不能刷钱
+    const refundBad = [];
+    for (let s = 2; s <= 2000; s += 1) {
+        const r = Math.floor(s * BALANCE.sellRatio);
+        if (!Number.isInteger(r) || r < 1 || r >= s) refundBad.push(`spend ${s} → ${r}`);
+    }
+    assert('出售返还 = floor(总投入 × sellRatio)，恒为正整数且严格小于总投入',
+        refundBad.length === 0, refundBad.slice(0, 3).join(' '));
 }
 
 // ─── 汇总 ────────────────────────────────────────────────────
