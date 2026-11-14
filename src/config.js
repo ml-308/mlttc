@@ -11,4 +11,4 @@
  */
 
 /** Turnstile site key；留空表示不启用 */
-export const TURNSTILE_SITE_KEY = '';
+export const TURNSTILE_SITE_KEY = '0x4AAAAAAGARTT6NfsxGB-6x';
