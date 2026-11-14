@@ -949,6 +949,127 @@
             }
         }
 
+        /* ---------- 技能栏（塔栏之上单独一行，只在无尽模式） ---------- */
+        .td-skills {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .td-skill-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            min-width: 0;
+            padding: 8px 4px;
+            border-radius: var(--radius-md, .5rem);
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: .76rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color .15s, background .15s;
+        }
+
+        /* 名字单独一行、副标题单独一行：副标题承载三态文案（花费 / 剩余秒数 / 第 N 波） */
+        .td-skill-btn .td-sname {
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .td-skill-btn .td-sinfo {
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--warning);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .td-skill-btn:hover:not(:disabled) {
+            background: var(--bg-hover);
+            border-color: var(--primary);
+        }
+
+        /* 陨石选点中：当前技能高亮（再点一次或 Esc/右键取消） */
+        .td-skill-btn.is-selected {
+            border-color: var(--primary);
+            background: var(--primary-bg);
+            box-shadow: 0 0 0 2px var(--primary-bg);
+        }
+
+        /* 未解锁 / 冷却中 / 买不起：一律压暗，原因写在 title 里（与塔按钮 is-poor 同一手感） */
+        .td-skill-btn.is-locked,
+        .td-skill-btn.is-cooling,
+        .td-skill-btn.is-poor {
+            opacity: .45;
+            cursor: not-allowed;
+            background: var(--bg-card);
+            border-color: var(--border-light);
+        }
+
+        .td-skill-btn.is-cooling .td-sinfo {
+            color: var(--text-secondary);
+        }
+
+        /* 塔栏里的特殊塔：未解锁灰显 + 底部「第 N 波」（空字符串时盒子不存在，不占位） */
+        .td-tower-btn.is-locked {
+            opacity: .45;
+            cursor: not-allowed;
+            border-color: var(--border-light);
+            background: var(--bg-card);
+        }
+
+        .td-tower-btn.is-locked .td-tchip {
+            filter: grayscale(1);
+        }
+
+        .td-tower-btn .td-tlock {
+            font-size: .64rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            line-height: 1.2;
+        }
+
+        .td-tower-btn .td-tlock:empty {
+            display: none;
+        }
+
+        /* 视图切换靠 hidden：这两个元素自己带 display（grid / flex），必须显式让位 */
+        .td-skills[hidden],
+        .td-tower-btn[hidden] {
+            display: none;
+        }
+
+        /* 窄屏：6 个技能按钮换行成 3×2，绝不横向溢出（minmax(0,1fr) 让每列可以被压窄） */
+        @media (max-width: 720px) {
+            .td-skills {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 6px;
+            }
+
+            .td-skill-btn {
+                font-size: .72rem;
+                padding: 6px 3px;
+            }
+        }
+
+        /* 横屏窄高：一行 6 个、压薄一档，给画布让出高度 */
+        @media (orientation: landscape) and (max-height: 520px) {
+            .td-skills {
+                gap: 4px;
+            }
+
+            .td-skill-btn {
+                font-size: .66rem;
+                padding: 4px 2px;
+            }
+        }
+
         /* 无障碍：降低动效时关掉过渡 */
         @media (prefers-reduced-motion: reduce) {
             * {
@@ -965,7 +1086,7 @@
          若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
          启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
          **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
-    <script src="/src/pages/tower-defense.js?v=1.6.9" type="module"></script>
+    <script src="/src/pages/tower-defense.js?v=1.6.10" type="module"></script>
 </head>
 
 <body class="td-page-body">
@@ -1039,6 +1160,11 @@
             <summary>所有塔数值表（造价 / 伤害 / 攻速 / 射程 / 特效）</summary>
             <div class="td-tstats-scroll" id="tdTowerStatsBody"></div>
         </details>
+
+        <!-- 主动技能栏：塔栏之上一整行 6 个按钮，只在无尽模式出现（闯关模式整行 hidden）。
+             按钮由 buildSkillBar() 按 SKILLS 现生成：名字 / 花费 / 解锁波次 / 冷却都来自模块，
+             页面这边只留一个空容器，不抄第二份数据。 -->
+        <section class="td-skills" id="tdSkills" aria-label="主动技能（无尽模式）" hidden></section>
 
         <!-- 塔按钮 + 控制 -->
         <section class="td-bar" id="tdBar">

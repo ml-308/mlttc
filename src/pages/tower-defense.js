@@ -1,8 +1,8 @@
 /**
- * tower-defense.js —— 塔防引擎核心（第 1 步：无尽模式，零依赖 ES module）
+ * tower-defense.js —— 塔防引擎核心（无尽 + 闯关 + 技能/特殊塔，零第三方依赖 ES module）
  * ---------------------------------------------------------------------------
  * 用途：给 tower-defense.html 提供全部游戏逻辑（地图/波次/塔/敌人/战斗/渲染/输入/HUD）；
- *   不 import 任何站点模块，Node 下 import 只会拿到纯函数，不碰 DOM。
+ *   只 import 两个纯数据+纯函数模块（td-skills / td-special-towers），Node 下 import 只拿纯函数、不碰 DOM。
  * 模式：「无尽」波次由 generateEndlessWave(n) 现算，每 10 波一个 BOSS 波；「闯关」100 关由
  *   generateLevel(L) 派生，关卡内每一波仍复用 generateEndlessWave 再按关卡系数放大 —— 两种
  *   模式都没有逐波写死的数量表（tools/td-wave-test/run.mjs 会正则扫描源码把关）。
@@ -19,6 +19,18 @@
  *   acc += dt × 倍速，while (acc >= STEP) 步进，单帧最多追 5 步（切后台不暴走）；
  *   页面隐藏时暂停累积。倍速只加快累积，不改渲染帧率。
  */
+
+/* ===================== 0. 外部模块（技能 / 特殊塔：纯数据 + 纯函数层） =====================
+ * 本文件唯一的顶层 import（两个模块零 DOM、零时钟，时间由本文件注入）；tools/td-wave-test 的加载器会把每层相对 import 改写成 data: URL（见 toModuleUrl）。
+ */
+import {
+  SKILLS, CHILL, METEOR, REPAIR, TIMESTOP, OVERLOAD,
+  getSkill, canCast, cooldownLeft, meteorHits, purgeHits, applyChillTo, tickStatus,
+} from './td-skills.js';
+import {
+  SPECIAL_TOWER_TYPES, SPECIAL_TOWER_IDS, isSpecialTower, specialTowersUnlockedAt,
+  towerUnlockWave, chainDamage, pickChainTargets, poisonDps, poisonTick, pushDistance, applyPush,
+} from './td-special-towers.js';
 
 /* ===================== 1. 常量区（调数值只改这里） ===================== */
 const GRID = { cols: 24, rows: 14, tile: 32 };          // 24×14 格、每格 32px
@@ -41,9 +53,15 @@ const TOWER_TYPES = {
   aura: { name: '光环塔', cost: [130, 180, 300], range: [120, 140, 160], auraRate: [0.15, 0.25, 0.35], auraDmg: [0, 0, 0.15], color: '#B693FD' },
 };
 
+/**
+ * 塔定义总表 = 4 种基础塔 + 3 种特殊塔。建造 / 升级 / 出售 / 清单 / 数值表 / 续玩校验全部遍历这一份，
+ * 特殊塔因此自动获得既有的经济与 UI 流程。TOWER_TYPES 仍只含 4 种基础塔：它是自检按「正好 4 种」
+ * 断言的形状基准，且特殊塔另带 unlockWave / chain / poison / push，混进来会让两件事互相污染。
+ */
+const ALL_TOWER_TYPES = { ...TOWER_TYPES, ...SPECIAL_TOWER_TYPES };
+
 /** 全局平衡参数 */
-const BALANCE = {
-  startGold: 150, startLives: 20,
+const BALANCE = {  startGold: 150, startLives: 20,
   sellRatio: 0.6,          // 出售返还「总投入」的 60%
   waveGapMs: 2500,         // 波与波之间的喘息
   maxEnemiesPerWave: 400,  // 软上限，防掉帧（触顶后靠血量与速度继续施压）
@@ -319,13 +337,14 @@ function towerAt(st, col, row) {
 
 /* 对外导出：给自检脚本与调试台用（纯函数，无副作用） */
 export {
-  GRID, VIEW, ENEMY_TYPES, TOWER_TYPES, BALANCE, MAP_TEMPLATES, LEVEL_TWEAKS, LEVEL_MAX, PROGRESS_KEY,
+  GRID, VIEW, ENEMY_TYPES, TOWER_TYPES, ALL_TOWER_TYPES, BALANCE, MAP_TEMPLATES, LEVEL_TWEAKS, LEVEL_MAX, PROGRESS_KEY,
   LEVEL_DIFF_STEP, LEVEL_POT, LEVEL_POT_EXP, LEVEL_POT_FALL,
   hashSeed, mulberry32, generateEndlessWave, generateLevel, buildLevelWave, buildPath, buildPathTiles,
   encodeSave, decodeSave, levelTotalEnemies,   // 存档码往返 + 关卡总怪量：自检脚本直接断言
   describeTowers,   // 场上塔清单的数据化描述（纯函数，清单渲染与自检共用同一份口径）
   nextUpgradeTarget,   // 「快速升级」按钮的目标选择（纯函数：按建造顺序取第一个未满级的塔）
   mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
+  towerStatRows,   // 塔数值表的行 HTML（纯函数：自检断言「并进特殊塔后不出现 NaN / undefined」）
 };
 
 /* ===================== 4. 运行时状态 ===================== */
@@ -345,8 +364,17 @@ const state = {
   selectedType: null, selectedTower: null, hover: { col: -1, row: -1 }, reducedMotion: false,
   enemies: [], towers: [], bullets: [], particles: [], floaters: [],
   mapIdx: 0, path: null, pathTiles: null,
+  // 技能时序全部以 state.timeMs（逻辑步累计）为基准：暂停 / 隐藏 / 等续玩时 step() 不跑，
+  // 冷却与持续时间一起冻结。skillReady 只活在内存里，不进存档（存档结构一个字段都不加）。
+  skillReady: {},        // 技能 id → 可再次释放的逻辑毫秒
+  casting: null,         // 选点态：正在选落点的技能 id（目前只有 meteor）
+  aim: null,             // 选点预览落点（画布逻辑坐标 768×448）
+  stopUntil: 0,          // 时停到期时刻
+  overloadUntil: 0,      // 超载到期时刻
+  fatigueUntil: 0,       // 疲劳到期时刻（= overloadUntil + fatigueMs）
 };
 const bulletPool = [];   // 子弹对象池：复用对象，避免每发都新建
+let nextEnemyId = 1;     // 敌人唯一 id：链式闪电靠它去重「本轮已经电过谁」（pickChainTargets 看 e.id）
 
 /* ===================== 4b. 存档（localStorage，隐私模式必须能苟活） ===================== */
 /**
@@ -373,7 +401,7 @@ function sanitizeRun(raw) {
   if (!(wave >= 1 && wave <= 100000) || !(gold >= 0) || !(lives >= 1) || !(kills >= 0)) return null;
   if (!(savedAt > 0) || !seed) return null;
   if (Array.isArray(raw.towers)) for (const t of raw.towers) {
-    if (!t || typeof t !== 'object' || !TOWER_TYPES[t.type]) continue;
+    if (!t || typeof t !== 'object' || !ALL_TOWER_TYPES[t.type]) continue;
     const col = num(t.col), row = num(t.row), lvl = num(t.lvl);
     if (!Number.isFinite(col) || !Number.isFinite(row) || !(lvl >= 1 && lvl <= 3)) continue;
     towers.push({ type: t.type, col, row, lvl });
@@ -498,6 +526,9 @@ function resetGame() {
   state.kills = 0; state.waveActive = false; state.nextWaveIn = 1800;
   state.spawnQueue = []; state.spawnIdx = 0; state.spawnTimer = 0; state.waveStats = null;
   state.paused = false; state.speed = 1; state.gameOver = false; state.result = ''; state.timeMs = 0;
+  // 技能时序跟着本局清零：冷却不进存档（存档结构一个字段都不加），重开就是全新的一局
+  state.skillReady = {}; state.casting = null; state.aim = null; state.stopUntil = 0;
+  state.overloadUntil = 0; state.fatigueUntil = 0;
   state.selectedType = null; state.selectedTower = null;
   state.hover.col = -1; state.hover.row = -1;
   // 实体数组长度清零（旧对象交给 GC：一次性开销，不在循环里发生）
@@ -549,6 +580,7 @@ function startWave() {
   state.spawnTimer = 0;
   state.waveActive = true;
   noteBest(state.wave);
+  announceUnlocks(state.wave);   // 这一波若有新技能 / 新特殊塔解锁，就在画布顶部飘一句
   noteEndlessRun();   // 每波开始时落盘：此刻波中还没有敌人，存下来的正是「该波开头」
 }
 
@@ -632,7 +664,10 @@ function spawnEnemy(spec) {
     type: spec.type, hp: spec.hp, maxHp: spec.hp, speed: spec.speed * jitter,
     armor: spec.armor, bounty: spec.bounty,
     dist: 0, x: start.x, y: start.y,     // dist = 沿路径像素进度，越大越靠前
+    id: nextEnemyId++,                  // 唯一 id：链式闪电用它排除已电过的目标
     slowUntil: 0, slowFactor: 0, hitFlash: 0, dead: false,
+    // 技能状态字段（td-skills 的约定）：前三个是剩余毫秒，由 tickStatus 递减；poisonDps 是每秒毒伤
+    chillMs: 0, stopMs: 0, poisonMs: 0, poisonDps: 0,
   });
 }
 
@@ -640,11 +675,22 @@ function spawnEnemy(spec) {
 function updateEnemies(dt) {
   const arr = state.enemies;
   const path = state.path;
+  const dtMs = dt * 1000;
+  const frozen = state.timeMs < state.stopUntil;   // 时停：整场敌人原地不动，但仍然会被打（塔/子弹照常跑）
   for (let i = arr.length - 1; i >= 0; i--) {
     const e = arr[i];
     if (e.dead) { arr[i] = arr[arr.length - 1]; arr.pop(); continue; }
-    const slowed = state.timeMs < e.slowUntil;
-    e.dist += (slowed ? e.speed * (1 - e.slowFactor) : e.speed) * dt;
+    // 中毒：先把「本步剩余时间内的那一段」结算掉（无视护甲，见 poisonDamage），再统一递减计时
+    if (e.poisonMs > 0) {
+      poisonDamage(e, poisonTick(e.poisonMs, e.poisonDps, dtMs));
+      if (e.dead) { arr[i] = arr[arr.length - 1]; arr.pop(); continue; }
+    }
+    tickStatus(e, dtMs);   // chillMs / stopMs / poisonMs 一起递减；slowUntil / stopUntil 是绝对时刻，由主循环比较
+    if (!frozen) {
+      // 减速只有一个乘数（slowFactor 取「最强的那个」，寒流与冰塔谁强谁生效，绝不叠乘）
+      const slowed = state.timeMs < e.slowUntil;
+      e.dist += (slowed ? e.speed * (1 - e.slowFactor) : e.speed) * dt;
+    }
     if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt * 5);
     if (e.dist >= path.length) {
       arr[i] = arr[arr.length - 1];
@@ -665,6 +711,15 @@ function leak() {
   if (state.lives <= 0) { state.lives = 0; gameOver(); }
 }
 
+/** 击杀结算（赏金 / 击杀数 / 粒子）：damageEnemy 与无视护甲的毒伤共用，保证两条伤害路径记同一本账 */
+function killEnemy(enemy) {
+  enemy.hp = 0;
+  enemy.dead = true;
+  state.gold += enemy.bounty;
+  state.kills += 1;
+  addParticles(enemy.x, enemy.y, 7, ENEMY_COLORS[enemy.type] || '#999');
+}
+
 /** 伤害结算：真实伤害 = dmg × (1 - armor)；击杀给赏金（bounty 已在波次里算好倍率） */
 function damageEnemy(enemy, dmg) {
   if (enemy.dead) return;
@@ -672,20 +727,31 @@ function damageEnemy(enemy, dmg) {
   enemy.hp -= real;
   enemy.hitFlash = 1;
   addFloater(enemy.x, enemy.y - 8, Math.round(real), null);
-  if (enemy.hp <= 0) {
-    enemy.hp = 0;
-    enemy.dead = true;
-    state.gold += enemy.bounty;
-    state.kills += 1;
-    addParticles(enemy.x, enemy.y, 7, ENEMY_COLORS[enemy.type] || '#999');
-  }
+  if (enemy.hp <= 0) killEnemy(enemy);
+}
+
+/**
+ * 毒伤结算：**故意不走 damageEnemy** —— 那里会乘 (1 - armor)，而毒塔的唯一卖点就是「无视护甲」
+ * （见 td-special-towers 里 dmg 写 0 / ignoreArmor 的说明：伤害 100% 来自 dot）。
+ * 这里也不打伤害飘字：dot 每个逻辑步都在跳，逐帧飘字会把画面刷成一片数字，掉血由血条体现。
+ */
+function poisonDamage(enemy, dmg) {
+  if (!enemy || enemy.dead || !(dmg > 0)) return;
+  enemy.hp -= dmg;
+  enemy.hitFlash = 1;
+  if (enemy.hp <= 0) killEnemy(enemy);
 }
 
 /* ===================== 7. 塔与战斗 ===================== */
-/** 建塔：校验金币 / 可建 / 空位，成功后扣钱并记录总投入（出售按它返还） */
+/**
+ * 建塔：校验金币 / 可建 / 空位，成功后扣钱并记录总投入（出售按它返还）。
+ * 特殊塔多一道解锁闸：只无尽模式、且 wave >= unlockWave 才建得起来（塔栏已经灰显，这里再兜一层，
+ * 因为调试台 / 键盘也能直接调 placeTower）。
+ */
 function placeTower(type, col, row) {
-  const def = TOWER_TYPES[type];
+  const def = ALL_TOWER_TYPES[type];
   if (!def) return false;
+  if (isSpecialTower(type) && (state.mode !== 'endless' || state.wave < towerUnlockWave(type))) return false;
   const cost = def.cost[0];
   if (state.gold < cost || !isBuildable(state, col, row) || towerAt(state, col, row)) return false;
   state.gold -= cost;
@@ -705,7 +771,7 @@ function placeTower(type, col, row) {
 /** 升级：两级封顶（1→2→3），cost[lv] 就是升到下一级的价格 */
 function upgradeTower(tower) {
   if (!tower || tower.lv >= 3) return false;
-  const def = TOWER_TYPES[tower.type];
+  const def = ALL_TOWER_TYPES[tower.type];
   const cost = def.cost[tower.lv];
   if (state.gold < cost) return false;
   state.gold -= cost;
@@ -751,7 +817,7 @@ function describeTowers(towers, opts) {
   const rows = [];
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
-    const def = t ? TOWER_TYPES[t.type] : null;
+    const def = t ? ALL_TOWER_TYPES[t.type] : null;
     if (!def) continue;
     const lv = Math.min(3, Math.max(1, Math.floor(Number(t.lv) || 1)));   // 夹到 1..3，越界也不出 NaN
     const idx = lv - 1;
@@ -790,7 +856,7 @@ function nextUpgradeTarget(towers, gold) {
   const g = Number.isFinite(gold) ? gold : 0;
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
-    const def = t ? TOWER_TYPES[t.type] : null;
+    const def = t ? ALL_TOWER_TYPES[t.type] : null;
     const lv = def ? Math.floor(Number(t.lv) || 0) : 0;
     if (lv < 1 || lv >= 3) continue;          // 满级 / 等级异常：跳过，继续找下一座
     const cost = def.cost[lv];
@@ -819,6 +885,8 @@ function findTarget(tower, range) {
  *  1) buff 先清零，再由每个光环塔给自己范围内的塔「取最高值」——同类光环不叠乘，
  *     所以是 Math.max 比较赋值而不是相加（不同类光环若第二步加入，各自取最高后叠加）。
  *  2) 冷却按 (1 + rateBuff) 加速消耗，到 0 就开火；伤害按 (1 + dmgBuff) 放大。
+ *  3) 超载 / 疲劳是与光环**相乘**的独立乘数：(1 + 光环增幅) × 超载系数（乘法可交换，这个顺序
+ *     只为读起来像「常驻底数 × 临时系数」）。时间基准是逻辑步累计的 now：暂停时不推进，不白烧。
  */
 function updateTowers(dt) {
   const towers = state.towers;
@@ -826,7 +894,7 @@ function updateTowers(dt) {
   for (let i = 0; i < towers.length; i++) {
     const a = towers[i];
     if (a.type !== 'aura') continue;
-    const adef = TOWER_TYPES.aura;
+    const adef = ALL_TOWER_TYPES.aura;
     const range = adef.range[a.lv - 1], rate = adef.auraRate[a.lv - 1], dmg = adef.auraDmg[a.lv - 1];
     const r2 = range * range;
     for (let j = 0; j < towers.length; j++) {
@@ -838,20 +906,26 @@ function updateTowers(dt) {
       if (dmg > t.dmgBuff) t.dmgBuff = dmg;
     }
   }
+  const now = state.timeMs;
+  const overloaded = now < state.overloadUntil;
+  const fatigued = !overloaded && now < state.fatigueUntil;   // 疲劳排在爆发之后，两者不重叠
+  const rateMul = overloaded ? 1 + OVERLOAD.rateBonus : (fatigued ? 1 + OVERLOAD.fatigueRate : 1);
+  const dmgMul = overloaded ? 1 + OVERLOAD.dmgBonus : 1;
   for (let i = 0; i < towers.length; i++) {
     const t = towers[i];
     if (t.type === 'aura') continue;               // 光环塔本身不攻击
-    const def = TOWER_TYPES[t.type];
-    t.cd -= dt * (1 + t.rateBuff);
+    const def = ALL_TOWER_TYPES[t.type];
+    t.cd -= dt * (1 + t.rateBuff) * rateMul;
     if (t.cd > 0) continue;
     const target = findTarget(t, def.range[t.lv - 1]);
     if (!target) { t.cd = 0; continue; }           // 没目标不打空枪，进射程立刻开火
     t.cd += 1 / def.rate[t.lv - 1];                // 累加不清零，倍速下节奏更稳
     const lv = t.lv - 1;
-    const dmg = def.dmg[lv] * (1 + t.dmgBuff);
+    const dmg = def.dmg[lv] * (1 + t.dmgBuff) * dmgMul;
+    // 特殊塔也走同一颗子弹：链式 / 中毒 / 推回的差别在 impact 里按 b.type 分派，子弹池与追身飞行对 7 种塔一致
     if (t.type === 'cannon') spawnBullet(t, target, dmg, def.splash[lv], 0, 0);                 // 溅射
     else if (t.type === 'frost') spawnBullet(t, target, dmg, 0, def.slow[lv], def.slowMs[lv]);  // 单体+减速
-    else spawnBullet(t, target, dmg, 0, 0, 0);                                                 // 单体
+    else spawnBullet(t, target, dmg, 0, 0, 0);                                                 // 单体 / 链式 / dot / 推回
   }
 }
 
@@ -861,7 +935,9 @@ function spawnBullet(tower, target, dmg, splash, slow, slowMs) {
   b.x = tower.x; b.y = tower.y; b.tx = target.x; b.ty = target.y; b.target = target;
   b.dmg = dmg; b.splash = splash; b.slow = slow; b.slowMs = slowMs;
   b.speed = splash > 0 ? 320 : 640;
-  b.color = TOWER_TYPES[tower.type].color;
+  b.type = tower.type;   // 命中特效按塔种分派（对象池复用，所以每发出一颗都必须重写）
+  b.lv = tower.lv;       // 毒的 dot dps 按等级取 18/28/40
+  b.color = ALL_TOWER_TYPES[tower.type].color;
   state.bullets.push(b);
 }
 
@@ -888,7 +964,7 @@ function updateBullets(dt) {
   }
 }
 
-/** 命中结算：炮塔按溅射半径命中范围内所有敌人；冰塔附加「最近一次」减速 */
+/** 命中结算：炮塔按溅射半径命中范围内所有敌人；冰塔附加「最近一次」减速；特殊塔按 b.type 分派 */
 function impact(b) {
   if (b.splash > 0) {
     const r2 = b.splash * b.splash;
@@ -904,7 +980,21 @@ function impact(b) {
   }
   const target = b.target;
   if (!target || target.dead) return;
+  if (b.type === 'poison') {
+    // 毒塔本体 dmg 恒为 0：命中只挂 / 刷新 dot（覆盖剩余时间、不叠加），伤害在 updateEnemies 里逐帧结算
+    const dps = poisonDps('poison', b.lv);
+    if (dps > 0) { target.poisonMs = ALL_TOWER_TYPES.poison.poison.durationMs; target.poisonDps = dps; }
+    addParticles(b.x, b.y, 3, b.color);
+    return;
+  }
   damageEnemy(target, b.dmg);
+  if (b.type === 'tesla') chainShock(b, target);   // 链式闪电：命中后额外跳 3 个目标
+  if (b.type === 'force' && !target.dead) {
+    // 力场：沿路径推回（dist 减小、不小于 0；BOSS 减半由 pushDistance 处理），坐标立刻回写免得看着像穿墙
+    target.dist = applyPush(target.dist, pushDistance('force', b.lv, target.type === 'boss'));
+    const pt = pointAt(state.path, target.dist);
+    target.x = pt.x; target.y = pt.y;
+  }
   if (b.slow > 0 && !target.dead) {
     // 「最近一次有效」：新的一发直接覆盖当前减速（不叠乘、不取最强）
     target.slowUntil = state.timeMs + b.slowMs;
@@ -913,14 +1003,34 @@ function impact(b) {
   addParticles(b.x, b.y, 3, b.color);
 }
 
+/**
+ * 特斯拉链式闪电：命中后挑 count 个目标（pickChainTargets 按 e.id 排除、按 dist 排序，观感是往终点
+ * 方向跳），每跳按 chainDamage 衰减（34 → 27 → 22 → 17，跳数从 2 起算 = 主目标吃满伤）。
+ * 链上的伤害走 damageEnemy：与普通攻击同一套护甲减免，不另开无视护甲的路。
+ */
+function chainShock(b, first) {
+  const def = ALL_TOWER_TYPES.tesla;
+  const alive = state.enemies.filter((e) => !e.dead);
+  const hops = pickChainTargets(alive, { x: b.x, y: b.y }, def.chain.count, def.range[b.lv - 1], [first.id]);
+  for (let i = 0; i < hops.length; i++) {
+    if (hops[i].dead) continue;
+    damageEnemy(hops[i], chainDamage(b.dmg, i + 2, def.chain.falloff));
+    addParticles(hops[i].x, hops[i].y, 3, def.color);
+  }
+}
+
 /* ===================== 8. 特效（飘字 / 粒子） ===================== */
-/** 伤害飘字：reduce 动效时改为静态显示（不上飘、不淡出），信息不丢 */
-function addFloater(x, y, value, color) {
+/**
+ * 飘字：reduce 动效时改为静态显示（不上飘、不淡出），信息不丢。
+ * lifeSec 可省略（默认 0.7s）—— 技能 / 解锁提示要停留久一点才读得完，所以开了这个口子。
+ */
+function addFloater(x, y, value, color, lifeSec) {
   if (state.floaters.length > 60) state.floaters.shift();
+  const life = Number.isFinite(lifeSec) && lifeSec > 0 ? lifeSec : 0.7;
   state.floaters.push({
     x, y, text: String(value),
     color: color || (value > 0 ? palette.text : palette.danger),
-    life: 0.7, max: 0.7,
+    life, max: life,
   });
 }
 
@@ -955,6 +1065,91 @@ function updateFx(dt) {
     o.vx *= 0.94; o.vy *= 0.94;
     if (o.life <= 0) { p[i] = p[p.length - 1]; p.pop(); }
   }
+}
+
+/* ===================== 8b. 主动技能（只在无尽模式） ===================== */
+// 时间基准：state.timeMs（逻辑步累计）。暂停 / 隐藏 / 等续玩时 step() 不跑 → 冷却、时停、超载、
+// 疲劳一起冻结；倍速只让 timeMs 走得快。冷却表 skillReady 只活在内存里，不进存档。
+/** 技能当前状态：解锁 / 冷却 / 金币三条判定交给模块的 canCast（它的 reason 就是文案依据） */
+function skillState(id) {
+  const skill = getSkill(id);
+  const now = state.timeMs;
+  const readyAt = Number.isFinite(state.skillReady[id]) ? state.skillReady[id] : 0;   // 没放过 = 0
+  const left = cooldownLeft(skill, readyAt, now);
+  const chk = canCast(skill, { wave: state.wave, gold: state.gold, readyAt, now });
+  return { skill, ok: chk.ok && state.mode === 'endless', reason: chk.reason, left, now };
+}
+
+/** 扣金币 + 写冷却（只在效果真正生效后调：失败路径一分钱都不动） */
+function payForSkill(skill) {
+  state.gold -= skill.cost; state.skillReady[skill.id] = state.timeMs + skill.cooldownMs; syncHud();
+}
+/** 取消选点态（Esc / 右键 / 点到画布外）：还没扣钱，什么都不用回滚 */
+function cancelCasting() {
+  if (state.casting) { state.casting = null; syncHud(); }
+}
+
+/** 施放技能。陨石两段式：先进选点态（不扣钱），落点确认时才扣钱进冷却 —— 点错了取消也不亏。 */
+function castSkill(id) {
+  if (state.mode !== 'endless' || state.gameOver || !state.inRun) return false;
+  const st = skillState(id);
+  if (!st.ok) return false;
+  if (id === 'meteor') {   // 选点态（再点一次 = 取消），此时一分钱都没扣
+    state.casting = state.casting === 'meteor' ? null : 'meteor';
+    if (state.casting && !state.aim) state.aim = { x: VIEW.w / 2, y: VIEW.h / 2 };
+    syncHud();
+    return true;
+  }
+  if (id === 'chill') {
+    // 只有比当前生效的更强才覆盖（模块内的取更强逻辑），所以寒流与冰塔不叠乘
+    const n = applyChillTo(state.enemies, st.now, CHILL.slow, CHILL.durationMs);
+    addFloater(VIEW.w / 2, 44, '寒流 ×' + n, '#4CC9F0', 1.4);
+  } else if (id === 'repair') {
+    const before = state.lives;
+    state.lives = Math.min(BALANCE.startLives, state.lives + REPAIR.lives);   // 封顶 20：不能靠技能刷无限生命
+    addFloater(VIEW.w - 46, VIEW.h / 2 - 18, '+' + (state.lives - before), palette.primary, 1.4);
+  } else if (id === 'timestop') {
+    state.stopUntil = st.now + TIMESTOP.durationMs;   // 期间敌人不移动但仍可被攻击（见 updateEnemies）
+  } else if (id === 'overload') {
+    state.overloadUntil = st.now + OVERLOAD.durationMs;
+    state.fatigueUntil = state.overloadUntil + OVERLOAD.fatigueMs;   // 爆发结束才轮到疲劳，两段不重叠
+    addFloater(VIEW.w / 2, 44, '超载 ' + OVERLOAD.durationMs / 1000 + 's', palette.warning, 1.6);
+  } else if (id === 'purge') {
+    purgeEnemies();
+  } else return false;
+  payForSkill(st.skill);
+  return true;
+}
+
+/** 陨石落点：meteorHits 取命中 → 逐一走**既有 damageEnemy**（因此受护甲减免）→ 最后才扣钱进冷却 */
+function confirmMeteor(x, y) {
+  const st = skillState('meteor');
+  state.casting = null;
+  if (!st.ok) { syncHud(); return false; }   // 选点期间金币被花光 / 技能已过期：什么都不做
+  const hits = meteorHits(state.enemies, x, y, METEOR.radius);
+  for (let i = 0; i < hits.length; i++) if (!hits[i].dead) damageEnemy(hits[i], METEOR.damage);
+  addParticles(x, y, 10, '#F0643C');
+  addFloater(x, y - 18, '陨石 ×' + hits.length, '#F0643C', 1.4);
+  payForSkill(st.skill);
+  return true;
+}
+/**
+ * 净化：非 BOSS 敌人直接标记 dead —— **不经过 damageEnemy**，所以不给赏金、不计击杀数（清场是
+ * 止损不是收割：靠它刷钱 / 刷击杀会让 45 波之后的经济与最高波数曲线失真）。标记后由 updateEnemies
+ * 的 swap-remove 删除，与其它死亡走同一条删除路径。
+ */
+function purgeEnemies() {
+  const hits = purgeHits(state.enemies);
+  let n = 0;
+  for (const e of hits) if (!e.dead) { e.dead = true; addParticles(e.x, e.y, 4, '#B693FD'); n += 1; }
+  addFloater(VIEW.w / 2, 44, '净化 ×' + n, '#B693FD', 1.6);
+  return n;
+}
+/** 解锁提示：只在 unlockWave === wave 时命中一次（不刷屏），多条错开 y，停留 2.6s 便于读 */
+function announceUnlocks(wave) {
+  const lines = SKILLS.filter((s) => s.unlockWave === wave).map((s) => '解锁技能：' + s.name);
+  for (const id of specialTowersUnlockedAt(wave)) if (towerUnlockWave(id) === wave) lines.push('解锁：' + ALL_TOWER_TYPES[id].name);
+  lines.forEach((text, i) => addFloater(VIEW.w / 2, 56 + i * 20, text, palette.primary, 2.6));
 }
 
 /* ===================== 9. 逻辑步 & 波次推进 ===================== */
@@ -1018,8 +1213,38 @@ function render() {
   if (!ctx) return;
   ctx.fillStyle = palette.bg;
   ctx.fillRect(0, 0, VIEW.w, VIEW.h);
-  drawGrid(ctx); drawPath(ctx); drawHover(ctx); drawTowers(ctx);
+  drawGrid(ctx); drawPath(ctx);
+  drawFieldFx(ctx);   // 时停罩：压在路径之上、实体之下，不挡血条也不挡塔
+  drawHover(ctx); drawTowers(ctx);
   drawEnemies(ctx); drawBullets(ctx); drawFx(ctx); drawPrompts(ctx);
+  drawAim(ctx);       // 陨石选点准星：最上层，指针在哪都能看见
+}
+
+/** 时停罩：一层淡蓝 + 顶部倒计时。敌人只是不移动，照样挨打，所以用半透明而不是把画面挡住 */
+function drawFieldFx(ctx) {
+  if (state.timeMs >= state.stopUntil) return;
+  ctx.globalAlpha = 0.16; ctx.fillStyle = '#4CC9F0';
+  ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#1f7f9c';
+  ctx.font = '700 15px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('停滞 ' + ((state.stopUntil - state.timeMs) / 1000).toFixed(1) + 's', VIEW.w / 2, 24);
+}
+
+/** 陨石选点预览：十字准星 + 落点半径圆圈（跟指针走；点了才扣钱，Esc / 右键取消） */
+function drawAim(ctx) {
+  const a = state.casting && state.aim;
+  if (!a) return;
+  ctx.fillStyle = 'rgba(240,100,60,.10)';
+  ctx.beginPath(); ctx.arc(a.x, a.y, METEOR.radius, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#F0643C'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+  ctx.beginPath(); ctx.arc(a.x, a.y, METEOR.radius, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();   // 十字：横 10px、竖 10px
+  ctx.moveTo(a.x - 10, a.y); ctx.lineTo(a.x + 10, a.y);
+  ctx.moveTo(a.x, a.y - 10); ctx.lineTo(a.x, a.y + 10);
+  ctx.stroke();
 }
 
 function drawGrid(ctx) {
@@ -1060,9 +1285,9 @@ function drawHover(ctx) {
   ctx.strokeStyle = ok ? palette.primary : palette.danger; ctx.lineWidth = 2;
   ctx.strokeRect(x + 1, y + 1, GRID.tile - 2, GRID.tile - 2);
   if (!ok) return;
-  ctx.strokeStyle = TOWER_TYPES[type].color; ctx.globalAlpha = 0.45;
+  ctx.strokeStyle = ALL_TOWER_TYPES[type].color; ctx.globalAlpha = 0.45;
   ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]);
-  ctx.beginPath(); ctx.arc(x + GRID.tile / 2, y + GRID.tile / 2, TOWER_TYPES[type].range[0], 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + GRID.tile / 2, y + GRID.tile / 2, ALL_TOWER_TYPES[type].range[0], 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]); ctx.globalAlpha = 1;
 }
 
@@ -1071,7 +1296,7 @@ function drawTowers(ctx) {
   const towers = state.towers;
   for (let i = 0; i < towers.length; i++) {
     const t = towers[i];
-    const def = TOWER_TYPES[t.type];
+    const def = ALL_TOWER_TYPES[t.type];
     const on = state.selectedTower === t;
     if (on) {   // 选中：射程圈
       ctx.strokeStyle = def.color; ctx.globalAlpha = 0.35; ctx.lineWidth = 1.5;
@@ -1105,6 +1330,20 @@ function drawTowerGlyph(ctx, tower, color) {
       ctx.beginPath();
       ctx.moveTo(x - Math.cos(a) * 7, y - Math.sin(a) * 7);
       ctx.lineTo(x + Math.cos(a) * 7, y + Math.sin(a) * 7);
+      ctx.stroke();
+    }
+  } else if (tower.type === 'tesla') {   // 特斯拉：一道闪电折线
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y - 7); ctx.lineTo(x + 1, y - 1); ctx.lineTo(x - 3, y + 1); ctx.lineTo(x + 6, y + 7);
+    ctx.stroke();
+  } else if (tower.type === 'poison') {  // 毒：实心核 + 半透明外环
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.arc(x, y, 7.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  } else if (tower.type === 'force') {   // 力场：两道推进箭头
+    for (let i = 0; i < 2; i++) {
+      const ox = i * 6 - 3;
+      ctx.beginPath(); ctx.moveTo(x - 6 + ox, y - 6); ctx.lineTo(x + ox, y); ctx.lineTo(x - 6 + ox, y + 6);
       ctx.stroke();
     }
   } else {   // aura：双环
@@ -1200,13 +1439,28 @@ function eventToCell(ev) {
   return { col, row };
 }
 
+/** 指针 → 画布逻辑坐标（不取整、不夹到格内）：陨石落点用这个，允许落在路径上、塔身上、画布边缘 */
+function eventToPoint(ev) {
+  const rect = draw.canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const x = ((ev.clientX - rect.left) / rect.width) * VIEW.w;
+  const y = ((ev.clientY - rect.top) / rect.height) * VIEW.h;
+  if (x < 0 || y < 0 || x > VIEW.w || y > VIEW.h) return null;
+  return { x, y };
+}
+
 /**
- * pointerdown 统一处理鼠标 / 触摸 / 触控笔：
- *  点到已有塔 → 选中它（画布画射程圈 + 清单高亮那一行）；点空地 → 放了塔种类就建塔，
- *  否则清掉选中态。点到路径 / 画布外同样清选中——「点空白处取消选中」对整块画布都成立。
+ * pointerdown 统一处理鼠标 / 触摸 / 触控笔：选点态 → 这次点击就是「确认落点」（陨石）；
+ * 点到已有塔 → 选中它（画布画射程圈 + 清单高亮那一行）；点空地 → 放了塔种类就建塔，
+ * 否则清掉选中态。点到路径 / 画布外同样清选中——「点空白处取消选中」对整块画布都成立。
  */
 function onPointerDown(ev) {
   if (ev.cancelable) ev.preventDefault();
+  if (state.casting) {   // 选点态优先：画布上的一次点击 = 落点确认（点画布外 = 取消）
+    const pt = eventToPoint(ev);
+    if (pt) confirmMeteor(pt.x, pt.y); else cancelCasting();
+    return;
+  }
   const cell = eventToCell(ev);
   if (!cell) { clearTowerSelect(); return; }   // 画布外的落点也算「点了非塔位置」
   state.hover.col = cell.col;
@@ -1217,13 +1471,14 @@ function onPointerDown(ev) {
   clearTowerSelect();                          // 点到的不是塔：选中态先清（路径格也算）
   if (state.selectedType && placeTower(state.selectedType, cell.col, cell.row)) {
     // 金币不够下一座就自动取消选中，省一次点击
-    if (state.gold < TOWER_TYPES[state.selectedType].cost[0]) state.selectedType = null;
+    if (state.gold < ALL_TOWER_TYPES[state.selectedType].cost[0]) state.selectedType = null;
     syncTowerButtons();
   }
 }
 
-/** 悬停高亮只跟鼠标走（触摸不跟踪，避免手指抬起后留个假高亮） */
+/** 悬停高亮只跟鼠标走（触摸不跟踪，避免手指抬起后留个假高亮）；选点态下触摸也要跟，否则看不见准星 */
 function onPointerMove(ev) {
+  if (state.casting) { const pt = eventToPoint(ev); if (pt) state.aim = pt; }
   if (ev.pointerType && ev.pointerType !== 'mouse') return;
   const cell = eventToCell(ev);
   if (!cell) { state.hover.col = -1; state.hover.row = -1; return; }
@@ -1273,12 +1528,15 @@ function towerListSignature(rows, activeIdx) {
 
 /** 一行塔的 HTML：名称（塔色）+ 等级 + 伤害/攻速/射程 + 位置 + 升级/删除两个按钮 */
 function towerRowHtml(r, active) {
-  const def = TOWER_TYPES[r.type];
+  const def = ALL_TOWER_TYPES[r.type];
   const i = r.lv - 1;
   // 光环塔自身不攻击：显示它给别人的增幅（与塔数值表一致；describeTowers 里它的伤害/攻速是 0）
+  // 毒塔 dmg 恒为 0，唯一输出是无视护甲的 dot，直接写每秒毒伤比「伤害 0.00」有用
   const stats = r.type === 'aura'
     ? ['攻速增幅 +' + Math.round(def.auraRate[i] * 100) + '%', '伤害增幅 +' + Math.round(def.auraDmg[i] * 100) + '%']
-    : ['伤害 ' + r.dmg.toFixed(2), '攻速 ' + r.rate.toFixed(2) + '/s'];
+    : r.type === 'poison'
+      ? ['毒伤 ' + poisonDps('poison', r.lv) + '/s（无视护甲）', '攻速 ' + r.rate.toFixed(2) + '/s']
+      : ['伤害 ' + r.dmg.toFixed(2), '攻速 ' + r.rate.toFixed(2) + '/s'];
   stats.push('射程 ' + r.range);
   const upText = r.maxed ? '已满级' : '升级（' + r.upgradeCost + '）';
   const upTitle = r.maxed ? '已满级'
@@ -1353,6 +1611,85 @@ function onTowerListClick(ev) {
   syncHud();                                // 金币 / 清单立即刷新（不必等下一帧）
 }
 
+/* ---------- 技能栏（只在无尽模式；按钮由 SKILLS 现生成） ---------- */
+/** 按 SKILLS 现生成 6 个按钮：顺序 / 名字 / 花费都来自模块；副标题 span 就是三态的载体 */
+function buildSkillBar() {
+  if (!ui.skills) return;
+  const frag = document.createDocumentFragment();
+  for (const s of SKILLS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'td-skill-btn';
+    btn.dataset.skill = s.id;
+    btn.innerHTML = '<span class="td-sname">' + s.name + '</span><span class="td-sinfo"></span>';
+    frag.appendChild(btn);
+  }
+  ui.skills.textContent = '';
+  ui.skills.appendChild(frag);
+  ui.skillBtns = Array.prototype.slice.call(ui.skills.querySelectorAll('.td-skill-btn'));
+}
+
+/** 3 座特殊塔的塔栏按钮：由 SPECIAL_TOWER_IDS 现生成（名字 / 费用 / 颜色只有一份），未解锁时灰显 */
+function buildSpecialTowerBar() {
+  if (!ui.towers) return;
+  const frag = document.createDocumentFragment();
+  for (const id of SPECIAL_TOWER_IDS) {
+    const def = SPECIAL_TOWER_TYPES[id];
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'td-tower-btn';
+    btn.dataset.tower = id;
+    btn.title = def.name + '：' + def.desc + '（' + def.cost[0] + ' 金币）';
+    btn.dataset.baseTitle = btn.title;   // 解锁后要还原这句作者写的 title
+    btn.innerHTML = '<span class="td-tchip" style="background:' + def.color + '"></span>'
+      + def.name + '<span class="td-tcost">' + def.cost[0] + '</span><span class="td-tlock"></span>';
+    frag.appendChild(btn);
+  }
+  ui.towers.appendChild(frag);
+}
+
+let skillBarSig = '';   // 技能栏上次写的签名（副标题 + disabled + class + title），没变就不写 DOM
+
+/**
+ * 技能按钮三态：未解锁（「第 N 波」）/ 冷却中（「12s」）/ 可用（花费；金币不足则禁用）。签名只由
+ * **显示出来的字**拼成，绝不把 state.timeMs 放进去 —— 否则每帧都是新签名、每帧写 DOM。
+ */
+function syncSkillButtons() {
+  if (!ui.skillBtns || !ui.skillBtns.length) return;
+  const endless = state.mode === 'endless';
+  const rows = [];
+  let sig = endless ? 'e' : 'l';
+  for (const btn of ui.skillBtns) {
+    const id = btn.dataset.skill, s = getSkill(id), st = skillState(id);
+    const row = { info: '', off: true, cls: '', title: '' };
+    if (!endless || state.wave < s.unlockWave) {
+      row.cls = 'is-locked'; row.info = '第 ' + s.unlockWave + ' 波';
+      row.title = s.name + '：第 ' + s.unlockWave + ' 波解锁（' + s.desc + '）';
+    } else if (st.left > 0) {
+      row.cls = 'is-cooling'; row.info = Math.ceil(st.left / 1000) + 's';
+      row.title = s.name + '：冷却中，还剩 ' + Math.ceil(st.left / 1000) + ' 秒（' + s.desc + '）';
+    } else if (state.gold < s.cost) {
+      row.cls = 'is-poor'; row.info = String(s.cost);
+      row.title = '金币不足：还差 ' + (s.cost - state.gold);
+    } else {
+      row.off = false; row.info = String(s.cost);
+      row.title = s.desc + '（' + s.cost + ' 金币 · 冷却 ' + Math.round(s.cooldownMs / 1000) + 's）';
+    }
+    if (state.casting === id) row.cls += ' is-selected';
+    rows.push(row);
+    sig += '|' + row.info + '#' + (row.off ? 1 : 0) + '#' + row.cls + '#' + row.title;
+  }
+  if (sig === skillBarSig) return;
+  skillBarSig = sig;
+  for (let i = 0; i < rows.length; i++) {
+    const btn = ui.skillBtns[i], row = rows[i], info = btn.lastElementChild;   // info = .td-sinfo
+    if (info && info.textContent !== row.info) info.textContent = row.info;
+    if (btn.disabled !== row.off) btn.disabled = row.off;
+    if (btn.title !== row.title) btn.title = row.title;
+    btn.className = 'td-skill-btn' + (row.cls ? ' ' + row.cls : '');
+  }
+}
+
 /** HUD：值变了才写 DOM，避免每帧 6 次无效写入 */
 const hudCache = { wave: -1, lives: -1, gold: -1, kills: -1, alive: -1, best: -1 };
 
@@ -1369,6 +1706,7 @@ function syncHud() {
   if (hudCache.best !== state.best) { ui.best.textContent = state.best; hudCache.best = state.best; }
   renderTowerList();   // 每帧走到这里，但签名没变就只做一次字符串拼接，不写 DOM
   syncQuickUpgrade();  // 同上：按钮三态由签名比较决定写不写
+  syncSkillButtons();  // 技能栏三态同上（冷却秒数只反映到秒，不会每帧写）
 }
 
 let qUpSig = '';   // 「快速升级」按钮上次写的签名（文案 + disabled + title），没变就不动 DOM
@@ -1396,13 +1734,36 @@ function syncQuickUpgrade() {
   btn.title = title;
 }
 
-/** 塔按钮三态：选中 / 买不起 / 普通 */
+let tBtnSig = '';   // 塔栏「解锁 / 是否出现」这部分上次写的签名（只跟模式 + 波次有关）
+
+/**
+ * 塔按钮三态：选中 / 买不起 / 未解锁。特殊塔多两件事：解锁波次没到 → 灰显 + 副标题「第 N 波」；
+ * 闯关模式整颗按钮不出现（特殊塔与技能栏都只属于无尽模式）。解锁只随 (模式, 波次) 变，单列签名。
+ */
 function syncTowerButtons() {
   if (!ui.towerBtns) return;
+  const lockSig = state.mode + '#' + state.wave;
+  const relock = lockSig !== tBtnSig;
+  if (relock) tBtnSig = lockSig;
   for (let i = 0; i < ui.towerBtns.length; i++) {
     const btn = ui.towerBtns[i];
-    btn.classList.toggle('is-selected', state.selectedType === btn.dataset.tower);
-    btn.classList.toggle('is-poor', state.gold < TOWER_TYPES[btn.dataset.tower].cost[0]);
+    const type = btn.dataset.tower;
+    const def = ALL_TOWER_TYPES[type];
+    if (!def) continue;
+    const special = isSpecialTower(type);
+    const inLevel = state.mode !== 'endless';
+    const locked = special && (inLevel || state.wave < towerUnlockWave(type));
+    if (relock) {
+      btn.hidden = special && inLevel;                       // 闯关模式：特殊塔不出现在塔栏
+      btn.classList.toggle('is-locked', locked && !inLevel);
+      btn.title = locked && !inLevel
+        ? def.name + '：第 ' + towerUnlockWave(type) + ' 波解锁（' + def.desc + '）'
+        : (btn.dataset.baseTitle || def.name);
+      const lockEl = btn.querySelector('.td-tlock');
+      if (lockEl) lockEl.textContent = locked && !inLevel ? '第 ' + towerUnlockWave(type) + ' 波' : '';
+    }
+    btn.classList.toggle('is-selected', state.selectedType === type);
+    btn.classList.toggle('is-poor', !locked && state.gold < def.cost[0]);
   }
 }
 
@@ -1431,26 +1792,17 @@ function hideOverlay() {
   if (ui.overlay) ui.overlay.classList.remove('show');
 }
 
-/* ---------- 塔数值表（每个数字都现读 TOWER_TYPES，绝不手抄第二份） ---------- */
+/* ---------- 塔数值表（每个数字都现读塔表，绝不手抄第二份） ---------- */
 /**
- * 4 种塔 × 3 级一张表：造价（建到该级的累计投入）/ 伤害 / 攻速（次每秒）/ 射程 / 特效，全部
- * 现读 TOWER_TYPES[key][i]；光环塔没有 dmg / rate 字段，伤害与攻速显示「—」，加成写在特效列。
+ * 塔数值表的行 HTML（纯函数：只读 ALL_TOWER_TYPES，不碰 DOM）：4 基础塔 + 3 特殊塔 × 3 级。
+ * 光环塔无 dmg / rate、毒塔 dmg 恒为 0，都显示「—」（毒塔输出写在特效列的「无视护甲 毒 X/s」）。
+ * 拆出来是为了让自检能断言「并进特殊塔后这张表里没有 NaN / undefined」。
  */
-function buildTowerStats() {
-  // 不静默 return：容器取不到说明 DOM 与 JS 的 id 对不上了，留一条 warn 便于一眼定位，
-  // 而不是像以前那样「什么也没有、也没有报错」。
-  const box = ui.towerStatsBody;
-  if (!box) { console.warn('[tower-defense] 塔数值表容器缺失 #tdTowerStatsBody'); return; }
-  // 防御：塔数据为空时宁可不生成，也不要留一张只有表头的假表
-  if (!TOWER_TYPES || Object.keys(TOWER_TYPES).length === 0) {
-    console.warn('[tower-defense] TOWER_TYPES 为空，跳过塔数值表生成');
-    box.innerHTML = '';
-    return;
-  }
+function towerStatRows() {
   const head = ['塔', '等级', '造价', '伤害', '攻速', '射程', '特效'];
   let rows = '';
-  for (const key in TOWER_TYPES) {
-    const d = TOWER_TYPES[key];
+  for (const key in ALL_TOWER_TYPES) {
+    const d = ALL_TOWER_TYPES[key];
     for (let lv = 1; lv <= 3; lv++) {
       const i = lv - 1, spent = d.cost.slice(0, lv).reduce((s, c) => s + c, 0);
       const note = '建造 ' + d.cost[0] + (lv > 1 ? ' + 升级 ' + d.cost.slice(1, lv).join(' + ') : '');
@@ -1458,13 +1810,30 @@ function buildTowerStats() {
       if (d.splash) fx = '溅射半径 ' + d.splash[i];
       else if (d.slow) fx = '减速 ' + Math.round(d.slow[i] * 100) + '% · ' + (d.slowMs[i] / 1000).toFixed(1) + 's';
       else if (d.auraRate) fx = '攻速 +' + Math.round(d.auraRate[i] * 100) + '% · 伤害 +' + Math.round(d.auraDmg[i] * 100) + '%';
+      else if (d.chain) fx = '链式：额外跳 ' + d.chain.count + ' 个，每跳 -' + Math.round(d.chain.falloff * 100) + '%';
+      else if (d.poison) fx = '无视护甲 毒 ' + d.poison.dps[i] + '/s · ' + (d.poison.durationMs / 1000) + 's';
+      else if (d.push) fx = '推回 ' + d.push.tiles[i] + ' 格' + (d.push.bossHalf ? '（BOSS 减半）' : '');
+      const dmgCell = d.poison ? '—' : (d.dmg ? d.dmg[i] : '—');
       rows += '<tr>' + (lv === 1 ? '<td rowspan="3" style="color:' + d.color + '">' + d.name + '</td>' : '')
-        + '<td>Lv.' + lv + '</td><td title="' + note + '">' + spent + '</td><td>' + (d.dmg ? d.dmg[i] : '—') + '</td>'
+        + '<td>Lv.' + lv + '</td><td title="' + note + '">' + spent + '</td><td>' + dmgCell + '</td>'
         + '<td>' + (d.rate ? d.rate[i].toFixed(1) + '/s' : '—') + '</td><td>' + d.range[i] + '</td><td>' + fx + '</td></tr>';
     }
   }
-  box.innerHTML = '<table><thead><tr><th>' + head.join('</th><th>') + '</th></tr></thead><tbody>'
-    + rows + '</tbody></table>';
+  return '<table><thead><tr><th>' + head.join('</th><th>') + '</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function buildTowerStats() {
+  // 不静默 return：容器取不到说明 DOM 与 JS 的 id 对不上了，留一条 warn 便于一眼定位，
+  // 而不是像以前那样「什么也没有、也没有报错」。
+  const box = ui.towerStatsBody;
+  if (!box) { console.warn('[tower-defense] 塔数值表容器缺失 #tdTowerStatsBody'); return; }
+  // 防御：塔数据为空时宁可不生成，也不要留一张只有表头的假表
+  if (!ALL_TOWER_TYPES || Object.keys(ALL_TOWER_TYPES).length === 0) {
+    console.warn('[tower-defense] 塔表为空，跳过塔数值表生成');
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = towerStatRows();
 }
 
 /* ---------- 存档导出 / 导入 ---------- */
@@ -1615,6 +1984,8 @@ function syncView() {
   const menu = state.mode === 'level' && !state.inRun;
   const show = (el, on) => { if (el) el.hidden = !on; };
   show(ui.hud, playing); show(ui.stage, playing); show(ui.bar, playing); show(ui.hint, playing);
+  // 技能栏只在无尽模式：闯关模式没有「主动技能」这条玩法（解锁波次也是按无尽曲线定的）
+  show(ui.skills, playing && state.mode === 'endless');
   show(ui.tInfo, playing);   // 场上塔清单只在对局中显示；回关卡列表 / 切模式一起收起
   show(ui.levels, menu);
   if (ui.btnBack) ui.btnBack.hidden = state.mode !== 'level';
@@ -1626,6 +1997,8 @@ function syncView() {
       : '无尽模式';
   }
   if (menu) buildLevelGrid();
+  syncSkillButtons();   // 模式一变，技能栏整排的解锁文案就变（签名比较，没变不写）
+  syncTowerButtons();   // 同上：闯关模式要摘掉特殊塔
   if (playing) setupCanvas();   // 从 hidden 恢复时元素才有宽度，必须重算 backing store
 }
 
@@ -1749,7 +2122,7 @@ function resumeEndlessRun() {
   state.nextWaveIn = 1500;
   let skipped = 0;
   for (const t of run.towers) {
-    const def = TOWER_TYPES[t.type];
+    const def = ALL_TOWER_TYPES[t.type];
     if (!def || !isBuildable(state, t.col, t.row) || towerAt(state, t.col, t.row)) { skipped += 1; continue; }
     state.towers.push({
       type: t.type, lv: t.lvl, col: t.col, row: t.row, x: (t.col + 0.5) * GRID.tile, y: (t.row + 0.5) * GRID.tile,
@@ -1775,11 +2148,28 @@ function bindEvents() {
   ui.towerBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const type = btn.dataset.tower;
-      if (state.gold < TOWER_TYPES[type].cost[0]) return;   // 买不起：不选中
+      const def = ALL_TOWER_TYPES[type];
+      if (!def) return;
+      // 未解锁的特殊塔（含闯关模式下根本不该出现的那种）直接不理，disabled 之外再兜一层
+      if (isSpecialTower(type) && (state.mode !== 'endless' || state.wave < towerUnlockWave(type))) return;
+      if (state.gold < def.cost[0]) return;   // 买不起：不选中
       state.selectedType = state.selectedType === type ? null : type;
       clearTowerSelect();
       syncTowerButtons();
     });
+  });
+
+  // 技能栏：**唯一**一个 click 监听器（挂在容器上做事件委托，按钮由 buildSkillBar 现生成）
+  if (ui.skills) ui.skills.addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest ? ev.target.closest('.td-skill-btn') : null;
+    if (!btn || btn.disabled) return;   // 未解锁 / 冷却中 / 金币不足：disabled 已经拦了，这里再兜一层
+    castSkill(btn.dataset.skill);
+  });
+  // 右键取消陨石选点：只在选点态下拦浏览器菜单，平时不动画布的默认行为
+  ui.canvas.addEventListener('contextmenu', (ev) => {
+    if (!state.casting) return;
+    ev.preventDefault();
+    cancelCasting();
   });
 
   // 场上塔清单（排在塔栏下方，可折叠）：summary 上的数量由 renderTowerList 实时更新；
@@ -1861,11 +2251,11 @@ function bindEvents() {
     startLevel(Number(btn.dataset.level));
   });
 
-  // 键盘：空格暂停、1~4 选塔、Esc 收面板（桌面调试友好）
+  // 键盘：空格暂停、1~4 选基础塔（5~7 是特殊塔，未解锁时点不动）、Esc 先收陨石选点再收面板
   document.addEventListener('keydown', (ev) => {
     if (ev.key === ' ') { ev.preventDefault(); togglePause(); }
-    else if (ev.key === 'Escape') clearTowerSelect();
-    else if (ev.key >= '1' && ev.key <= '4') { const b = ui.towerBtns[Number(ev.key) - 1]; if (b) b.click(); }
+    else if (ev.key === 'Escape') { cancelCasting(); clearTowerSelect(); }
+    else if (ev.key >= '1' && ev.key <= '7') { const b = ui.towerBtns[Number(ev.key) - 1]; if (b && !b.hidden) b.click(); }
   });
 
   // 页面隐藏 → 停止累积；回到前台 → 重排时间基准，避免一次补出几十步
@@ -1913,7 +2303,13 @@ function boot() {
   ui.levels = byId('tdLevels'); ui.levelGrid = byId('tdLevelGrid'); ui.levelsProg = byId('tdLevelsProg');
   ui.btnModeEndless = byId('tdModeEndless'); ui.btnModeLevel = byId('tdModeLevel');
   ui.modeBadge = byId('tdMode');
+  // 特殊塔按钮 / 技能按钮都是「按数据现生成」——放在取 ui.towerBtns 之前，顺序不能换
+  ui.towers = byId('tdTowers');
+  ui.skills = byId('tdSkills');
+  buildSpecialTowerBar();
+  buildSkillBar();
   ui.towerBtns = Array.prototype.slice.call(document.querySelectorAll('.td-tower-btn'));
+  for (const b of ui.towerBtns) if (!b.dataset.baseTitle) b.dataset.baseTitle = b.title;   // 解锁后要还原作者写的 title
   // 塔数值表容器 + 存档面板 + 无尽「继续上次」条
   ui.towerStats = byId('tdTowerStats');
   ui.towerStatsBody = byId('tdTowerStatsBody'); ui.resumeBar = byId('tdResumeBar');
@@ -1952,6 +2348,9 @@ function boot() {
     startLevel, backToList, setMode,
     addGold: (n) => { state.gold += n; },
     skipWait: () => { state.nextWaveIn = 0; },
+    cast: castSkill,   // 技能调试：cast('meteor') 进选点态、cast('purge') 直接清场
+    skills: () => SKILLS.map((s) => ({ id: s.id, readyAt: skillReadyAt(s.id), state: skillState(s.id).reason || 'ok' })),
+    skillTimers: () => ({ timeMs: state.timeMs, stopUntil: state.stopUntil, overloadUntil: state.overloadUntil, fatigueUntil: state.fatigueUntil }),
     restart,
   };
   requestAnimationFrame(frame);

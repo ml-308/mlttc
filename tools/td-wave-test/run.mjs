@@ -33,9 +33,31 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const srcPath = path.join(root, 'src', 'pages', 'tower-defense.js');
-const source = readFileSync(srcPath, 'utf8');
+const source = readFileSync(srcPath, 'utf8');   // 原文留着给第 3 节的正则扫描用（扫的是真实源码）
 
-const mod = await import('data:text/javascript;base64,' + Buffer.from(source, 'utf8').toString('base64'));
+/**
+ * data: URL 里的模块没有「基准目录」，相对说明符（'./td-skills.js'）在那里解析不了。
+ * 这里把每一层相对 import 递归改写成**同一招**（读源码 → data: URL），所以主文件里那两条
+ * `import ... from './td-skills.js'` 会被换成那两份源码的 data: URL：
+ *   · 为什么不用 pathToFileURL 直接指向 src/pages/*.js —— 仓库根 package.json 是
+ *     "type": "commonjs"，Node 会按 CJS 解析那两个 .js，具名导出（SKILLS / SPECIAL_TOWER_TYPES…）
+ *     一个都拿不到，报 "Named export not found"。data: URL 恒按 ESM 执行，正好绕开这件事。
+ *   · 仍然是同一份真实源码：不复制、不改写磁盘上的文件、不写临时文件。
+ * 递归只在模块间有相对 import 时才继续下沉；这里两个模块自身零 import，所以实际只有两层。
+ * 注意这条注释里的写法带有单引号，正则只认 `from '…'` 开头，注释本身不会被改写。
+ */
+const REL_IMPORT = /from\s+(['"])(\.{1,2}\/[^'"]+)\1/g;
+function toModuleUrl(file) {
+  const code = readFileSync(file, 'utf8').replace(REL_IMPORT, (_m, q, spec) =>
+    `from ${q}${toModuleUrl(path.resolve(path.dirname(file), spec))}${q}`);
+  return 'data:text/javascript;base64,' + Buffer.from(code, 'utf8').toString('base64');
+}
+const mainUrl = toModuleUrl(srcPath);
+const leftOver = Buffer.from(mainUrl.slice(mainUrl.indexOf(',') + 1), 'base64').toString('utf8')
+  .match(/from\s+['"]\./g);
+if (leftOver) throw new Error('仍有相对 import 没有改写：' + leftOver.join(' '));
+
+const mod = await import(mainUrl);
 
 const { generateEndlessWave, generateLevel, buildLevelWave, LEVEL_MAX, BALANCE, MAP_TEMPLATES, TOWER_TYPES } = mod;
 const SEED = 'mlttc-td-demo';
@@ -542,6 +564,61 @@ section('12. 导入合并 mergeProgress（导入的无尽进度必须胜出）')
     const keep = mergeProgress(cur, { unlocked: 1, levelBest: {}, endlessBest: 0, endlessRun: null });
     assert('导入里没有无尽进度时，不覆盖本地的', keep.endlessRun && keep.endlessRun.wave === 1,
         '得到 ' + JSON.stringify(keep.endlessRun));
+}
+
+// ─── 13. 特殊塔并入塔表（建造 / 升级 / 清单 / 数值表都遍历同一份表） ───
+
+section('13. 特殊塔并入 ALL_TOWER_TYPES 后：清单与数值表仍正常');
+{
+    const { ALL_TOWER_TYPES, towerStatRows, describeTowers } = mod;
+    const SPECIAL = ['tesla', 'poison', 'force'];
+    const three = (v) => Array.isArray(v) && v.length === 3;
+
+    assert('TOWER_TYPES 仍只含 4 种基础塔（并入总表没有污染它）',
+        Object.keys(TOWER_TYPES).length === 4, Object.keys(TOWER_TYPES).join(','));
+    assert('ALL_TOWER_TYPES = 4 基础塔 + 3 特殊塔，顺序为 4 + tesla/poison/force',
+        Object.keys(ALL_TOWER_TYPES).length === 7
+        && SPECIAL.every((k) => !!ALL_TOWER_TYPES[k])
+        && Object.keys(ALL_TOWER_TYPES).slice(4).join(',') === SPECIAL.join(','),
+        Object.keys(ALL_TOWER_TYPES).join(','));
+
+    const badShape = SPECIAL.filter((k) => {
+        const d = ALL_TOWER_TYPES[k];
+        return !(three(d.cost) && three(d.dmg) && three(d.rate) && three(d.range) && !!d.name && !!d.color);
+    });
+    assert('3 种特殊塔的 cost / dmg / rate / range 三档齐全（清单按 lv-1 取下标不越界）',
+        badShape.length === 0, badShape.join(' '));
+
+    // 场上塔清单：特殊塔走的是同一个 describeTowers，等级 / 射程 / 升级价 / 返还额都必须对
+    const lv2 = ALL_TOWER_TYPES.tesla, lv3 = ALL_TOWER_TYPES.poison;
+    const rows = describeTowers([
+        { type: 'tesla', lv: 2, col: 1, row: 2, x: 0, y: 0, cd: 0, spend: 900, dmgBuff: 0.15, rateBuff: 0.35 },
+        { type: 'poison', lv: 3, col: 3, row: 4, x: 0, y: 0, cd: 0, spend: 1960, dmgBuff: 0, rateBuff: 0 },
+    ], { gold: 1000, sellRatio: BALANCE.sellRatio });
+    const wantTeslaDmg = Math.round(lv2.dmg[1] * 1.15 * 100) / 100;
+    assert('describeTowers 收录特殊塔：name/range/升级价/返还额/伤害(含光环) 全部正确',
+        rows.length === 2
+        && rows[0].type === 'tesla' && rows[0].name === lv2.name && rows[0].range === lv2.range[1]
+        && rows[0].upgradeCost === lv2.cost[2] && rows[0].sellRefund === Math.floor(900 * BALANCE.sellRatio)
+        && Math.abs(rows[0].dmg - wantTeslaDmg) <= 0.01
+        && rows[1].type === 'poison' && rows[1].maxed === true && rows[1].upgradeCost === 0
+        && rows[1].sellRefund === Math.floor(1960 * BALANCE.sellRatio),
+        JSON.stringify(rows.map((r) => [r.type, r.name, r.lv, r.range, r.dmg, r.upgradeCost, r.sellRefund, r.maxed])));
+
+    // 塔数值表：7 种塔 × 3 级 = 21 行 + 表头；不准出现 undefined / NaN（特殊塔缺字段就会露出来）
+    const html = towerStatRows();
+    const trs = (html.match(/<tr>/g) || []).length;
+    const names = SPECIAL.filter((k) => html.indexOf(ALL_TOWER_TYPES[k].name) < 0);
+    assert('towerStatRows：7 种塔 × 3 级 = 21 行 + 1 行表头，三座特殊塔都在表里',
+        trs === 22 && names.length === 0, `tr=${trs} 缺=${names.join(',')}`);
+    assert('towerStatRows 里没有 undefined / NaN（特殊塔也读得到 dmg/rate/range/特效）',
+        !/undefined|NaN/.test(html),
+        (html.match(/.{0,30}(?:undefined|NaN).{0,30}/) || [''])[0]);
+    console.log('  特殊塔数值表行（截取）：');
+    for (const k of SPECIAL) {
+        const row = html.split('<tr>').find((r) => r.indexOf(ALL_TOWER_TYPES[k].name) >= 0);
+        console.log('    ' + String(row || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    }
 }
 
 // ─── 汇总 ────────────────────────────────────────────────────
