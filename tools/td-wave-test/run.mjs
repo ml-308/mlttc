@@ -497,10 +497,17 @@ section('11. 「快速升级」目标 nextUpgradeTarget（纯函数，不碰 DOM
     // 11.2 三座塔（Lv.1 / Lv.2 / Lv.1）→ 取数组第一个（index 0），不是等级最低、也不是建造最晚的
     const three = [tower('arrow', 1, 1, 1, 60), tower('cannon', 2, 2, 2, 310), tower('frost', 1, 3, 3, 90)];
     const first = nextUpgradeTarget(three, 1000);
-    assert('3 座塔（Lv.1/Lv.2/Lv.1）→ index 0（按建造顺序的第一个未满级，不是最便宜/等级最低）',
+    assert('3 座塔（Lv.1/Lv.2/Lv.1）→ index 0（等级最低者里取先建的；平手才算建造顺序）',
         first && first.index === 0 && first.tower === three[0] && first.type === 'arrow'
         && first.lv === 1 && first.nextLv === 2,
         first ? `index=${first.index} type=${first.type} lv=${first.lv}` : 'null');
+
+    // 11.2b 不能只盯着"等级最高/先建"的那座：Lv.4 与 Lv.1 并存时，应升 Lv.1 的那座
+    const mixed = [tower('arrow', 4, 1, 1, 697), tower('frost', 1, 2, 2, 90)];
+    const spread = nextUpgradeTarget(mixed, 999999, true);   // true = 高等级已解锁
+    assert('Lv.4 与 Lv.1 并存 → 选 Lv.1 那座（不再只往同一座塔砸钱）',
+        spread && spread.index === 1 && spread.lv === 1 && spread.type === 'frost',
+        spread ? `index=${spread.index} lv=${spread.lv} type=${spread.type}` : 'null');
 
     // 11.3 第一座满级 → 跳过它，取第二座
     const skip = [tower('arrow', 3, 1, 1, 400), tower('frost', 1, 2, 2, 90)];

@@ -995,17 +995,25 @@ function nextUpgradeTarget(towers, gold, highUnlocked) {
   const list = Array.isArray(towers) ? towers : [];
   const g = Number.isFinite(gold) ? gold : 0;
   const unlocked = !!highUnlocked;
+  let best = null;
+  let bestLv = Infinity;
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
     const def = t ? ALL_TOWER_TYPES[t.type] : null;
     const lv = def ? Math.floor(Number(t.lv) || 0) : 0;
-    if (lv < 1 || lv >= MAX_TOWER_LEVEL) continue;   // 满级 / 等级异常：跳过，继续找下一座
+    if (lv < 1 || lv >= MAX_TOWER_LEVEL) continue;   // 满级 / 等级异常：跳过
     if (lv >= 3 && !unlocked) continue;               // Lv.4+ 未解锁：Lv.3 也算到顶
     const cost = towerStat(t.type, lv).upgradeCost;
     if (!(cost > 0)) continue;
-    return { index: i, tower: t, type: t.type, name: def.name, lv, nextLv: lv + 1, cost, canAfford: g >= cost };
+    // 优先升「等级最低」的那座，同级取先建的（严格小于 → 平手时保留更早的下标）。
+    // 原来只取「第一个未满级」，结果快速升级一直往同一座塔砸钱：它涨到 Lv.4、5、6…
+    // 而其余塔还停在 1 级 —— 按钮等于「只给一座塔升级」，与用户预期不符。
+    if (lv < bestLv) {
+      bestLv = lv;
+      best = { index: i, tower: t, type: t.type, name: def.name, lv, nextLv: lv + 1, cost, canAfford: g >= cost };
+    }
   }
-  return null;
+  return best;
 }
 
 /** 索敌：射程内沿路径进度最大（最靠近终点、最危险）的敌人 */
