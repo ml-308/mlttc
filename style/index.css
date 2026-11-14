@@ -145,6 +145,18 @@ hcw-hero h1 {
     margin-top: .5rem;
 }
 
+/* 功能卡分两行：前两张是时刻表相关功能（时刻表查询 / 我的时刻表），其余入口另起一行。
+ * 做法是让第三张卡（data-idx="3"）强制从第 1 列开始 —— 网格自动布局就会把它推到下一行，
+ * 后面那张跟着排在它右边。
+ *
+ * 为什么不加一层 <div class="feature-group"> 包装：本文件里大量规则用的是
+ * `.feature-grid > hcw-card` 这类**直接子代**选择器（入场动画、错峰延迟、hover/active
+ * 全依赖它），多一层 wrapper 会让这些选择器全部失配，动画和悬停反馈静默消失。
+ */
+.feature-grid > :is(hcw-card, [hcw-card])[data-idx="3"] {
+    grid-column-start: 1;
+}
+
 .feature-grid hcw-card,
 .feature-grid [hcw-card] {
     /* 最小高度改由组件钩子控制：main.css 的 hcw-card 读 var(--hcw-card-min-height)，默认 auto */

@@ -70,6 +70,7 @@
 
         <!-- 核心功能卡片墙 -->
         <section class="feature-grid" id="buttonGridContainer">
+            <!-- 第一行：时刻表相关功能（查询 / 我的时刻表） -->
             <hcw-card data-action="timetable" data-idx="1">
                 <h3 hcw-card-title>时刻表查询</h3>
                 <p>按城市、线路、起点终点检索已收录的公交与班车时刻</p>
@@ -80,6 +81,9 @@
                 <p>登录后查看、修改、删除自己提交的时刻表</p>
                 <hcw-button primary href="my-timetable.html">立即使用</hcw-button>
             </hcw-card>
+            <!-- 第二行：非时刻表功能的入口（游戏与工具 / 关于我们）。换行由 CSS 的 data-idx="3" 规则触发，
+                 这里不加包装元素 —— style/index.css 里有大量 `.feature-grid > hcw-card` 直接子代选择器，
+                 加一层 wrapper 会让入场动画与 hover 全部失效。 -->
             <hcw-card data-action="tools" data-idx="3">
                 <h3 hcw-card-title>游戏与工具</h3>
                 <p>贪吃蛇、走迷宫两个小游戏，以及文本、随机、时间、计算等实用工具</p>
