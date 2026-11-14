@@ -103,7 +103,9 @@ function makeEventTarget(extra = {}) {
 // ─── 加载被测模块 ───────────────────────────────────────────
 
 const REQUIRED_EXPORTS = ['DRAFT_PREFIX', 'UNATTENDED_KEY', 'draftKey', 'serializeDraft', 'parseDraft',
-    'isUnattended', 'setUnattended', 'saveDraft', 'loadDraft', 'clearDraft', 'bindAutoSave'];
+    'isUnattended', 'setUnattended', 'saveDraft', 'loadDraft', 'clearDraft', 'bindAutoSave',
+    'SNAPSHOT_KEY_PREFIX', 'MAX_SNAPSHOTS', 'SNAPSHOT_MAX_CHARS',
+    'listSnapshots', 'saveSnapshot', 'deleteSnapshot', 'getSnapshot'];
 
 if (!existsSync(TARGET)) {
     console.log('[等待模块] src/pages/timetable-draft.js 不存在');
@@ -122,7 +124,7 @@ try {
 }
 
 const lacking = REQUIRED_EXPORTS.filter((n) => mod[n] === undefined);
-deepEq('导出清单完整（11 个必需导出）', lacking, []);
+deepEq('导出清单完整（18 个必需导出）', lacking, []);
 if (lacking.length > 0) {
     console.log(`\nFAIL 导出缺失：${lacking.join(', ')}`);
     process.exit(1);
@@ -132,6 +134,8 @@ const {
     DRAFT_PREFIX, UNATTENDED_KEY, draftKey, serializeDraft, parseDraft,
     isUnattended, setUnattended, saveDraft, loadDraft, clearDraft, bindAutoSave,
     describeDraftAge, formatClock, isSensitiveField,
+    SNAPSHOT_KEY_PREFIX, MAX_SNAPSHOTS, SNAPSHOT_MAX_CHARS,
+    listSnapshots, saveSnapshot, deleteSnapshot, getSnapshot,
 } = mod;
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -229,6 +233,14 @@ eq('bindAutoSave 在无 DOM 环境也能构造，flush 返回 false 且不抛异
     eq('  flush() = false', h.flush(), false);
     h.dispose();
 }), 'ok');
+eq('listSnapshots 在无 localStorage 时返回 []（不抛异常）',
+    noThrow(() => deepEq('  listSnapshots() = []', listSnapshots('create'), [])), 'ok');
+eq('saveSnapshot 在无 localStorage 时返回 null（不抛异常）',
+    noThrow(() => eq('  saveSnapshot() = null', saveSnapshot('create', undefined, 'x', { city: 'x' }), null)), 'ok');
+eq('getSnapshot / deleteSnapshot 在无 localStorage 时降级为 null / false（不抛异常）', noThrow(() => {
+    eq('  getSnapshot() = null', getSnapshot('create', undefined, 's1'), null);
+    eq('  deleteSnapshot() = false', deleteSnapshot('create', undefined, 's1'), false);
+}), 'ok');
 
 // ═══ 第 3 段：注入假 window / document / localStorage ═══════
 
@@ -260,7 +272,7 @@ storage.setItem('mlttc-tdraft:create', '{坏数据');
 eq('坏数据读出来是 null', loadDraft('create', undefined), null);
 eq('坏数据条目也被删除', storage.map.has('mlttc-tdraft:create'), false);
 
-section('11. 无人值守开关：持久化 / 关闭 / 键名');
+section('11. 自动保存开关：持久化 / 关闭 / 键名');
 eq('默认关闭', isUnattended(), false);
 eq('setUnattended(true) 返回 true', setUnattended(true), true);
 eq('开启后 isUnattended = true', isUnattended(), true);
@@ -323,6 +335,82 @@ fakeWindow.dispatch('pagehide');
 target.dispatch('input');
 await sleep(40);
 eq('pagehide / input 之后仍没有草稿（没被写回来）', loadDraft('edit', 7), null);
+
+// ═══ 第 4 段：多快照（用户手动保存的存档） ═══════════════════
+
+section('14. 快照：键名 / 保存 / 读回 / 倒序 / 淘汰 / 删除 / 取回');
+const SNAP_KEY = 'mlttc-tdraft:snaps:create';
+eq("SNAPSHOT_KEY_PREFIX = 'mlttc-tdraft:snaps:'", SNAPSHOT_KEY_PREFIX, 'mlttc-tdraft:snaps:');
+eq('MAX_SNAPSHOTS = 10', MAX_SNAPSHOTS, 10);
+eq('SNAPSHOT_MAX_CHARS = 8192', SNAPSHOT_MAX_CHARS, 8192);
+
+// 快照的 savedAt 取 Date.now()，注入时钟才能断言顺序与「淘汰最旧」
+const realNow = Date.now;
+let clock = 1_700_000_000_000;
+Date.now = () => clock;
+
+const s1 = saveSnapshot('create', undefined, '广州→中山路', { city: '广州市', way: '中山路', time1: '06:00' });
+ok('saveSnapshot 返回 s 开头的 snapId', typeof s1 === 'string' && s1[0] === 's' && s1.length > 5, show(s1));
+ok('快照写在 mlttc-tdraft:snaps:create（不与单草稿键混）',
+    storage.map.has(SNAP_KEY) && !storage.map.has('mlttc-tdraft:create'), show([...storage.map.keys()]));
+const snap1 = listSnapshots('create');
+eq('listSnapshots 读回 1 条', snap1.length, 1);
+eq('label 原样保存', snap1[0].label, '广州→中山路');
+eq('savedAt 即注入的时钟', snap1[0].savedAt, clock);
+deepEq('fields 原样读回', snap1[0].fields, { city: '广州市', way: '中山路', time1: '06:00' });
+const got = getSnapshot('create', undefined, s1);
+ok('getSnapshot 取回同一份', got && got.savedAt === clock && got.fields.way === '中山路', show(got));
+eq('getSnapshot 拿不到时返回 null', getSnapshot('create', undefined, 's-not-exist'), null);
+
+clock += 60_000;
+saveSnapshot('create', undefined, '佛山→XX路', { way: 'XX路' });
+clock += 60_000;
+saveSnapshot('create', undefined, '珠海→YY路', { way: 'YY路' });
+deepEq('多条按 savedAt 倒序（新的在前）', listSnapshots('create').map((x) => x.label),
+    ['珠海→YY路', '佛山→XX路', '广州→中山路']);
+
+// 造 12 条，逼出淘汰：只剩最新的 10 条，「批量 0 / 1」被挤掉
+const snapBase = clock;
+for (let i = 0; i < 12; i += 1) {
+    clock = snapBase + (i + 1) * 1000;
+    saveSnapshot('create', undefined, `批量 ${i}`, { way: `W${i}` });
+}
+const keptList = listSnapshots('create');
+eq('超过 MAX_SNAPSHOTS 时只剩 10 条', keptList.length, MAX_SNAPSHOTS);
+eq('最旧的两条（批量 0 / 1）已被淘汰',
+    keptList.filter((x) => x.label === '批量 0' || x.label === '批量 1').length, 0);
+eq('排头是最新保存的「批量 11」', keptList[0].label, '批量 11');
+
+const countBefore = keptList.length;
+const victim = keptList[3].snapId;
+eq('deleteSnapshot 删掉指定条 → true', deleteSnapshot('create', undefined, victim), true);
+eq('删除后少一条', listSnapshots('create').length, countBefore - 1);
+eq('删掉的正是那一条，其余不动', listSnapshots('create').filter((x) => x.snapId === victim).length, 0);
+eq('删不存在的 snapId → false（本实现的选择）', deleteSnapshot('create', undefined, 's-none'), false);
+
+const secretSnap = saveSnapshot('create', undefined, '带密钥的', { city: '无锡', password: 'p@ss-1', authToken: 'tk-9f', time1: '06:00' });
+const rawAll = storage.getItem(SNAP_KEY);
+ok('敏感值 / 敏感键名都没落进快照存储',
+    !rawAll.includes('p@ss-1') && !rawAll.includes('tk-9f') && !rawAll.includes('authToken'),
+    '敏感内容被写进了存储');
+deepEq('快照里只剩非敏感字段', getSnapshot('create', undefined, secretSnap).fields, { city: '无锡', time1: '06:00' });
+
+eq('fields 序列化超过 8KB → 拒绝保存（返回 null）',
+    saveSnapshot('create', undefined, '超大', { time1: 'x'.repeat(SNAPSHOT_MAX_CHARS) }), null);
+eq('被拒的超大快照没有进列表', listSnapshots('create').filter((x) => x.label === '超大').length, 0);
+
+storage.setItem(SNAP_KEY, '{坏 JSON');
+eq('坏 JSON → listSnapshots 返回 [] 且不抛', noThrow(() => deepEq('  listSnapshots() = []', listSnapshots('create'), [])), 'ok');
+storage.setItem(SNAP_KEY, '{"not":"array"}');
+deepEq('非数组 → []', listSnapshots('create'), []);
+storage.setItem(SNAP_KEY, JSON.stringify([null, 42, 'x', {},
+    { snapId: 's-ok', savedAt: clock, label: '合法', fields: { way: 'A' } }, { snapId: 's-nofields' }]));
+deepEq('数组里混入 null / 数字 / 残缺项：只留下合法那条', listSnapshots('create').map((x) => x.snapId), ['s-ok']);
+storage.setItem(SNAP_KEY, JSON.stringify([{ snapId: 's-old', savedAt: clock - 8 * DAY, label: '过期', fields: { way: 'A' } }]));
+deepEq('过期（>= 7 天）快照被剔除', listSnapshots('create'), []);
+
+storage.removeItem(SNAP_KEY);
+Date.now = realNow;
 
 eq('formatClock 是两位小时的 HH:MM', /^\d{2}:\d{2}$/.test(formatClock(Date.now())), true);
 

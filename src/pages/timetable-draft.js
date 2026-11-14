@@ -1,6 +1,6 @@
 // src/pages/timetable-draft.js
 /**
- * 时刻表表单草稿：自动保存 / 自动恢复 / 无人值守模式
+ * 时刻表表单草稿：自动保存 / 自动恢复 / 自动保存开关 / 多快照
  *
  * 解决的问题：时刻表（尤其两条时刻表文本域）动辄几百字，一次误关标签页、
  * 一次上传失败重来，用户就得整段重打。这里把「表单内容」当成草稿存进 localStorage，
@@ -13,7 +13,9 @@
  * 键名约定（与站点既有 mlttc- 前缀一致）：
  *   mlttc-tdraft:create          新建页草稿
  *   mlttc-tdraft:edit:<id>       修改页草稿（按时刻表 ID 分开，改 A 表不会串到 B 表）
- *   mlttc-tdraft:unattended      无人值守模式开关（'1' = 开）
+ *   mlttc-tdraft:unattended      自动保存开关（'1' = 开）
+ *   mlttc-tdraft:snaps:create    新建页的快照列表（JSON 数组，见文件末尾「多快照」）
+ *   mlttc-tdraft:snaps:edit:<id> 修改页的快照列表
  *
  * 零依赖：不 import 任何东西（toast 由页面自己弹，模块只返回成败）。
  */
@@ -21,7 +23,7 @@
 /** 所有草稿键的统一前缀 */
 export const DRAFT_PREFIX = 'mlttc-tdraft:';
 
-/** 无人值守模式开关的存储键 */
+/** 自动保存开关的存储键（键名沿用历史的 unattended，改键会丢掉用户既有设置） */
 export const UNATTENDED_KEY = 'mlttc-tdraft:unattended';
 
 /** 草稿有效期：7 天。恰好 7 天按「已过期」处理（见 parseDraft） */
@@ -140,7 +142,7 @@ export function parseDraft(raw, nowMs) {
   return { savedAt, fields: filterFields(fields) };
 }
 
-/** 无人值守模式是否开启；存储不可用 → false（不抛异常） */
+/** 自动保存是否开启；存储不可用 → false（不抛异常） */
 export function isUnattended() {
   const s = getStorage();
   if (!s) return false;
@@ -151,7 +153,7 @@ export function isUnattended() {
   }
 }
 
-/** 写入无人值守模式开关；存储不可用 → false（不抛异常） */
+/** 写入自动保存开关；存储不可用 → false（不抛异常） */
 export function setUnattended(on) {
   const s = getStorage();
   if (!s) return false;
@@ -342,4 +344,105 @@ export function bindAutoSave(form, opts = {}) {
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibilityChange);
     },
   };
+}
+
+// ─── 多快照：用户手动保存的多份时刻表，可挑选还原 ─────────────
+// 与单草稿的分工：单草稿是「上次没提交完的现场」，只有一份、由自动保存随时覆盖；
+// 快照是用户主动按「保存快照」留的存档，可以有多份、互不覆盖，自动保存也不会往里写。
+
+/** 快照键前缀：+ 'create' 或 + 'edit:<id>'，与单草稿键完全分开 */
+export const SNAPSHOT_KEY_PREFIX = 'mlttc-tdraft:snaps:';
+
+/** 每页最多留多少份快照，超出淘汰最旧的一份 */
+export const MAX_SNAPSHOTS = 10;
+
+/** 单份快照 fields 序列化后的长度上限（字符数） */
+export const SNAPSHOT_MAX_CHARS = 8192;
+
+/** 快照键：snapshotKey('create') → 'mlttc-tdraft:snaps:create' */
+function snapshotKey(page, id) {
+  if (String(page == null ? '' : page).trim() !== 'edit') return `${SNAPSHOT_KEY_PREFIX}create`;
+  const sid = (id === undefined || id === null) ? '' : String(id).trim();
+  return sid ? `${SNAPSHOT_KEY_PREFIX}edit:${sid}` : `${SNAPSHOT_KEY_PREFIX}edit`;
+}
+
+/** snapId = 's' + 毫秒时间戳 + 6 位 36 进制随机尾数（只用 Math.random，不加依赖） */
+function newSnapId(nowMs) {
+  return 's' + timeOf(nowMs) + Math.random().toString(36).slice(2, 8);
+}
+
+/**
+ * 读快照数组（内部用）：坏 JSON / 非数组 / 混入 null 或残缺项 / 已过期（>= 7 天）一律剔除；
+ * 读出来的字段再过一遍敏感过滤（存储里的历史数据不可全信）。Node 下无 localStorage → []。
+ */
+function readSnapshots(page, id) {
+  const s = getStorage();
+  if (!s) return [];
+  let raw = null;
+  try { raw = s.getItem(snapshotKey(page, id)); } catch { return []; }
+  if (typeof raw !== 'string' || raw === '') return [];
+  let arr = null;
+  try { arr = JSON.parse(raw); } catch { return []; }
+  if (!Array.isArray(arr)) return [];
+  const nowMs = Date.now();
+  const kept = [];
+  arr.forEach((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+    const snapId = typeof item.snapId === 'string' ? item.snapId : '';
+    const savedAt = Number(item.savedAt);
+    if (!snapId || !Number.isFinite(savedAt) || savedAt <= 0) return;
+    if (nowMs - savedAt >= DRAFT_TTL_MS) return;
+    kept.push({ snapId, savedAt, label: typeof item.label === 'string' ? item.label : '', fields: filterFields(item.fields) });
+  });
+  return kept;
+}
+
+/** 写回整个快照数组；存储不可用 / 配额满 → false（静默，不抛异常） */
+function writeSnapshots(page, id, list) {
+  const s = getStorage();
+  if (!s) return false;
+  try {
+    s.setItem(snapshotKey(page, id), JSON.stringify(list));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 列出快照，按 savedAt 倒序（最新的在最前）；坏数据与过期条目读的时候就被剔除 */
+export function listSnapshots(page, id) {
+  return readSnapshots(page, id).sort((a, b) => b.savedAt - a.savedAt);
+}
+
+/**
+ * 保存一份快照
+ * @returns {string|null} 新快照的 snapId；存储不可用 / 序列化超 8KB / 写失败 → null（不抛异常）
+ */
+export function saveSnapshot(page, id, label, fields) {
+  const clean = filterFields(fields);   // 敏感字段在这一步就被拿掉
+  if (JSON.stringify(clean).length > SNAPSHOT_MAX_CHARS) return null;   // 防爆：超上限直接拒绝
+  const nowMs = Date.now();
+  const text = typeof label === 'string' ? label.trim() : '';
+  const record = { snapId: newSnapId(nowMs), label: text ? text.slice(0, 40) : '快照', savedAt: nowMs, fields: clean };
+  const list = readSnapshots(page, id);
+  list.unshift(record);
+  // 超出上限：按 savedAt 从新到旧排好再截断，被截掉的就是最旧的那些
+  const kept = list.sort((a, b) => b.savedAt - a.savedAt).slice(0, MAX_SNAPSHOTS);
+  return writeSnapshots(page, id, kept) ? record.snapId : null;
+}
+
+/** 删除指定快照；它本来就不存在 → false（其余条目原样保留） */
+export function deleteSnapshot(page, id, snapId) {
+  const target = String(snapId == null ? '' : snapId);
+  const list = readSnapshots(page, id);
+  const kept = list.filter((item) => item.snapId !== target);
+  if (kept.length === list.length) return false;
+  return writeSnapshots(page, id, kept);
+}
+
+/** 取一份快照 → { savedAt, fields }；没有 / 过期 / 存储不可用 → null */
+export function getSnapshot(page, id, snapId) {
+  const target = String(snapId == null ? '' : snapId);
+  const hit = readSnapshots(page, id).filter((item) => item.snapId === target)[0];
+  return hit ? { savedAt: hit.savedAt, fields: hit.fields } : null;
 }

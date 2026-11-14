@@ -12,8 +12,9 @@ import { showPrompt, showConfirm } from '/lib/ui/popup.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
 import {
-  bindAutoSave, loadDraft, saveDraft, clearDraft,
-  isUnattended, setUnattended, describeDraftAge, formatClock
+  bindAutoSave, loadDraft, clearDraft,
+  isUnattended, setUnattended, describeDraftAge, formatClock,
+  listSnapshots, saveSnapshot, deleteSnapshot, getSnapshot
 } from '/src/pages/timetable-draft.js';
 import { attachCityPicker } from '/lib/data/city-picker.mjs';
 import { checkCityInput, describeCityInput, normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
@@ -54,10 +55,14 @@ const time2Div = document.getElementById('time2b');
 const time1c = document.getElementById('cl1');
 const time2c = document.getElementById('cl2');
 
-// 草稿 UI（见 timetable-result.html 的 .draft-bar）
+// 草稿 UI（见 timetable-result.html 的 .draft-bar / .snap-panel）
 const draftSaveBtn = document.getElementById('draft-save-btn');
+const draftRestoreBtn = document.getElementById('draft-restore-btn');
 const draftStatusEl = document.getElementById('draft-status');
-const unattendedToggle = document.getElementById('draft-unattended');
+const autoSaveToggle = document.getElementById('draft-autosave');
+const snapPanelEl = document.getElementById('snap-panel');
+const snapTitleEl = document.getElementById('snap-title');
+const snapListEl = document.getElementById('snap-list');
 
 let originalData = null;
 
@@ -149,8 +154,8 @@ function applyDraftFields(fields) {
 }
 
 /**
- * 恢复草稿
- *   无人值守模式开 → 静默恢复，只在状态行留一行字（不打断流程）；
+ * 恢复草稿（自动恢复：**只填空字段**，绝不覆盖服务器数据与用户已敲的内容）
+ *   自动保存开 → 静默恢复，只在状态行留一行字（不打断流程）；
  *   关 → showConfirm 问一次；注意它返回的是**倒序**索引：['恢复草稿','丢弃草稿'] 中
  *        点「恢复草稿」得 1，点「丢弃草稿」/ 点 × / 按 Esc 都得 0。
  */
@@ -196,9 +201,97 @@ function bindDraftAutoSave() {
     id: draftId,
     collect: draftFields,
     onSaved() {
-      setDraftStatus(`草稿已保存 · ${formatClock(Date.now())}`);
+      setDraftStatus(`已自动保存 · ${formatClock(Date.now())}`);
     }
   });
+}
+
+/** 开关语义：开 = 改动即自动保存；关 = 不自动保存（仍可手动保存快照）。
+ *  关掉时要摘掉已有绑定，否则它还会继续往单草稿键里写。 */
+function applyAutoSaveSwitch() {
+  if (isUnattended()) {
+    bindDraftAutoSave();
+    return;
+  }
+  if (autoSave) {
+    autoSave.dispose();
+    autoSave = null;
+  }
+}
+
+// ─── 快照：用户手动保存的多份时刻表，按需挑选还原 ─────────────
+// 与自动保存的分工：自动保存只维护一份「上次没提交完的现场」（mlttc-tdraft:edit:<id>），
+// 由输入去抖随时覆盖；快照只由「保存快照」按钮产生，可以有多份、互不覆盖。
+
+/** 快照标签：优先「城市→线路」，两者都空时退回「快照 N」（N = 现有份数 + 1） */
+function snapshotLabel() {
+  const city = String(cityInput.value || '').trim();
+  const way = String(wayInput.value || '').trim();
+  if (city && way) return `${city}→${way}`;
+  return city || way || `快照 ${listSnapshots(draftPage, draftId).length + 1}`;
+}
+
+/** 快照行的时间：MM-DD HH:MM（列表里要能一眼看出是哪天存的） */
+function snapStamp(ms) {
+  const pad = (n) => ('0' + n).slice(-2);
+  const d = new Date(ms);
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function closeSnapshotPanel() {
+  if (snapPanelEl) snapPanelEl.classList.add('hidden');
+}
+
+/** 行内小按钮：用原生 button，样式见 timetable-result.html <style> 里的 .snap-btn */
+function snapshotRowBtn(text, act, snapId, danger) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = danger ? 'snap-btn danger' : 'snap-btn';
+  btn.textContent = text;
+  btn.dataset.act = act;
+  btn.dataset.snap = snapId;
+  return btn;
+}
+
+/** 重建快照列表：每行「标签 · 时间 [还原][删除]」。没有快照时给一行提示，面板照样展开 */
+function renderSnapshotPanel() {
+  if (!snapListEl) return;
+  const items = listSnapshots(draftPage, draftId);
+  if (snapTitleEl) snapTitleEl.textContent = `▼ 已保存的时刻表（${items.length}）`;
+  snapListEl.textContent = '';
+  if (items.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'snap-empty';
+    empty.textContent = '还没有保存过时刻表';
+    snapListEl.appendChild(empty);
+    return;
+  }
+  items.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'snap-row';
+    const meta = document.createElement('span');
+    meta.className = 'snap-meta';
+    meta.textContent = `${item.label} · ${snapStamp(item.savedAt)}`;
+    row.appendChild(meta);
+    row.appendChild(snapshotRowBtn('还原', 'restore', item.snapId, false));
+    row.appendChild(snapshotRowBtn('删除', 'delete', item.snapId, true));
+    snapListEl.appendChild(row);
+  });
+}
+
+/**
+ * 还原指定快照
+ * 与自动恢复的关键区别：**这里覆盖表单已有值**。restoreDraft() 只往空字段里填（编辑页甚至连
+ * 服务器数据都不许盖），而「还原」是用户明确点名要这一份存档，所以照单全收；
+ * 写完统一走 applyDraftFields()，重跑页面既有的 8 个校验函数，judge 与输入框保持一致。
+ */
+function restoreSnapshot(snapId) {
+  const snap = getSnapshot(draftPage, draftId, snapId);
+  if (!snap) return false;
+  applyDraftFields(snap.fields);
+  closeSnapshotPanel();
+  setDraftStatus(`已还原 · ${formatClock(Date.now())}`);
+  return true;
 }
 
 // Complete / timejudge / timeformat / ex_timejudege
@@ -747,11 +840,11 @@ function fillForm(item) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // 草稿：先绑自动保存（用户一动手就有人接盘），再尝试恢复。
+  // 草稿：按「自动保存」开关决定是否绑定（开 = 用户一动手就有人接盘），再尝试恢复。
   // 恢复写的是 input.value，不触发 input 事件，所以不会被自动保存当成「用户改动」。
   // 恢复要放在上面的 100ms 校验之后：那段校验会把 judge.time1 / judge.time2 归零，
   // 若恢复先跑，时间表文本会被当成「未校验」而在提交时被忽略。
-  bindDraftAutoSave();
+  applyAutoSaveSwitch();
   setTimeout(() => {
     restoreDraft().catch((e) => console.warn('[timetable-result] 恢复草稿失败，已忽略', e));
   }, 150);
@@ -774,25 +867,58 @@ resetBtn.addEventListener('click', () => {
   setDraftStatus('');
 });
 
-// 「保存草稿」：手动落盘，给不想等到去抖（或不确定自动保存是否生效）的用户一个确定按钮
+// 「保存快照」：把当前表单存成一份存档（自动保存不会往快照列表里加，只能由用户点这里）
 if (draftSaveBtn) {
   draftSaveBtn.addEventListener('click', () => {
-    if (saveDraft(draftPage, draftId, draftFields())) {
-      setDraftStatus(`草稿已保存 · ${formatClock(Date.now())}`);
-      showMessage('草稿已保存', false);
-    } else {
-      showMessage('草稿保存失败（浏览器可能禁用了本地存储）', true);
+    const snapId = saveSnapshot(draftPage, draftId, snapshotLabel(), draftFields());
+    if (!snapId) {
+      showMessage('快照保存失败（浏览器可能禁用了本地存储，或内容超过 8KB）', true);
+      return;
     }
+    if (autoSave) autoSave.flush();   // 顺带把单草稿刷一次，刷新页面仍能续填
+    setDraftStatus(`快照已保存 · ${formatClock(Date.now())}`);
+    showMessage('快照已保存', false);
+    renderSnapshotPanel();            // 面板开着就顺手刷新
   });
 }
 
-// 「无人值守模式」开关：状态存 localStorage，下次进来仍然有效
-if (unattendedToggle) {
-  unattendedToggle.checked = isUnattended();
-  unattendedToggle.addEventListener('change', () => {
-    const on = unattendedToggle.checked;
+// 「还原…」：在表单下方展开 / 收起快照列表（内联面板，不用模态弹窗遮挡表单）
+if (draftRestoreBtn && snapPanelEl) {
+  draftRestoreBtn.addEventListener('click', () => {
+    if (snapPanelEl.classList.contains('hidden')) {
+      renderSnapshotPanel();
+      snapPanelEl.classList.remove('hidden');
+      return;
+    }
+    closeSnapshotPanel();
+  });
+}
+
+// 列表内部走事件委托：面板每重建一次不用重新绑定
+if (snapListEl) {
+  snapListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-snap]');
+    if (!btn) return;
+    const snapId = btn.dataset.snap || '';
+    if (btn.dataset.act === 'restore') {
+      if (!restoreSnapshot(snapId)) showMessage('这份快照已不存在', true);
+      return;
+    }
+    deleteSnapshot(draftPage, draftId, snapId);
+    renderSnapshotPanel();
+    setDraftStatus(`快照已删除 · ${formatClock(Date.now())}`);
+  });
+}
+
+// 「自动保存」开关：开 = 改动即自动保存、恢复时静默不弹窗；关 = 不自动保存（仍可手动保存快照）、恢复时询问。
+// 开关本身存 localStorage，下次进来仍然有效。
+if (autoSaveToggle) {
+  autoSaveToggle.checked = isUnattended();
+  autoSaveToggle.addEventListener('change', () => {
+    const on = autoSaveToggle.checked;
     setUnattended(on);
-    showMessage(on ? '已开启无人值守模式：草稿将静默恢复' : '已关闭无人值守模式', false);
+    applyAutoSaveSwitch();
+    showMessage(on ? '已开启自动保存：改动随手保存，恢复时不再询问' : '已关闭自动保存（仍可手动保存快照）', false);
   });
 }
 
