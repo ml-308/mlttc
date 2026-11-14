@@ -869,7 +869,11 @@
     <script src="lib/ui/init.mjs" type="module"></script>
     <script src="/lib/ui/popup.mjs" type="module"></script>
     <script src="/src/pages/main.js" type="module"></script>
-    <script src="/src/pages/tower-defense.js" type="module"></script>
+    <!-- 带 ?v= 的脚本 URL：站点当前把 .js 缓存了 4 小时（覆盖了 _headers 的 max-age=0），
+         若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
+         启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
+         **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
+    <script src="/src/pages/tower-defense.js?v=1.6.5" type="module"></script>
 </head>
 
 <body class="td-page-body">

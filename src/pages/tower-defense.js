@@ -1733,4 +1733,44 @@ function boot() {
 }
 
 // 只在浏览器里启动：Node 下 import 本模块只拿到纯函数，不会碰 DOM
-if (typeof window !== 'undefined' && typeof document !== 'undefined') boot();
+//
+// 启动失败必须"可见且可自愈"，不能白屏——这就是 2026-11 那次「游戏完全无法运行」的成因：
+// 站点的浏览器缓存把 .js 缓存了 4 小时（详见 _headers 里的说明），于是出现
+// 「新 HTML + 旧 JS」的错配：旧 JS 去找已被删除的元素，boot 中途抛错，
+// 画布从此一帧都没画过，而界面上看起来只是"空白"。
+// 这里做两件事：
+//   1. 捕捉启动异常并解释给用户（而不是让他对着一块空白画布猜）；
+//   2. 自动用带时间戳的 URL 重载一次（新 URL 必然绕过缓存），把用户从错配里救出来；
+//      只在本次会话里试一次，避免缓存真的坏了时无限刷新。
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  try {
+    boot();
+  } catch (err) {
+    console.error('[tower-defense] 启动失败：', err);
+    const KEY = 'mlttc-td-reloaded';
+    let tried = false;
+    try {
+      tried = sessionStorage.getItem(KEY) === '1';
+      sessionStorage.setItem(KEY, '1');
+    } catch {
+      /* 隐私模式下无法去重，宁可只提示不重载 */
+      tried = true;
+    }
+
+    const box = document.getElementById('tdCanvas');
+    if (box && box.parentElement) {
+      box.parentElement.innerHTML =
+        '<div style="padding:24px;text-align:center;line-height:1.7">' +
+        '<p><b>游戏启动失败</b></p>' +
+        '<p style="opacity:.75;font-size:.9rem">多半是浏览器缓存了旧版脚本。' +
+        (tried ? '请按 Ctrl+Shift+R 强制刷新。' : '正在自动重新加载…') +
+        '</p></div>';
+    }
+
+    if (!tried) {
+      const url = new URL(location.href);
+      url.searchParams.set('v', String(Date.now()));
+      setTimeout(() => location.replace(url.toString()), 600);
+    }
+  }
+}

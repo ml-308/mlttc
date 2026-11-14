@@ -1,5 +1,13 @@
 # 资源每次访问都向服务器重校验，避免手机端长期停留在旧 JS/CSS
 # （图片等 /asset/* 不加：静态二进制不会变，no-cache 只会拖慢加载）
+#
+# ⚠ 重要（2026-11 排查结论）：Cloudflare 面板里
+#   Caching → Configuration → Browser Cache TTL 若被设成「4 小时」之类，
+#   它会**覆盖本文件里 .js / .css 的 max-age=0**（实测线上 /src/*.js、/style/*.css
+#   返回的是 max-age=14400，而 .mjs 仍保持 0 —— 因为该设置只作用于 js/css/图片）。
+#   后果：新 HTML + 旧 JS 的错配，旧 JS 找不到新 HTML 的元素就会启动报错、页面白屏。
+#   要彻底解决，把该项改回「Respect Existing Headers」；
+#   在此之前，HTML 里的脚本引用请带 ?v=<版本号>（见 tower-defense.html）。
 
 /src/*
   Cache-Control: public, max-age=0, must-revalidate

@@ -382,6 +382,25 @@ async function checkVersion() {
     if (seen === latest) return;
 
     // 没有 <hcw-popup> 就只能退回只读的顶部提示
+    // 版本不一致说明本页加载的 JS/CSS 是旧的（站点把 .js 缓存了数小时）。
+    // 这种情况下页面可能已经"坏掉"：旧脚本找不到新 HTML 里的元素，启动即抛错（表现为白屏）。
+    // 所以这里**先自动用带 _v 的 URL 重载一次**（每个版本只自动做一次，避免刷新循环），
+    // 用户不需要先看懂弹窗、也不需要知道要强刷。自动重载失效时才走原来的弹窗流程。
+    const AUTO_KEY = 'mlttc-auto-reloaded';
+    let autoDone = false;
+    try {
+      autoDone = localStorage.getItem(AUTO_KEY) === latest;
+      if (!autoDone) localStorage.setItem(AUTO_KEY, latest);
+    } catch {
+      // 隐私模式：无法去重，退回到弹窗询问，不自动刷新
+      autoDone = true;
+    }
+    if (!autoDone) {
+      showMessage('检测到新版本，正在更新到 v' + latest + '…', false, { type: 'info', duration: 6000 });
+      await reloadWithCacheBust();
+      return;
+    }
+
     if (!(await popupReady())) {
       // 不写标记：Toast 没有交互按钮，用户可能压根没看到，写了就等于让这条提示永久消失
       showMessage(buildText(latest), false, { type: 'info', duration: 6000 });
