@@ -1485,6 +1485,47 @@ function mergeProgress(cur, inc) {
 }
 
 /**
+ * 对局进行中导入「带无尽进度」的存档时，当场问要不要切过去。
+ *
+ * 为什么必须问：页面加载后会自动开波次 1，而 maybeAwaitResume() 的守卫是 `state.wave === 0`
+ * —— 也就是说「继续上次」只在"刚打开页面、还没开波"的那一瞬间出现。对局已经在跑时导入，
+ * 那条提示永远不会出现，这份进度就只剩两条路：等到下次打开页面，或者被「重开」清掉。
+ * 用户看到的是「导入成功、含可继续的无尽进度」，却怎么也点不到 —— 即「可以读取但无法使用」。
+ *
+ * 这里用动态 import 取 showConfirm：本模块顶层刻意保持零 import（Node 下 import 它只拿纯函数、
+ * 不碰 DOM），动态 import 只在浏览器里、且只在用户点了导入时才执行，不破坏这个性质。
+ */
+function offerImportedRun(run) {
+  (async () => {
+    try {
+      const { showConfirm } = await import('/lib/ui/popup.mjs');
+      const choice = await showConfirm({
+        eyebrow: '导入存档',
+        title: '要用这份无尽进度吗？',
+        text: '存档里有第 ' + run.wave + ' 波的无尽进度（金币 ' + run.gold + ' / 生命 ' + run.lives
+          + ' / 塔 ' + run.towers.length + ' 座）。现在切换会放弃当前这局；'
+          + '不切换的话这份进度会被当前这局覆盖，所以这里只有两个选择。',
+        buttons: ['现在切换', '不切换'],
+        button_style: ['primary', 'tp']
+      });
+      // showConfirm 返回倒序索引：buttons 为 ['现在切换','不切换'] 时，切换 = 1
+      if (choice === 1) {
+        resumeEndlessRun();
+        saveMsg('已切换到导入的无尽进度（第 ' + run.wave + ' 波）', false);
+        return;
+      }
+      // 不切换：明确丢掉，避免「以为留着、其实下一波就被覆盖」的错觉
+      clearEndlessRun();
+      saveMsg('已保留当前这局；导入的无尽进度未采用（关卡解锁与最高波数仍已导入）', false);
+    } catch (err) {
+      // 弹窗不可用（极端情况）：保守起见直接切过去，否则这份进度会立刻被覆盖掉
+      console.warn('[tower-defense] 导入后续玩询问失败，改为直接切换：', err);
+      resumeEndlessRun();
+    }
+  })();
+}
+
+/**
  * 导入一段文本或一个对象（存档码 / .json 正文走同一条校验链）。失败只提示、一个字节都不写：
  * progress 与 localStorage 都不动，现有存档绝不被毁。成功则立刻刷新最高波数、关卡网格与继续按钮。
  */
@@ -1500,8 +1541,16 @@ function applyImport(raw) {
   state.resumeDone = false;                              // 导入的记录也算「还没问过」
   maybeAwaitResume();
   syncHud();
+
+  // 对局进行中：续玩提示不会自己出现（见 offerImportedRun 的注释），改为当场询问
+  const run = resumableRun();
+  const midRun = state.inRun && !state.gameOver && state.wave > 0;
+  if (run && midRun) offerImportedRun(run);
+
   saveMsg('导入成功：解锁 ' + progress.unlocked + ' 关 · 无尽最高 ' + progress.endlessBest + ' 波 · '
-    + (resumableRun() ? '含可继续的无尽进度' : '无可继续的无尽进度'), false);
+    + (!run ? '无可继续的无尽进度'
+      : midRun ? '含第 ' + run.wave + ' 波的无尽进度（已保存，见弹窗/下次打开时提示）'
+        : '含可继续的无尽进度'), false);
   return true;
 }
 
