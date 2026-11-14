@@ -394,6 +394,176 @@
             line-height: 1.6;
         }
 
+        /* ---------- 无尽「继续上次」条（有 7 天内的整局进度时才显示） ---------- */
+        .td-resume {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 9px 12px;
+            border-radius: var(--radius-md, .5rem);
+            border: 1px solid var(--primary);
+            background: var(--primary-bg);
+            font-size: .78rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .td-resume-acts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .td-resume button {
+            padding: 6px 14px;
+            font: inherit;
+            font-size: .76rem;
+            font-weight: 700;
+            border-radius: var(--radius-full, 500px);
+            border: 1px solid var(--primary);
+            background: var(--primary);
+            color: var(--on-primary, #000);
+            cursor: pointer;
+        }
+
+        .td-resume button.td-secondary {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
+
+        /* ---------- 塔数值表（details 默认收起，表格窄屏横向滚动） ---------- */
+        .td-tstats,
+        .td-save {
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md, .5rem);
+            background: var(--bg-card);
+            font-size: .78rem;
+        }
+
+        .td-tstats>summary,
+        .td-save>summary {
+            padding: 9px 12px;
+            cursor: pointer;
+            font-weight: 700;
+            color: var(--text-secondary);
+            list-style-position: inside;
+        }
+
+        .td-tstats[open]>summary,
+        .td-save[open]>summary {
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        /* overflow-x:auto 是窄屏不撑破布局的关键：表格允许宽，外壳不许 */
+        .td-tstats-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .td-tstats table {
+            width: 100%;
+            border-collapse: collapse;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .td-tstats th,
+        .td-tstats td {
+            padding: 5px 8px;
+            text-align: right;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .td-tstats tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .td-tstats th:first-child,
+        .td-tstats td:first-child,
+        .td-tstats th:last-child,
+        .td-tstats td:last-child {
+            text-align: left;
+        }
+
+        .td-tstats th:first-child,
+        .td-tstats td:first-child {
+            font-weight: 700;
+        }
+
+        .td-tstats thead th {
+            font-size: .68rem;
+            color: var(--text-secondary);
+            background: var(--bg-hover);
+        }
+
+        /* ---------- 存档导出 / 导入 ---------- */
+        .td-save-body {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px 12px;
+        }
+
+        .td-save-acts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .td-save button {
+            padding: 6px 12px;
+            font: inherit;
+            font-size: .76rem;
+            border-radius: var(--radius-sm, .5rem);
+            border: 1px solid var(--border-light);
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .td-save button:hover {
+            border-color: var(--primary);
+            background: var(--primary-bg);
+        }
+
+        .td-save textarea {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 58px;
+            padding: 8px;
+            font-family: ui-monospace, Consolas, monospace;
+            font-size: .72rem;
+            line-height: 1.4;
+            border-radius: var(--radius-sm, .5rem);
+            border: 1px solid var(--border-light);
+            background: var(--bg-page);
+            color: var(--text-primary);
+            resize: vertical;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        .td-save input[type="file"] {
+            font-size: .72rem;
+            color: var(--text-secondary);
+            max-width: 100%;
+        }
+
+        .td-save-msg {
+            margin: 0;
+            font-size: .72rem;
+            color: var(--text-secondary);
+            min-height: 1.1em;
+        }
+
+        .td-save-msg.is-bad {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
         /* ---------- 模式切换 ---------- */
         .td-modes {
             display: flex;
@@ -424,9 +594,10 @@
             box-shadow: 0 0 0 1px var(--border-light);
         }
 
-        /* 视图切换靠 hidden：必须能压住 .td-hud/.td-bar 自己的 display，否则切不干净 */
+        /* 视图切换靠 hidden：必须能压住 .td-hud/.td-bar/.td-resume 自己的 display，否则切不干净 */
         .td-hud[hidden],
         .td-stage[hidden],
+        .td-resume[hidden],
         .td-bar[hidden],
         .td-levels[hidden],
         .td-controls button[hidden],
@@ -482,11 +653,16 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* 小字一行放不下就省略：按钮宽度由 10 列网格决定，不能被文字撑破 */
         .td-lv small {
             font-size: .56rem;
             font-weight: 600;
             color: var(--text-secondary);
             font-variant-numeric: tabular-nums;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .td-lv:not(.is-lock):hover {
@@ -693,6 +869,15 @@
             <div class="td-stat"><span>最高波数</span><b id="tdBest">0</b></div>
         </section>
 
+        <!-- 无尽「继续上次」条：有 7 天内的整局进度时由 JS 显示（默认 hidden） -->
+        <section class="td-resume" id="tdResumeBar" aria-label="继续上次进度" hidden>
+            <span id="tdResumeLabel">上次的无尽进度还在</span>
+            <div class="td-resume-acts">
+                <button type="button" id="tdBtnResume">继续上次</button>
+                <button type="button" class="td-secondary" id="tdBtnResumeFresh">重新开始</button>
+            </div>
+        </section>
+
         <!-- 关卡选择：仅「闯关模式」且不在对局中时显示，100 个按钮由 JS 生成 -->
         <section class="td-levels" id="tdLevels" aria-label="关卡选择" hidden>
             <div class="td-levels-head">
@@ -734,6 +919,12 @@
             </div>
         </section>
 
+        <!-- 所有塔数值表：默认收起（不挤压画布），表格内容由 JS 从 TOWER_TYPES 现生成 -->
+        <details class="td-tstats" id="tdTowerStats">
+            <summary>所有塔数值表（造价 / 伤害 / 攻速 / 射程 / 特效）</summary>
+            <div class="td-tstats-scroll" id="tdTowerStatsBody"></div>
+        </details>
+
         <!-- 塔按钮 + 控制 -->
         <section class="td-bar" id="tdBar">
             <div class="td-towers" id="tdTowers">
@@ -769,6 +960,24 @@
         <p class="td-hint" id="tdHint">
             点击空格子放塔 · 点击已有塔升级或出售 · 敌人走到右侧终点扣 1 点生命
         </p>
+
+        <!-- 存档导出 / 导入：默认收起。存档码 = 'TD1-' + base64(JSON)，文件 = 同一份 progress JSON -->
+        <details class="td-save" id="tdSaveBox">
+            <summary>存档导出 / 导入</summary>
+            <div class="td-save-body">
+                <div class="td-save-acts">
+                    <button type="button" id="tdBtnExportCode">导出存档码</button>
+                    <button type="button" id="tdBtnExportFile">下载存档文件</button>
+                </div>
+                <textarea id="tdSaveOut" readonly rows="3" placeholder="点「导出存档码」后，存档码会显示在这里（已全选，可直接复制）"></textarea>
+                <textarea id="tdSaveIn" rows="3" placeholder="把存档码粘贴到这里，再点「导入存档码」"></textarea>
+                <div class="td-save-acts">
+                    <button type="button" id="tdBtnImportCode">导入存档码</button>
+                    <input type="file" id="tdSaveFile" accept=".json,application/json">
+                </div>
+                <p class="td-save-msg" id="tdSaveMsg">导入只合并更好的记录（解锁关数 / 各关最好波数 / 最高波数 / 较新的无尽进度），不会覆盖你已有的成绩。</p>
+            </div>
+        </details>
     </main>
 
     <!-- 登录模态框（main.js 的 #globalLoginBtn 需要它） -->

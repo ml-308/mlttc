@@ -6,8 +6,8 @@
  * 模式：「无尽」波次由 generateEndlessWave(n) 现算，每 10 波一个 BOSS 波；「闯关」100 关由
  *   generateLevel(L) 派生，关卡内每一波仍复用 generateEndlessWave 再按关卡系数放大 —— 两种
  *   模式都没有逐波写死的数量表（tools/td-wave-test/run.mjs 会正则扫描源码把关）。
- * 存档：localStorage 单键 mlttc-td-progress（unlocked / levelBest / endlessBest）；读写全部
- *   try/catch，隐私模式或坏 JSON 一律回落默认值，绝不让存档问题把游戏卡死。
+ * 存档：localStorage 单键 mlttc-td-progress（unlocked / levelBest / endlessBest / endlessRun），另有
+ *   'TD1-<base64>' 存档码做导出导入；读写全部 try/catch，隐私模式或坏 JSON 一律回落默认值。
  * 数据结构：
  *   state      唯一可变状态（波次 / 生命 / 金币 / 击杀 / 实体数组）
  *   enemies[]  { type, hp, maxHp, speed, armor, bounty, dist, slowUntil, slowFactor, x, y }
@@ -51,6 +51,7 @@ const BALANCE = {
 
 const STEP = 1 / 60;                  // 固定逻辑步长
 const MAX_STEPS_PER_FRAME = 5;        // 单帧最多补偿 5 步
+const EARLY_WAVE_MUL = 1.3;           // 无尽前 5 波赏金系数（只在 startWave 调用处乘，见那里的注释）
 const BEST_KEY = 'mlttc-td-best';     // 第一步的旧存档键：只做一次性迁移，迁移后立即删除
 const PROGRESS_KEY = 'mlttc-td-progress'; // 唯一存档键（unlocked / levelBest / endlessBest）
 const LEVEL_MAX = 100;                // 闯关模式总关数
@@ -321,6 +322,7 @@ export {
   GRID, VIEW, ENEMY_TYPES, TOWER_TYPES, BALANCE, MAP_TEMPLATES, LEVEL_TWEAKS, LEVEL_MAX, PROGRESS_KEY,
   LEVEL_DIFF_STEP, LEVEL_POT, LEVEL_POT_EXP, LEVEL_POT_FALL,
   hashSeed, mulberry32, generateEndlessWave, generateLevel, buildLevelWave, buildPath, buildPathTiles,
+  encodeSave, decodeSave, levelTotalEnemies,   // 存档码往返 + 关卡总怪量：自检脚本直接断言
 };
 
 /* ===================== 4. 运行时状态 ===================== */
@@ -336,6 +338,7 @@ const state = {
   spawnQueue: [], spawnIdx: 0,           // 本波出场队列（元素是 group 引用）+ 消费下标
   spawnGap: 1000, spawnTimer: 0, waveStats: null,
   paused: false, hidden: false, speed: 1, gameOver: false, timeMs: 0,
+  awaitingResume: false, resumeDone: false,   // 等玩家选「继续/重开」时主循环不推进（见 frame）
   selectedType: null, selectedTower: null, hover: { col: -1, row: -1 }, reducedMotion: false,
   enemies: [], towers: [], bullets: [], particles: [], floaters: [],
   mapIdx: 0, path: null, pathTiles: null,
@@ -345,37 +348,70 @@ const bulletPool = [];   // 子弹对象池：复用对象，避免每发都新�
 /* ===================== 4b. 存档（localStorage，隐私模式必须能苟活） ===================== */
 /**
  * 唯一存档键 mlttc-td-progress，结构：
- *   { unlocked: 1, levelBest: { "3": 12 }, endlessBest: 0 }
- *   unlocked  已解锁到第几关（默认 1）；levelBest  每关最好波数；endlessBest  无尽最高波数。
+ *   { unlocked: 1, levelBest: { "3": 12 }, endlessBest: 0, endlessRun: null }
+ *   unlocked 已解锁到第几关；levelBest 每关最好波数；endlessBest 无尽最高波数；endlessRun 见下。
  * 读取全程 try/catch：隐私模式取不到、JSON 坏了、字段类型不对，一律回落默认值 —— 宁可丢
  * 记录也不能让游戏起不来。写入同理，失败只丢记录不影响本局。
  */
-let progress = { unlocked: 1, levelBest: {}, endlessBest: 0 };
+let progress = { unlocked: 1, levelBest: {}, endlessBest: 0, endlessRun: null };
 
-function defaultProgress() { return { unlocked: 1, levelBest: {}, endlessBest: 0 }; }
+function defaultProgress() { return { unlocked: 1, levelBest: {}, endlessBest: 0, endlessRun: null }; }
 
-/** 读档：逐字段校验（不用整体 JSON.parse 一把梭，坏字段只丢那一项） */
+/**
+ * endlessRun（无尽整局进度）校验：结构不对就整块丢掉 —— 续玩宁可不给，也不能拿半份数据造出
+ * 一个歪塔阵。塔位这里只查类型与范围，「越界 / 在路径上 / 重叠」留给 resumeEndlessRun 判。
+ */
+function sanitizeRun(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const num = (v) => Math.floor(Number(v)), towers = [];
+  const wave = num(raw.wave), gold = num(raw.gold), lives = num(raw.lives), kills = num(raw.kills);
+  const savedAt = num(raw.savedAt);
+  const seed = typeof raw.seed === 'string' ? raw.seed.slice(0, 64) : '';
+  if (!(wave >= 1 && wave <= 100000) || !(gold >= 0) || !(lives >= 1) || !(kills >= 0)) return null;
+  if (!(savedAt > 0) || !seed) return null;
+  if (Array.isArray(raw.towers)) for (const t of raw.towers) {
+    if (!t || typeof t !== 'object' || !TOWER_TYPES[t.type]) continue;
+    const col = num(t.col), row = num(t.row), lvl = num(t.lvl);
+    if (!Number.isFinite(col) || !Number.isFinite(row) || !(lvl >= 1 && lvl <= 3)) continue;
+    towers.push({ type: t.type, col, row, lvl });
+  }
+  return { wave, gold, lives, kills, seed, towers, savedAt };
+}
+
+/**
+ * 存档字段校验。strict=true（存档码解码 / 导入）时任何一个字段非法 → 整份 null：导入不能靠
+ * 「猜」，错一个字就整份拒收；strict=false（读 localStorage）时只丢那一个坏字段。未知字段
+ * 透传，好让存档码往返保持形状。
+ */
+function sanitizeProgress(raw, strict) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = defaultProgress(), int = (v) => Math.floor(Number(v)), fail = (strict ? null : undefined);
+  if ('unlocked' in raw) { const u = int(raw.unlocked);
+    if (Number.isFinite(u) && u >= 1) out.unlocked = Math.min(LEVEL_MAX, u); else if (fail === null) return null; }
+  if ('endlessBest' in raw) { const e = int(raw.endlessBest);
+    if (Number.isFinite(e) && e >= 0) out.endlessBest = e; else if (fail === null) return null; }
+  if ('levelBest' in raw) { const lb = raw.levelBest;
+    if (!lb || typeof lb !== 'object' || Array.isArray(lb)) { if (fail === null) return null; }
+    else for (const k in lb) { if (!Object.prototype.hasOwnProperty.call(lb, k)) continue;
+      const key = int(k), v = int(lb[k]);
+      if (key >= 1 && key <= LEVEL_MAX && Number.isFinite(v) && v > 0) out.levelBest[key] = v;
+      else if (fail === null) return null; } }
+  if ('endlessRun' in raw && raw.endlessRun != null) {
+    const run = sanitizeRun(raw.endlessRun);
+    if (run) out.endlessRun = run; else if (fail === null) return null;
+  }
+  for (const k in raw) {   // 未知字段透传：存档码往返因此与编码前一致
+    if (Object.prototype.hasOwnProperty.call(raw, k) && !(k in out)) out[k] = raw[k];
+  }
+  return out;
+}
+
+/** 读档：逐字段校验（坏字段只丢那一项，宽模式见 sanitizeProgress） */
 function loadProgress() {
-  const p = defaultProgress();
+  let p = defaultProgress();
   try {
     const raw = localStorage.getItem(PROGRESS_KEY);
-    if (raw) {
-      const obj = JSON.parse(raw);
-      if (obj && typeof obj === 'object') {
-        const u = Math.floor(Number(obj.unlocked));
-        if (Number.isFinite(u)) p.unlocked = Math.min(LEVEL_MAX, Math.max(1, u));
-        const e = Math.floor(Number(obj.endlessBest));
-        if (Number.isFinite(e) && e > 0) p.endlessBest = e;
-        const lb = obj.levelBest;
-        if (lb && typeof lb === 'object') {
-          for (const k in lb) {
-            if (!Object.prototype.hasOwnProperty.call(lb, k)) continue;
-            const key = Math.floor(Number(k)), v = Math.floor(Number(lb[k]));
-            if (key >= 1 && key <= LEVEL_MAX && Number.isFinite(v) && v > 0) p.levelBest[key] = v;
-          }
-        }
-      }
-    }
+    if (raw) p = sanitizeProgress(JSON.parse(raw), false) || p;
     // 旧键兼容：第一步只存了「无尽最高波数」的裸数字，这里一次性并入新结构并删掉旧键，
     // 避免同一种进度散在两个键上互相打架。
     const legacyRaw = localStorage.getItem(BEST_KEY);
@@ -392,6 +428,45 @@ function loadProgress() {
 
 function saveProgress() {
   try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress)); } catch (err) { /* 隐私模式：只丢记录 */ }
+}
+
+/* ===================== 4c. 存档码（导出 / 导入，纯函数，Node 下可直接断言） ===================== */
+const SAVE_PREFIX = 'TD1-';
+/** 字符串 ↔ base64：都过 TextEncoder / Decoder 走 UTF-8 字节，中文昵称、emoji 不会变乱码 */
+function utf8ToB64(str) {
+  return btoa(Array.from(new TextEncoder().encode(str), (x) => String.fromCharCode(x)).join(''));
+}
+function b64ToUtf8(b64) {
+  return new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+}
+/**
+ * 存档 → 存档码：'TD1-' + base64(JSON)。只序列化不清洗 —— 字段合法性归 decodeSave 判，这样
+ * 「编码 → 解码」保持传入时的形状（网站以后加的字段也带得出来）。循环引用等怪输入退回默认存档。
+ */
+function encodeSave(p) {
+  let json;
+  try { json = JSON.stringify(p && typeof p === 'object' ? p : defaultProgress()); }
+  catch (err) { json = JSON.stringify(defaultProgress()); }
+  return SAVE_PREFIX + utf8ToB64(json);
+}
+/**
+ * 存档码 → 存档对象 | null。四类坏输入一律 null 且绝不抛异常：前缀不对 / base64 坏或 UTF-8
+ * 解不开 / JSON 坏 / 字段非法（sanitizeProgress 严格模式）。
+ */
+function decodeSave(str) {
+  try {
+    if (typeof str !== 'string') return null;
+    const s = str.trim();
+    if (s.indexOf(SAVE_PREFIX) !== 0) return null;
+    return sanitizeProgress(JSON.parse(b64ToUtf8(s.slice(SAVE_PREFIX.length))), true);
+  } catch (err) { return null; }   // 解码链任何一步失败都收敛成 null，绝不冒到按钮回调
+}
+/** 存档文本 → 对象：既认 'TD1-…' 存档码，也认 .json 文件正文，两者走同一份字段校验 */
+function parseSaveText(text) {
+  const s = String(text == null ? '' : text).trim();
+  if (!s) return null;
+  if (s.indexOf(SAVE_PREFIX) === 0) return decodeSave(s);
+  try { return sanitizeProgress(JSON.parse(s), true); } catch (err) { return null; }
 }
 
 /** 敌人配色与半径（canvas 2D 用不了 CSS 变量，按类型固定） */
@@ -459,6 +534,11 @@ function startWave() {
   const wave = state.mode === 'level'
     ? buildLevelWave(state.level, state.wave)
     : generateEndlessWave(state.wave, state.seed);
+  // 无尽前 5 波赏金 ×1.3（「略微」加一点，不是把曲线改陡）：只在这里乘，generateEndlessWave 的
+  // 签名与 goldMul = 1.05^(n-1) 曲线原封不动；闯关模式走 buildLevelWave 自己的赏金池，不经过这里。
+  if (wave.n <= 5 && state.mode !== 'level') {
+    for (const g of wave.groups) g.bounty = Math.max(1, Math.round(g.bounty * EARLY_WAVE_MUL));
+  }
   state.waveStats = wave;
   state.spawnQueue = expandSpawnQueue(wave);
   state.spawnIdx = 0;
@@ -466,6 +546,7 @@ function startWave() {
   state.spawnTimer = 0;
   state.waveActive = true;
   noteBest(state.wave);
+  noteEndlessRun();   // 每波开始时落盘：此刻波中还没有敌人，存下来的正是「该波开头」
 }
 
 /**
@@ -485,6 +566,35 @@ function noteBest(wave) {
   saveProgress();
 }
 
+/* ---------- 无尽模式「整局进度」：存档 / 过期 / 清空 ---------- */
+/**
+ * 保存时机：每波开始时、建塔 / 升级 / 出售后各写一次（写入失败静默，saveProgress 内部已 try）。
+ * 存的只是「波的开头」：敌人 / 子弹 / 倒计时一概不存，所以继续时从该波第一只怪重新开始。
+ * 结算与主动重开不走这里，走 clearEndlessRun：把已结束的局面留在「继续上次」里就是坑。
+ */
+const RUN_TTL_MS = 7 * 24 * 3600 * 1000;   // 7 天：太久以前的进度按作废处理（引擎数值可能已变）
+function noteEndlessRun() {
+  if (state.mode !== 'endless' || !state.inRun || state.gameOver || state.wave < 1) return;
+  progress.endlessRun = {
+    wave: state.wave, gold: state.gold, lives: state.lives, kills: state.kills, seed: state.seed, savedAt: Date.now(),
+    towers: state.towers.map((t) => ({ type: t.type, col: t.col, row: t.row, lvl: t.lv })),
+  };
+  saveProgress();
+}
+/** 清空可续记录：无尽结算、主动重开时调用（否则「继续」会续到一局已经结束/已放弃的局面） */
+function clearEndlessRun() {
+  if (!progress.endlessRun) return;
+  progress.endlessRun = null;
+  saveProgress();
+}
+/** 可续记录：存在且 savedAt 在 7 天内才算数；过期项不删，只是不认（下一次存档自然覆盖） */
+function resumableRun() {
+  const run = progress.endlessRun;
+  if (!run) return null;
+  const age = Date.now() - run.savedAt;
+  return (age >= 0 && age <= RUN_TTL_MS) ? run : null;
+}
+
 /** 生命归零：存档 + 亮「失败」浮层（闯关模式失败不解锁下一关） */
 function gameOver() {
   if (state.gameOver) return;
@@ -492,6 +602,7 @@ function gameOver() {
   state.paused = false;
   state.result = 'lose';
   noteBest(state.wave);
+  if (state.mode === 'endless') clearEndlessRun();   // 无尽结算：这一局结束了，可续记录作废
   showOverlay();
 }
 
@@ -584,6 +695,7 @@ function placeTower(type, col, row) {
     spend: cost,  // 历史总投入（升级累加）
   });
   addParticles((col + 0.5) * GRID.tile, (row + 0.5) * GRID.tile, 6, def.color);
+  noteEndlessRun();   // 建塔后落盘：关标签页也不会丢刚布好的阵
   return true;
 }
 
@@ -597,6 +709,7 @@ function upgradeTower(tower) {
   tower.lv += 1;
   tower.spend += cost;
   addParticles(tower.x, tower.y, 8, def.color);
+  noteEndlessRun();   // 升级后落盘
   return true;
 }
 
@@ -608,6 +721,7 @@ function sellTower(tower) {
   state.gold += refund;
   state.towers.splice(idx, 1);
   if (state.selectedTower === tower) state.selectedTower = null;
+  noteEndlessRun();   // 出售后落盘（prog 里的塔阵要跟着少一座）
   return refund;
 }
 
@@ -978,6 +1092,12 @@ function drawFx(ctx) {
 function drawPrompts(ctx) {
   ctx.textAlign = 'center';
   if (state.gameOver) return;
+  if (state.awaitingResume) {   // 有可续进度：等玩家选「继续 / 重新开始」，画面先停在这里
+    ctx.fillStyle = palette.text;
+    ctx.font = '700 17px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText('上次的无尽进度还在：继续 或 重新开始', VIEW.w / 2, VIEW.h / 2);
+    return;
+  }
   if (state.paused || state.hidden) {
     ctx.fillStyle = palette.text;
     ctx.font = '700 20px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
@@ -1129,13 +1249,95 @@ function hideOverlay() {
   if (ui.overlay) ui.overlay.classList.remove('show');
 }
 
+/* ---------- 塔数值表（每个数字都现读 TOWER_TYPES，绝不手抄第二份） ---------- */
+/**
+ * 4 种塔 × 3 级一张表：造价（建到该级的累计投入）/ 伤害 / 攻速（次每秒）/ 射程 / 特效，全部
+ * 现读 TOWER_TYPES[key][i]；光环塔没有 dmg / rate 字段，伤害与攻速显示「—」，加成写在特效列。
+ */
+function buildTowerStats() {
+  if (!ui.towerStatsBody) return;
+  const head = ['塔', '等级', '造价', '伤害', '攻速', '射程', '特效'];
+  let rows = '';
+  for (const key in TOWER_TYPES) {
+    const d = TOWER_TYPES[key];
+    for (let lv = 1; lv <= 3; lv++) {
+      const i = lv - 1, spent = d.cost.slice(0, lv).reduce((s, c) => s + c, 0);
+      const note = '建造 ' + d.cost[0] + (lv > 1 ? ' + 升级 ' + d.cost.slice(1, lv).join(' + ') : '');
+      let fx = '—';
+      if (d.splash) fx = '溅射半径 ' + d.splash[i];
+      else if (d.slow) fx = '减速 ' + Math.round(d.slow[i] * 100) + '% · ' + (d.slowMs[i] / 1000).toFixed(1) + 's';
+      else if (d.auraRate) fx = '攻速 +' + Math.round(d.auraRate[i] * 100) + '% · 伤害 +' + Math.round(d.auraDmg[i] * 100) + '%';
+      rows += '<tr>' + (lv === 1 ? '<td rowspan="3" style="color:' + d.color + '">' + d.name + '</td>' : '')
+        + '<td>Lv.' + lv + '</td><td title="' + note + '">' + spent + '</td><td>' + (d.dmg ? d.dmg[i] : '—') + '</td>'
+        + '<td>' + (d.rate ? d.rate[i].toFixed(1) + '/s' : '—') + '</td><td>' + d.range[i] + '</td><td>' + fx + '</td></tr>';
+    }
+  }
+  ui.towerStatsBody.innerHTML = '<table><thead><tr><th>' + head.join('</th><th>') + '</th></tr></thead><tbody>'
+    + rows + '</tbody></table>';
+}
+
+/* ---------- 存档导出 / 导入 ---------- */
+/** 提示条：一句话讲结果，失败标红 */
+function saveMsg(text, bad) {
+  if (!ui.saveMsg) return;
+  ui.saveMsg.textContent = text; ui.saveMsg.classList.toggle('is-bad', !!bad);
+}
+
+/** 合并策略：unlocked / endlessBest 取大、levelBest 逐键取大、endlessRun 取 savedAt 较新者。 */
+function mergeProgress(cur, inc) {
+  const out = sanitizeProgress(cur, false) || defaultProgress();
+  out.unlocked = Math.max(out.unlocked, inc.unlocked);
+  out.endlessBest = Math.max(out.endlessBest, inc.endlessBest);
+  for (const k in inc.levelBest) out.levelBest[Number(k)] = Math.max(out.levelBest[Number(k)] || 0, inc.levelBest[k]);
+  const a = out.endlessRun, b = inc.endlessRun;
+  out.endlessRun = !a ? b : !b ? a : (b.savedAt > a.savedAt ? b : a);
+  return out;
+}
+
+/**
+ * 导入一段文本或一个对象（存档码 / .json 正文走同一条校验链）。失败只提示、一个字节都不写：
+ * progress 与 localStorage 都不动，现有存档绝不被毁。成功则立刻刷新最高波数、关卡网格与继续按钮。
+ */
+function applyImport(raw) {
+  const inc = typeof raw === 'string' ? parseSaveText(raw) : sanitizeProgress(raw, true);
+  if (!inc) { saveMsg('存档无效，未做任何修改', true); return false; }
+  progress = mergeProgress(progress, inc);
+  saveProgress();
+  state.best = state.mode === 'level' && state.level
+    ? (progress.levelBest[state.level.level] || 0) : progress.endlessBest;
+  hudCache.best = -1;                                    // 让 syncHud 强制重写这一格
+  if (ui.levelGrid && state.mode === 'level' && !state.inRun) buildLevelGrid();
+  state.resumeDone = false;                              // 导入的记录也算「还没问过」
+  maybeAwaitResume();
+  syncHud();
+  saveMsg('导入成功：解锁 ' + progress.unlocked + ' 关 · 无尽最高 ' + progress.endlessBest + ' 波 · '
+    + (resumableRun() ? '含可继续的无尽进度' : '无可继续的无尽进度'), false);
+  return true;
+}
+
 /* ---------- 关卡选择（100 关网格） ---------- */
+/**
+ * 关卡总怪量 = 该关所有波次实际出场数之和。用 groups 求和而不是 w.total —— 后者按设计不含 BOSS。
+ * 100 关 × 最多 28 波在切到闯关列表时一次算完（约 1600 次 buildLevelWave），结果缓存在 Map：
+ * 运行期数值不变，只算一次就够，避免每次进列表都重跑一遍把 UI 卡一下。
+ */
+const levelTotalCache = new Map();
+function levelTotalEnemies(L) {
+  const hit = levelTotalCache.get(L);
+  if (hit != null) return hit;
+  const cfg = generateLevel(L);
+  let sum = 0;
+  for (let n = 1; n <= cfg.waves; n++) for (const g of buildLevelWave(cfg, n).groups) sum += g.count;
+  levelTotalCache.set(L, sum);
+  return sum;
+}
+
 /**
  * 三态判定（每关一个按钮）：
  *  已通关   L < progress.unlocked（通关才会 +1）或本关最好波数已满 ⇒ 绿
  *  可挑战   L <= progress.unlocked 且未通关 ⇒ 高亮（实际通常只有一关）
  *  未解锁   L > progress.unlocked ⇒ 灰 + 真 disabled，点不动
- * 副标题显示本关最好成绩（如「3/16」），没打过显示「·」。
+ * 按钮只显示两行：大字关卡号 + 小字总怪量；「最好 w/waves 波」挪进 title，免得按钮容不下。
  */
 function buildLevelGrid() {
   if (!ui.levelGrid) return;
@@ -1145,13 +1347,15 @@ function buildLevelGrid() {
     const best = progress.levelBest[L] || 0;
     const cleared = L < progress.unlocked || best >= cfg.waves;
     const locked = L > progress.unlocked;
+    const total = levelTotalEnemies(L);
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'td-lv' + (cleared ? ' is-clear' : locked ? ' is-lock' : ' is-open');
     btn.disabled = locked;
     btn.dataset.level = String(L);
-    btn.innerHTML = '<b>' + L + '</b><small>' + (best > 0 ? best + '/' + cfg.waves : '·') + '</small>';
-    btn.title = '第 ' + L + ' 关 · ' + cfg.waves + ' 波 · ' + (locked ? '未解锁' : cleared ? '已通关' : '可挑战');
+    btn.innerHTML = '<b>' + L + '</b><small>总怪量 ' + total + '</small>';
+    btn.title = '第 ' + L + ' 关 · ' + cfg.waves + ' 波 · 总怪量 ' + total
+      + ' · 最好 ' + best + '/' + cfg.waves + ' 波 · ' + (locked ? '未解锁' : cleared ? '已通关' : '可挑战');
     frag.appendChild(btn);
   }
   ui.levelGrid.textContent = '';
@@ -1201,7 +1405,9 @@ function setMode(mode) {
   state.paused = false; state.gameOver = false; state.result = ''; state.waveActive = false;
   hideOverlay(); hideTowerPanel();
   if (state.inRun) resetGame();
+  state.resumeDone = false;                  // 换模式 = 新语境，重新问一次「继续还是重开」
   lastTs = 0; acc = 0;
+  maybeAwaitResume();
   syncView(); syncTowerButtons(); syncHud();
 }
 
@@ -1225,8 +1431,8 @@ function frame(ts) {
   let dt = (ts - lastTs) / 1000;
   lastTs = ts;
   if (dt > 0.25) dt = 0.25;               // 长卡顿先给真实间隔封顶
-  if (!state.inRun || state.paused || state.hidden || state.gameOver) {
-    acc = 0;                                // 不在对局中（关卡列表）时彻底不推进逻辑
+  if (!state.inRun || state.paused || state.hidden || state.gameOver || state.awaitingResume) {
+    acc = 0;                                // 不在对局中（关卡列表）/ 等玩家选继续时彻底不推进逻辑
   } else {
     acc += dt * state.speed;              // 倍速只加快累积，不改渲染帧率
     let steps = 0;
@@ -1261,16 +1467,59 @@ function togglePause() {
 }
 
 function restart() {
-  resetGame();
-  hideOverlay();
-  hideTowerPanel();
-  ui.btnPause.textContent = '暂停';
-  ui.btnPause.classList.remove('is-on');
-  ui.btnSpeed.textContent = '1x';
-  ui.btnSpeed.classList.remove('is-on');
+  if (state.mode === 'endless') clearEndlessRun();   // 主动重开：旧的可续记录作废（别续到已放弃的一局）
+  state.resumeDone = false;
+  resetGame(); hideOverlay(); hideTowerPanel();
   lastTs = 0; acc = 0;
-  syncTowerButtons();
-  syncHud();
+  ui.btnPause.textContent = '暂停'; ui.btnPause.classList.remove('is-on');
+  ui.btnSpeed.textContent = '1x'; ui.btnSpeed.classList.remove('is-on');
+  maybeAwaitResume(); syncTowerButtons(); syncHud();
+}
+
+/**
+ * 「继续上次 / 重新开始」待选择态：只在「无尽 + 未开局（第 0 波）+ 有 7 天内的记录 + 没问过」
+ * 时成立。为真时主循环不推进（见 frame），否则 1.8s 倒计时一到就开始新的一局，选择权被没收。
+ */
+function maybeAwaitResume() {
+  const run = resumableRun();
+  state.awaitingResume = !!run && !state.resumeDone && state.mode === 'endless'
+    && state.inRun && !state.gameOver && state.wave === 0;
+  if (ui.resumeBar) ui.resumeBar.hidden = !state.awaitingResume;
+  if (ui.btnResume && state.awaitingResume) ui.btnResume.textContent = '继续上次（第 ' + run.wave + ' 波）';
+}
+
+/**
+ * 续玩：恢复金币 / 生命 / 击杀 / 种子 / 塔阵，波次回到 run.wave 的「开头」—— 波中状态（场上
+ * 敌人、飞行子弹、剩余出场队列）根本不进存档，所以那一波是从第一只怪重新开始，不是接着半波打。
+ * 非法塔位（越界 / 落在路径上 / 与已有塔重叠）逐座跳过并 console.warn，坏存档不会把局面搞崩。
+ */
+function resumeEndlessRun() {
+  const run = resumableRun();
+  if (!run) { maybeAwaitResume(); return; }
+  state.mode = 'endless'; state.level = null; state.inRun = true;
+  resetGame();                                  // 清实体 + 按无尽模式重建地图（固定第 1 张）
+  state.seed = run.seed;
+  state.gold = run.gold; state.lives = run.lives; state.kills = run.kills;
+  state.wave = run.wave - 1;                    // startWave 会 +1 → 正好从该波开头重来
+  state.nextWaveIn = 1500;
+  let skipped = 0;
+  for (const t of run.towers) {
+    const def = TOWER_TYPES[t.type];
+    if (!def || !isBuildable(state, t.col, t.row) || towerAt(state, t.col, t.row)) { skipped += 1; continue; }
+    state.towers.push({
+      type: t.type, lv: t.lvl, col: t.col, row: t.row, x: (t.col + 0.5) * GRID.tile, y: (t.row + 0.5) * GRID.tile,
+      cd: 0, rateBuff: 0, dmgBuff: 0, spend: def.cost.slice(0, t.lvl).reduce((s, c) => s + c, 0),  // 还原总投入，出售不亏
+    });
+  }
+  if (skipped > 0) console.warn('[tower-defense] 续玩跳过 ' + skipped + ' 座非法塔位（越界/在路径上/重叠）');
+  state.resumeDone = true;                      // 已经选过「继续」，别再拦一次
+  state.awaitingResume = false;
+  hideOverlay(); hideTowerPanel();
+  lastTs = 0; acc = 0;
+  ui.btnPause.textContent = '暂停'; ui.btnPause.classList.remove('is-on');
+  ui.btnSpeed.textContent = '1x'; ui.btnSpeed.classList.remove('is-on');
+  if (ui.resumeBar) ui.resumeBar.hidden = true;
+  syncTowerButtons(); syncHud();
 }
 
 function bindEvents() {
@@ -1305,6 +1554,36 @@ function bindEvents() {
   });
   ui.btnRestart.addEventListener('click', restart);
   ui.btnAgain.addEventListener('click', restart);
+
+  // 无尽「继续上次 / 重新开始」：重新开始 = 丢掉旧记录走 restart（restart 会 clearEndlessRun）
+  if (ui.btnResume) ui.btnResume.addEventListener('click', resumeEndlessRun);
+  if (ui.btnResumeFresh) ui.btnResumeFresh.addEventListener('click', restart);
+
+  // 导出：存档码写进只读 textarea 并全选（一键 Ctrl+C）；下载走 Blob + createObjectURL
+  if (ui.btnExportCode) ui.btnExportCode.addEventListener('click', () => {
+    if (ui.saveOut) { ui.saveOut.value = encodeSave(progress); ui.saveOut.focus(); ui.saveOut.select(); }
+    saveMsg('存档码已生成，已全选：Ctrl+C / ⌘+C 复制', false);
+  });
+  if (ui.btnExportFile) ui.btnExportFile.addEventListener('click', () => {
+    try {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(progress, null, 2)], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = 'mlttc-td-save.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      saveMsg('已下载 mlttc-td-save.json', false);
+    } catch (err) { saveMsg('下载失败：' + (err && err.message ? err.message : '浏览器不支持'), true); }
+  });
+  // 导入：存档码粘贴框 + 文件选择，两条路都收敛到 applyImport → 同一份字段校验与合并策略
+  if (ui.btnImportCode) ui.btnImportCode.addEventListener('click', () => applyImport(ui.saveIn ? ui.saveIn.value : ''));
+  if (ui.saveFile) ui.saveFile.addEventListener('change', () => {
+    const f = ui.saveFile.files && ui.saveFile.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { applyImport(String(reader.result || '')); ui.saveFile.value = ''; };
+    reader.onerror = () => saveMsg('文件读取失败', true);
+    reader.readAsText(f);
+  });
 
   // 通关浮层：下一关 / 回关卡列表（列表点完会重建网格，解锁状态立刻可见）
   ui.btnNext.addEventListener('click', () => {
@@ -1375,6 +1654,12 @@ function boot() {
   ui.btnModeEndless = byId('tdModeEndless'); ui.btnModeLevel = byId('tdModeLevel');
   ui.modeBadge = byId('tdMode');
   ui.towerBtns = Array.prototype.slice.call(document.querySelectorAll('.td-tower-btn'));
+  // 塔数值表容器 + 存档面板 + 无尽「继续上次」条
+  ui.towerStatsBody = byId('tdTowerStatsBody'); ui.resumeBar = byId('tdResumeBar');
+  ui.btnResume = byId('tdBtnResume'); ui.btnResumeFresh = byId('tdBtnResumeFresh');
+  ui.saveOut = byId('tdSaveOut'); ui.saveIn = byId('tdSaveIn'); ui.saveFile = byId('tdSaveFile');
+  ui.saveMsg = byId('tdSaveMsg'); ui.btnExportCode = byId('tdBtnExportCode');
+  ui.btnExportFile = byId('tdBtnExportFile'); ui.btnImportCode = byId('tdBtnImportCode');
 
   progress = loadProgress();             // 读档失败内部已回落默认值，boot 不会因此中断
   state.mode = 'endless'; state.level = null; state.inRun = true;
@@ -1382,6 +1667,8 @@ function boot() {
   resetGame();
   setupCanvas();
   bindEvents();
+  buildTowerStats();                     // 塔数值表由 TOWER_TYPES 现生成（数据只有一份）
+  maybeAwaitResume();                    // 有 7 天内的无尽进度就先停在「继续 / 重新开始」
   syncView();
   syncTowerButtons();
   syncHud();
@@ -1394,10 +1681,13 @@ function boot() {
       enemies: state.enemies.length, towers: state.towers.length, mapIdx: state.mapIdx,
       waveActive: state.waveActive, gameOver: state.gameOver, speed: state.speed,
     }),
-    wave: (n) => generateEndlessWave(n, state.seed),
+    wave: (n) => generateEndlessWave(n, state.seed),   // 原始曲线（不含前 5 波赏金加成，调参用）
     level: (n) => generateLevel(n),
     levelWave: (l, n) => buildLevelWave(generateLevel(l), n),
+    levelTotal: levelTotalEnemies,
     progress: () => JSON.parse(JSON.stringify(progress)),
+    saveCode: () => encodeSave(progress),
+    importSave: applyImport,
     startLevel, backToList, setMode,
     addGold: (n) => { state.gold += n; },
     skipWait: () => { state.nextWaveIn = 0; },

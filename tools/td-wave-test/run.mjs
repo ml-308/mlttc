@@ -19,6 +19,8 @@
 //   5. 输出数据表（波次 / 总数 / 首组 hp / 需 DPS）
 //   6. 闯关 1..100 关全部可通：预算模型下 需要DPS/可买DPS <= 0.85
 //   7. 难度曲线不倒挂：ratio(L) 单调不减（±5% 容差），并指出首个违规的 L
+//   8. 存档码 encodeSave / decodeSave 往返一致（含非 ASCII），非法输入一律 null 且不抛异常；
+//      关卡总怪量（关卡列表按钮上的数字）为正整数且缓存不改变结果
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -273,6 +275,73 @@ section('7. 难度曲线不倒挂（ratio 单调不减，允许 -' + Math.round(
         `L1=${r1.toFixed(3)} L100=${r100.toFixed(3)}`);
     assert('L1 与 L100 的 ratio 差距不过分（<=0.45）', Math.abs(r100 - r1) <= 0.45,
         `差 ${(r100 - r1).toFixed(3)}`);
+}
+
+// ─── 8. 存档码编解码 + 关卡总怪量 ────────────────────────────
+
+section('8. 存档码 encodeSave / decodeSave（往返 + 非法输入）');
+{
+    const { encodeSave, decodeSave, levelTotalEnemies } = mod;
+
+    // 键序无关的序列化：encodeSave 走 JSON，解码后键序可能不同，比的是内容不是字面量顺序
+    const canon = (v) => JSON.stringify(v, (k, val) => (
+        val && typeof val === 'object' && !Array.isArray(val)
+            ? Object.keys(val).sort().reduce((o, k2) => { o[k2] = val[k2]; return o; }, {})
+            : val));
+
+    const sample = {
+        unlocked: 12,
+        endlessBest: 37,
+        levelBest: { 3: 12, 7: 16 },
+        endlessRun: {
+            wave: 9, gold: 420, lives: 14, kills: 208,
+            seed: 'run-中文种子·🎮&<tag>', savedAt: 1700000000000,
+            towers: [{ type: 'arrow', col: 3, row: 5, lvl: 2 }, { type: 'aura', col: 4, row: 5, lvl: 3 }],
+        },
+        nickname: '中文昵称 · test & <b>',
+    };
+
+    const code = encodeSave(sample);
+    assert('encodeSave 输出 TD1- 前缀的字符串',
+        typeof code === 'string' && code.startsWith('TD1-') && code.length > 40, String(code).slice(0, 20));
+
+    const back = decodeSave(code);
+    assert('encodeSave → decodeSave 往返一致（含中文 / emoji / <>& 特殊字符）',
+        canon(back) === canon(sample), String(canon(back)).slice(0, 140));
+
+    assert('合法最小存档也能往返',
+        (decodeSave(encodeSave({ unlocked: 1 })) || {}).unlocked === 1, 'decode 失败');
+
+    const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
+    const badInputs = [
+        '', null, undefined, 42, {}, [], 'TD1-', 'TD1-!!!not-base64', 'nothing-here',
+        'TD1-' + b64('{oops'),                     // JSON 坏
+        'TD1-' + b64('"just a string"'),           // 不是对象
+        'TD1-' + b64('[1,2,3]'),                   // 是数组
+        'TD1-' + b64('{"unlocked":"abc"}'),        // 字段非法
+        'TD1-' + b64('{"levelBest":{"0":5}}'),     // 关卡号越界
+        'TD1-' + b64('{"endlessRun":{"wave":0}}'), // endlessRun 结构不全
+    ];
+    let threw = null, nonNull = null;
+    for (const v of badInputs) {
+        try { if (decodeSave(v) !== null) nonNull = String(v).slice(0, 40); }
+        catch (e) { threw = e; }
+    }
+    assert('非法输入（前缀/base64/JSON/字段/类型）一律 null 且不抛异常',
+        threw === null && nonNull === null,
+        threw ? `抛出异常：${threw}` : (nonNull ? `非 null 返回：${nonNull}` : ''));
+
+    // 关卡总怪量：缓存命中与否结果必须一致（缓存不能改变数值）
+    const t0 = Date.now();
+    const totals = [];
+    for (let L = 1; L <= LEVEL_MAX; L += 1) totals.push(levelTotalEnemies(L));
+    const cost = Date.now() - t0;
+    const again = levelTotalEnemies(50);
+    assert('100 关总怪量全部为正整数，且缓存命中结果一致',
+        totals.every((v) => Number.isInteger(v) && v > 0) && again === totals[49],
+        `L50 ${totals[49]} vs ${again}`);
+    console.log(`  关卡总怪量：L1=${totals[0]} L50=${totals[49]} L100=${totals[99]}`);
+    console.log(`  100 关首次全算耗时 ${cost}ms（页面里缓存在 Map，之后进列表命中缓存为 0）`);
 }
 
 // ─── 汇总 ────────────────────────────────────────────────────
