@@ -1520,21 +1520,34 @@ const CLEAR_SEC_MAX = 240;   // 护栏：第 90 波必须在 240 秒内清完（
 }
 
 
-section('22. 「自动升级」目标 autoUpgradeTarget（专精弹窗打开时必须停手）');
+section('22. 「自动升级」按批量数据计算 autoUpgradePlan（专精弹窗打开时必须停手）');
 {
-    const { autoUpgradeTarget } = mod;
+    const { autoUpgradePlan, towerStat } = mod;
     const tw = (type, lv) => ({ type, lv, col: 1, row: 1, x: 0, y: 0, cd: 0, spend: 0, dmgBuff: 0, rateBuff: 0 });
-    const towers = [tw('arrow', 1), tw('cannon', 2)];
-    const normal = autoUpgradeTarget(towers, 999999, true, false);
-    assert('专精弹窗未打开时正常给出目标（等级最低优先）', normal && normal.index === 0 && normal.lv === 1,
-        normal ? `index=${normal.index} lv=${normal.lv}` : 'null');
-    // 这条是本次功能的硬要求：自动升级绝不能替玩家选专精
-    assert('专精弹窗打开时返回 null（自动升级停手，等玩家手动选）',
-        autoUpgradeTarget(towers, 999999, true, true) === null);
-    assert('没有可升级目标 / 全部满级时返回 null',
-        autoUpgradeTarget([], 999999, true, false) === null);
-    assert('金币不足时 canAfford 为 false（按钮/节拍器据此跳过）',
-        (() => { const r = autoUpgradeTarget(towers, 0, true, false); return !!r && r.canAfford === false; })());
+    const towers = [tw('arrow', 1), tw('cannon', 1), tw('frost', 2), tw('aura', 3)];
+
+    // 自动升级用的就是「批量升级」那套计划：数量框填几座，一跳就升几座
+    const p2 = autoUpgradePlan(towers, 999999, 2, true, false);
+    assert('数量 2 → 计划正好 2 座（等级最低优先：箭塔 Lv.1 与炮塔 Lv.1，先建者在前）',
+        p2.canDo === true && p2.targets.length === 2 && p2.targets[0].index === 0 && p2.targets[1].index === 1,
+        JSON.stringify(p2.targets.map((t) => [t.index, t.lv])));
+    assert('计划里的 totalCost 等于各座升级价之和（一次扣款的依据）',
+        p2.totalCost === p2.targets.reduce((sum, t) => sum + t.cost, 0), 'totalCost=' + p2.totalCost);
+
+    const p5 = autoUpgradePlan(towers, 999999, 5, true, false);
+    assert('数量 5 但场上只有 4 座可升 → 计划自然缩短到 4 座（不会重复升同一座）',
+        p5.targets.length === 4, 'len=' + p5.targets.length);
+
+    // 本次功能的硬要求：自动升级绝不能替玩家选专精
+    const busy = autoUpgradePlan(towers, 999999, 3, true, true);
+    assert('专精弹窗打开时返回空计划（自动升级停手，等玩家手动选）',
+        busy && busy.canDo === false && busy.targets.length === 0 && busy.totalCost === 0,
+        JSON.stringify(busy));
+
+    assert('钱不够第一座 → 空计划（节拍器据此跳过，不报错）',
+        (() => { const r = autoUpgradePlan(towers, 0, 3, true, false); return r.canDo === false && r.totalCost === 0; })());
+    assert('无可升级目标（空场）→ 空计划',
+        (() => { const r = autoUpgradePlan([], 999999, 3, true, false); return r.canDo === false; })());
 }
 
 // ─── 汇总 ────────────────────────────────────────────────────

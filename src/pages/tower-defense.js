@@ -594,7 +594,7 @@ export {
   planSalvage,         // 「回收」的选塔计划（纯函数：等级最低优先、同级先建者、全额返还）
   SKILL_EFFECT_CAP, SKILL_CHILL_CAP,   // 技能效果的封顶值（2 倍 / 减速 80%，自检直接断言）
   RUN_LEFT_MAX_MS,     // 存档里「剩余毫秒」类字段的夹取上限（自检断言坏值被夹住）
-  autoUpgradeTarget,   // 「自动升级」的目标选择（专精弹窗打开时返回 null）
+  autoUpgradePlan,   // 「自动升级」每一跳的批量计划（专精弹窗打开时返回空计划）
   mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
   towerStatRows,   // 塔数值表的行 HTML（纯函数：自检断言「并进特殊塔后不出现 NaN / undefined」）
   towerStat,       // 某塔某等级的实际数值（Lv.1~3 读数组、Lv.4+ 现算外推：战斗 / 清单 / 快速升级同源）
@@ -3225,9 +3225,16 @@ const AUTO_UP_INTERVAL_MS = 700;   // 自动升级节奏（逻辑时间）：每
  * 「自动升级」每一步的目标。与 quickUpgradeTarget 同源（等级最低优先、受高等级解锁闸约束），
  * 但**专精弹窗打开时直接返回 null** —— 专精必须由玩家手动选，自动流程不能替他决定。
  */
-function autoUpgradeTarget(towers, gold, highUnlocked, specBusy) {
-  if (specBusy) return null;
-  return nextUpgradeTarget(towers, gold, highUnlocked);
+/**
+ * 「自动升级」每一跳要执行的**批量计划**。
+ *
+ * 与手动「批量升级」完全同一套计算：数量取自批量升级的数量框（1~100），
+ * 挑选规则同样是「等级最低优先、同级取先建」，钱不够就少升几座。
+ * 专精弹窗打开时返回**空计划**（canDo=false）—— 专精必须玩家手动选，自动流程停手等待。
+ */
+function autoUpgradePlan(towers, gold, count, highUnlocked, specBusy) {
+  if (specBusy) return { targets: [], totalCost: 0, canDo: false };
+  return planBatchUpgrade(towers, gold, count, highUnlocked);
 }
 
 function quickUpgradeTarget() {
@@ -3240,15 +3247,16 @@ function quickUpgradeTarget() {
  */
 /**
  * 自动升级的节拍器：每 AUTO_UP_INTERVAL_MS 最多升一座，避免一瞬间把钱花光。
- * 专精弹窗打开时 autoUpgradeTarget 返回 null → 自动暂停，等玩家选完再继续。
+ * 专精弹窗打开时 autoUpgradePlan 返回空计划 → 自动暂停，等玩家选完再继续。
  */
 function autoUpgradeTick() {
   const now = state.timeMs;
   if (now < state.autoUpNextAt) return;
-  const target = autoUpgradeTarget(state.towers, state.gold, canUpgradeBeyond3(), specDialogOpen);
-  if (!target || !target.canAfford) { state.autoUpNextAt = now + AUTO_UP_INTERVAL_MS; return; }
   state.autoUpNextAt = now + AUTO_UP_INTERVAL_MS;
-  upgradeTower(target.tower);   // 复用既有升级：扣钱 / 升级 / 落盘 / 触发专精弹窗
+  // 数量用「批量升级」那个框的值：自动升级 = 定时自动点一次批量升级
+  const plan = autoUpgradePlan(state.towers, state.gold, batchCount(), canUpgradeBeyond3(), specDialogOpen);
+  if (!plan.canDo) return;
+  applyBatchUpgrade(plan);   // 复用既有批量执行：一次扣款 / 逐座升级 / 落盘一次 / 触发专精弹窗
   syncHud();
 }
 
