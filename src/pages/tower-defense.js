@@ -1376,8 +1376,8 @@ function openSpecPicker(tower, tier) {
   if (ui.specTitle) ui.specTitle.textContent = (def ? def.name : String(tower.type)) + ' · Lv.' + tier + ' 专精';
   if (ui.specOpts) {
     ui.specOpts.innerHTML = opts.slice(0, 2).map((o, i) =>
-      '<button type="button" data-spec-idx="' + i + '" title="' + o.desc + '">'
-      + o.name + '（' + o.desc + '）</button>').join('');
+      '<button type="button" data-spec-idx="' + i + '" title="' + o.desc + '（按 ' + (i + 1) + ' 键快选）">'
+      + '<b>' + (i + 1) + '</b> ' + o.name + '（' + o.desc + '）</button>').join('');
   }
   if (ui.specPicker) ui.specPicker.hidden = false;
 }
@@ -4148,6 +4148,13 @@ function bindEvents() {
 
   // 键盘：空格暂停、1~4 选基础塔（5~7 是特殊塔，未解锁时点不动）、Esc 先收陨石选点再收面板
   document.addEventListener('keydown', (ev) => {
+    // 专精面板可见时，1 / 2 优先给面板用（否则会和"1~7 选塔"打架）：
+    // 玩家的注意力在面板上，这时按 1/2 想选的显然是专精，不是切塔类型。
+    if (state.pendingSpec && (ev.key === '1' || ev.key === '2')) {
+      ev.preventDefault();
+      pickSpecialization(Number(ev.key) - 1);
+      return;
+    }
     if (ev.key === ' ') { ev.preventDefault(); togglePause(); }
     else if (ev.key === 'Escape') { cancelCasting(); clearTowerSelect(); }
     else if (ev.key >= '1' && ev.key <= '7') { const b = ui.towerBtns[Number(ev.key) - 1]; if (b && !b.hidden) b.click(); }
