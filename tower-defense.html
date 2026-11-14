@@ -226,6 +226,28 @@
             color: var(--text-primary);
         }
 
+        /* 超频徽章（塔名后面那颗金色小标签）：与画布上的金色脉冲环 + 角标是同一件事。
+           刻意用「实心金底 + 近黑字」而不是半透明金底 + 金字：金色文字在浅色主题的白底上
+           对比度不够（#FFD166 在 #fff 上仅约 1.6:1），实心填充 + 深色字两套主题下都够读。 */
+        .td-ti-oc {
+            padding: 0 6px;
+            border-radius: var(--radius-full, 500px);
+            background: #FFD166;
+            color: #3A2A00;
+            font-size: .64rem;
+            font-weight: 800;
+            line-height: 1.6;
+            white-space: nowrap;
+        }
+
+        /* 超频行：左侧一条金色竖条（形状 + 颜色双编码，不只靠徽章）。
+           规则必须排在 .is-active 之后：同为两类选择器，后者会覆盖 border-color，
+           排在这里才让「金竖条 + 主色描边」同时生效。padding-left 由 8px 收窄到 6px 补回竖条占的 2px。 */
+        .td-ti-row.is-oc {
+            border-left: 3px solid #FFD166;
+            padding-left: 6px;
+        }
+
         .td-ti-lv {
             font-size: .7rem;
             font-weight: 700;
@@ -285,6 +307,18 @@
         .td-ti-acts button[data-act="upgrade"] {
             border-color: var(--primary);
             color: var(--primary);
+        }
+
+        /* 行内「超频」按钮：只把描边与底色染成金，文字仍用 --text-primary ——
+           浅色主题下金色文字对比度不足，颜色留给「是不是超频相关」这个提示，可读性交给主题变量 */
+        .td-ti-acts button[data-act="oc"] {
+            border-color: #FFD166;
+            background: rgba(255, 209, 102, .14);
+        }
+
+        .td-ti-acts button[data-act="oc"]:disabled {
+            border-color: var(--border);
+            background: var(--bg-hover);
         }
 
         /* 空场：一行灰字，而不是一个空盒子 */
@@ -616,6 +650,18 @@
             line-height: 1.45;
             color: var(--text-secondary);
             background: var(--bg-hover);
+        }
+
+        /* 表尾「超频」说明行：淡金底 + 金色左竖条，与上面灰底的 Lv.4+ 汇总行区分开；
+           底色是半透明金（两套主题都是同一层暖色），文字仍用 --text-secondary 保证可读 */
+        .td-tstats tbody tr.td-tstats-oc td {
+            font-weight: 400;
+            text-align: left;
+            white-space: normal;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            background: rgba(255, 209, 102, .10);
+            border-left: 3px solid #FFD166;
         }
 
         /* ---------- 存档导出 / 导入 ---------- */
@@ -1141,7 +1187,7 @@
          若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
          启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
          **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
-    <script src="/src/pages/tower-defense.js?v=1.6.13-3" type="module"></script>
+    <script src="/src/pages/tower-defense.js?v=1.6.13-4" type="module"></script>
 </head>
 
 <body class="td-page-body">
@@ -1255,6 +1301,11 @@
                      applyBatchUpgrade；整组只在无尽模式出现，显隐由 syncView 管） -->
                 <label class="td-batch"><input type="number" id="tdBatchCount" min="1" max="100" step="1" value="5"> 座</label>
                 <button id="tdBatchUpgrade" type="button" disabled title="场上没有可升级的塔">批量升级</button>
+                <!-- 一键超频：一次赌「座数」那么多座塔（1~20），50% 成功（保留等级）/ 失败降 5 级；
+                     计划与扣款见 planBatchOverclock / applyBatchOverclock，整组同样只在无尽模式出现
+                     （显隐由 syncView 管）。文案里的「合计 X」由 syncBatchOverclock 实时写。 -->
+                <label class="td-batch td-batch-oc"><input type="number" id="tdBatchOcCount" min="1" max="20" step="1" value="1"> 座</label>
+                <button id="tdBatchOcBtn" type="button" disabled title="场上没有塔">一键超频</button>
                 <button id="tdBack" hidden>关卡列表</button>
             </div>
         </section>
@@ -1269,7 +1320,7 @@
         </details>
 
         <p class="td-hint" id="tdHint">
-            点击空格子放塔 · 下方清单列出场上每座塔，行内可直接升级或删除 · 点塔看射程圈 · 敌人走到右侧终点扣 1 点生命
+            点击空格子放塔 · 下方清单列出场上每座塔，行内可直接升级、超频或删除 · 点塔看射程圈 · 画布上的金环 = 已超频（50% 成功保留等级，失败降 5 级） · 敌人走到右侧终点扣 1 点生命
         </p>
 
         <!-- 存档导出 / 导入：默认收起。存档码 = 'TD1-' + base64(JSON)，文件 = 同一份 progress JSON -->

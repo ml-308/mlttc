@@ -21,14 +21,21 @@
 
 /** 无尽模式主动技能：解锁波次 / 花费 / 冷却 / 效果说明 */
 export const SKILLS = [
-  // 解锁波次 4/8/14/22/32/45：逐级拉开，每个阶段都有「刚好解封」的那一个在等玩家；
+  // 解锁波次 4/8/10/14/18/22/26/32/36/42/45/55：逐级拉开，每个阶段都有「刚好解封」的那一个在等玩家；
   // 花费与冷却同步抬升（60/20s → 900/120s），保证后期技能强但不廉价；冷却全部长于持续时间，避免同一技能无缝连放。
+  // 12 条的 unlockWave 必须严格递增（自检脚本会逐位比对序列），新增技能只能插在相邻两档之间。
   { id: 'chill', name: '寒流', unlockWave: 4, cost: 60, cooldownMs: 20000, desc: '全场敌人减速 50%，持续 3 秒' },
   { id: 'meteor', name: '陨石', unlockWave: 8, cost: 150, cooldownMs: 30000, desc: '指定一处，半径 100 内 500 伤害' },
+  { id: 'bounty', name: '赏金', unlockWave: 10, cost: 120, cooldownMs: 45000, desc: '12 秒内击杀赏金 +60%' },
   { id: 'repair', name: '修复', unlockWave: 14, cost: 220, cooldownMs: 60000, desc: '生命 +3（不超过上限）' },
+  { id: 'vortex', name: '黑洞', unlockWave: 18, cost: 260, cooldownMs: 60000, desc: '点地面：半径 90 内的敌人被拉向圆心并聚集 1.5 秒' },
   { id: 'timestop', name: '时停', unlockWave: 22, cost: 380, cooldownMs: 75000, desc: '全场敌人停滞 2.5 秒' },
+  { id: 'shield', name: '护盾', unlockWave: 26, cost: 300, cooldownMs: 70000, desc: '20 秒内漏怪不扣生命，改为消耗护盾（吸收 3 次）' },
   { id: 'overload', name: '超载', unlockWave: 32, cost: 500, cooldownMs: 90000, desc: '全塔攻速 +50%、伤害 +20%，持续 8 秒；随后疲劳 5 秒（攻速 -20%）' },
+  { id: 'execute', name: '斩杀', unlockWave: 36, cost: 420, cooldownMs: 80000, desc: '对血量低于 25% 的敌人造成其最大生命 50% 的真实伤害（无视护甲）' },
+  { id: 'resonance', name: '共鸣', unlockWave: 42, cost: 560, cooldownMs: 100000, desc: '8 秒内所有光环塔的加成翻倍' },
   { id: 'purge', name: '净化', unlockWave: 45, cost: 900, cooldownMs: 120000, desc: '清掉场上所有非 BOSS 敌人（不给赏金）' },
+  { id: 'salvage', name: '回收', unlockWave: 55, cost: 300, cooldownMs: 150000, desc: '立刻把等级最低的 3 座塔全额返还卖掉' },
 ];
 
 // ── 各技能参数（单独导出，便于主文件与测试共用同一份真值，避免两边魔法数字打架） ──
@@ -53,6 +60,24 @@ export const OVERLOAD = {
   fatigueMs: 5000,
   fatigueRate: -0.2,
 };
+
+// 赏金：+60% 是「值得为它留一波爆发」的量级；12 秒覆盖一波中后段；cap 1.2 挡住随波次强化的叠加失控。
+export const BOUNTY = { goldBonus: 0.6, durationMs: 12000, cap: 1.2 };
+
+// 黑洞：半径 90 略小于陨石（100），因为它是「聚怪」而非「清怪」，聚集 1.5 秒刚好够一轮集火。
+export const VORTEX = { radius: 90, durationMs: 1500 };
+
+// 护盾：20 秒 / 3 次吸收，上限 6 次 —— 上限写死，避免强化把「不漏血」变成永久无敌。
+export const SHIELD = { durationMs: 20000, hits: 3, maxHits: 6 };
+
+// 斩杀：25% 血线是「残血但还没死」的常见档位；50% 最大生命的真实伤害无视护甲，对高甲单位才有价值。
+export const EXECUTE = { hpThreshold: 0.25, maxHpRatio: 0.5 };
+
+// 共鸣：光环加成翻倍，持续 8 秒（与超载同档），让「堆光环塔」成为一条真实流派。
+export const RESONANCE = { durationMs: 8000, auraMul: 2 };
+
+// 回收：卖最弱的 3 座、全额返还 —— 后期换塔的止损手段；towers 上限 3、refundRatio 上限 1（不允许卖出高于投入）。
+export const SALVAGE = { towers: 3, refundRatio: 1 };
 
 /**
  * 按 id 取技能定义。
@@ -195,4 +220,108 @@ export function tickStatus(enemy, dtMs) {
     if (next > 0) alive = true;
   }
   return alive;
+}
+
+// ── 新增技能（赏金 / 黑洞 / 护盾 / 斩杀 / 共鸣 / 回收）的纯逻辑 ──
+// 全部零副作用、时间由参数传入：这里只做「算一个数 / 挑一批目标」，改状态由主文件自己做。
+
+/**
+ * 赏金的额外赏金倍率（**额外**部分：0.6 表示 +60%，不是 1.6 倍总价）。
+ * 结果 = min(cap, goldBonus * scale)，scale 用来给后续「随波次强化」留口子。
+ * scale 非法（非数字 / NaN / Infinity）按 1 处理；scale = 0 得 0（等于没开），公式本身不额外夹取。
+ * @param {number} [scale] 强化倍数，缺省 1
+ * @returns {number}
+ */
+export function bountyMultiplier(scale) {
+  const s = Number.isFinite(scale) ? scale : 1;
+  const raw = BOUNTY.goldBonus * s;
+  return raw < BOUNTY.cap ? raw : BOUNTY.cap;
+}
+
+/**
+ * 黑洞的目标选择：圆心距 <= radius（含边界）的敌人数组，与 meteorHits 同一套判定口径。
+ * 只挑目标，不做位移 —— 真正的「拉向圆心」由主文件按 VORTEX.durationMs 插值。
+ * @param {object[]} enemies
+ * @param {number} x 圆心
+ * @param {number} y 圆心
+ * @param {number} [radius] 省略/非法时用 VORTEX.radius
+ * @returns {object[]} 不修改入参，返回新数组（元素仍是原引用）；坏输入返回 []
+ */
+export function vortexTargets(enemies, x, y, radius) {
+  if (!Array.isArray(enemies)) return [];
+  const r = Number.isFinite(radius) ? radius : VORTEX.radius;
+  const cx = Number.isFinite(x) ? x : 0;
+  const cy = Number.isFinite(y) ? y : 0;
+  return enemies.filter((e) => e && Math.hypot(e.x - cx, e.y - cy) <= r);
+}
+
+/**
+ * 护盾能吸收几次漏怪 = min(maxHits, round(hits * scale))，并且至少 1 次。
+ * scale 非法按 1 处理；scale = 0 时也夹到 1 —— 「花 300 金开一个 0 次的护盾」没有意义，只会是配置错误。
+ * @param {number} [scale] 强化倍数，缺省 1
+ * @returns {number} 1..SHIELD.maxHits 的整数
+ */
+export function shieldHits(scale) {
+  const s = Number.isFinite(scale) ? scale : 1;
+  const n = Math.round(SHIELD.hits * s);
+  if (n > SHIELD.maxHits) return SHIELD.maxHits;
+  return n > 0 ? n : 1;
+}
+
+/**
+ * 斩杀的目标选择：血量比 hp / maxHp < EXECUTE.hpThreshold 的敌人。
+ * 注意是**严格小于**：hp = 25 / maxHp = 100（恰好 25%）不算命中，避免「刚好踩线」把满编小队整片秒掉。
+ * 缺 hp / maxHp（或非有限数、maxHp <= 0）的敌人跳过；BOSS 不做排除（斩杀就是用来处理高血量单位的）。
+ * 这里不判 dead —— 已死亡目标由主循环在遍历前剔除，本模块不重复猜测主文件的生命周期约定。
+ * @param {object[]} enemies
+ * @returns {object[]} 不修改入参，返回新数组（元素仍是原引用）；坏输入返回 []
+ */
+export function executeTargets(enemies) {
+  if (!Array.isArray(enemies)) return [];
+  return enemies.filter((e) => {
+    if (!e) return false;
+    const hp = e.hp;
+    const maxHp = e.maxHp;
+    if (!Number.isFinite(hp) || !Number.isFinite(maxHp) || maxHp <= 0) return false;
+    return hp < maxHp * EXECUTE.hpThreshold;
+  });
+}
+
+/**
+ * 斩杀伤害：目标最大生命的 50%，向下取整，至少 1（残血小怪不该因为取整变成 0 伤害）。
+ * 这是「真实伤害」的数值部分：不做护甲减免，减免/无敌判定由主文件在结算时决定。
+ * 缺 maxHp（或非有限数、<= 0）返回 0，供调用方直接 `if (!dmg) return;`。
+ * @param {object} enemy
+ * @returns {number}
+ */
+export function executeDamage(enemy) {
+  if (!enemy) return 0;
+  const maxHp = enemy.maxHp;
+  if (!Number.isFinite(maxHp) || maxHp <= 0) return 0;
+  const dmg = Math.floor(maxHp * EXECUTE.maxHpRatio);
+  return dmg > 1 ? dmg : 1;
+}
+
+/**
+ * 回收某座塔能返还多少金币 = max(0, floor(spend * refundRatio))。
+ * refundRatio 缺省（非有限数）时用 SALVAGE.refundRatio（当前为 1，即全额返还）；
+ * spend 非法返回 0 —— 宁可返还 0 也不返回 NaN，主文件可以直接加到金币上。
+ * @param {number} spend 已投入的金币（totalInvested）
+ * @param {number} [refundRatio] 返还比例，缺省 SALVAGE.refundRatio
+ * @returns {number} 恒 >= 0 的整数
+ */
+export function salvageRefund(spend, refundRatio) {
+  if (!Number.isFinite(spend)) return 0;
+  const ratio = Number.isFinite(refundRatio) ? refundRatio : SALVAGE.refundRatio;
+  const refund = Math.floor(spend * ratio);
+  return refund > 0 ? refund : 0;
+}
+
+/**
+ * 共鸣生效时光环塔加成的倍率。现在恒等于 RESONANCE.auraMul（2 = 翻倍），
+ * 留成函数是为了以后做「随波次 / 随光环塔数量强化」时不动调用方签名。
+ * @returns {number}
+ */
+export function resonanceMul() {
+  return RESONANCE.auraMul;
 }

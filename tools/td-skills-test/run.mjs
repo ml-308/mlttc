@@ -70,8 +70,11 @@ const section = (title) => console.log(`\n[${title}]`);
 // ─── 被测模块加载（未就绪 → 退出码 2） ───────────────────────
 
 const SKILLS_EXPORTS = ['SKILLS', 'CHILL', 'METEOR', 'REPAIR', 'TIMESTOP', 'OVERLOAD',
+    'BOUNTY', 'VORTEX', 'SHIELD', 'EXECUTE', 'RESONANCE', 'SALVAGE',
     'getSkill', 'skillsUnlockedAt', 'canCast', 'cooldownLeft', 'meteorHits', 'purgeHits',
-    'applyChillTo', 'tickStatus'];
+    'applyChillTo', 'tickStatus',
+    'bountyMultiplier', 'vortexTargets', 'shieldHits', 'executeTargets', 'executeDamage',
+    'salvageRefund', 'resonanceMul'];
 const TOWERS_EXPORTS = ['SPECIAL_TOWER_TYPES', 'SPECIAL_TOWER_IDS', 'isSpecialTower',
     'specialTowersUnlockedAt', 'towerUnlockWave', 'totalInvested', 'chainDamage',
     'pickChainTargets', 'poisonDps', 'poisonTick', 'pushDistance', 'applyPush'];
@@ -133,16 +136,23 @@ function statusRemaining(enemy, now = 0) {
 // ═══ 技能模块 src/pages/td-skills.js ════════════════════════
 
 function runSkillSections(mod) {
-    const { SKILLS, CHILL, METEOR, REPAIR, TIMESTOP, OVERLOAD, getSkill, skillsUnlockedAt,
-        canCast, cooldownLeft, meteorHits, purgeHits, applyChillTo, tickStatus } = mod;
+    const { SKILLS, CHILL, METEOR, REPAIR, TIMESTOP, OVERLOAD,
+        BOUNTY, VORTEX, SHIELD, EXECUTE, RESONANCE, SALVAGE,
+        getSkill, skillsUnlockedAt, canCast, cooldownLeft, meteorHits, purgeHits, applyChillTo,
+        tickStatus, bountyMultiplier, vortexTargets, shieldHits, executeTargets, executeDamage,
+        salvageRefund, resonanceMul } = mod;
 
-    section('1. SKILLS 数据形状（6 条 / id 唯一 / 解锁波次严格递增 / 数值为正）');
-    ok('SKILLS 是长度 6 的数组', Array.isArray(SKILLS) && SKILLS.length === 6, `实际长度 ${show(SKILLS && SKILLS.length)}`);
+    // 本次新增的 6 个技能（技能表 6 → 12 条）
+    const NEW_IDS = ['bounty', 'vortex', 'shield', 'execute', 'resonance', 'salvage'];
+
+    section('1. SKILLS 数据形状（12 条 / id 唯一 / 解锁波次严格递增 / 数值为正）');
+    ok('SKILLS 是长度 12 的数组', Array.isArray(SKILLS) && SKILLS.length === 12, `实际长度 ${show(SKILLS && SKILLS.length)}`);
     const ids = Array.isArray(SKILLS) ? SKILLS.map((s) => s && s.id) : [];
     const waves = Array.isArray(SKILLS) ? SKILLS.map((s) => s && s.unlockWave) : [];
-    eq('6 个 id 互不重复', new Set(ids).size, ids.length);
+    eq('12 个 id 互不重复', new Set(ids).size, ids.length);
     deepEq('id 都是非空字符串', ids.filter((x) => typeof x !== 'string' || x.length === 0), []);
-    deepEq('unlockWave 序列 = [4, 8, 14, 22, 32, 45]', waves, [4, 8, 14, 22, 32, 45]);
+    deepEq('unlockWave 序列 = [4,8,10,14,18,22,26,32,36,42,45,55]', waves,
+        [4, 8, 10, 14, 18, 22, 26, 32, 36, 42, 45, 55]);
     deepEq('unlockWave 严格递增', waves.every((w, i) => i === 0 || w > waves[i - 1]), true);
     const badNum = (Array.isArray(SKILLS) ? SKILLS : []).filter((s) => !s
         || typeof s.name !== 'string' || s.name.length === 0
@@ -150,12 +160,15 @@ function runSkillSections(mod) {
         || typeof s.cost !== 'number' || s.cost <= 0
         || typeof s.cooldownMs !== 'number' || s.cooldownMs <= 0).map((s) => s && s.id);
     deepEq('每条都有 name/desc，cost 与 cooldownMs 均为正数', badNum, []);
-    const badConsts = Object.entries({ CHILL, METEOR, REPAIR, TIMESTOP, OVERLOAD })
+    const badConsts = Object.entries({ CHILL, METEOR, REPAIR, TIMESTOP, OVERLOAD,
+        BOUNTY, VORTEX, SHIELD, EXECUTE, RESONANCE, SALVAGE })
         .filter(([, v]) => !v || typeof v !== 'object' || Object.keys(v).length === 0).map(([k]) => k);
-    deepEq('CHILL/METEOR/REPAIR/TIMESTOP/OVERLOAD 五个参数常量都是非空对象', badConsts, []);
+    deepEq('CHILL…OVERLOAD + BOUNTY/VORTEX/SHIELD/EXECUTE/RESONANCE/SALVAGE 十一个参数常量都是非空对象', badConsts, []);
     eq(`getSkill('${ids[0]}') 返回同一份定义`, getSkill(ids[0]) && getSkill(ids[0]).id, ids[0]);
     const unknown = getSkill('__no_such_skill__');
     ok('getSkill(未知 id) 返回 null/undefined', unknown === null || unknown === undefined, `实际 ${show(unknown)}`);
+    deepEq('新增 6 个技能 id 都能被 getSkill 取到（且返回的就是自己）',
+        NEW_IDS.filter((id) => { const s = getSkill(id); return !s || s.id !== id; }), []);
     console.log(`  技能表：${(Array.isArray(SKILLS) ? SKILLS : [])
         .map((s) => `${s && s.id}@${s && s.unlockWave}(${s && s.cost}g/${s && s.cooldownMs}ms)`).join(' ')}`);
 
@@ -164,7 +177,9 @@ function runSkillSections(mod) {
     deepEq('skillsUnlockedAt(3) 仍为空（chill 要 4 波）', idsOf(skillsUnlockedAt(3)), []);
     const at4 = idsOf(skillsUnlockedAt(4));
     ok('skillsUnlockedAt(4) 含 chill', at4.includes('chill'), `实际 ${show(at4)}`);
-    sameSet('skillsUnlockedAt(45) 含全部 6 个技能', skillsUnlockedAt(45), ids);
+    sameSet('skillsUnlockedAt(55) 含全部 12 个技能', skillsUnlockedAt(55), ids);
+    sameSet('skillsUnlockedAt(45) 含 11 个（salvage 要 55 波，此时还没解锁）',
+        skillsUnlockedAt(45), ids.filter((id) => id !== 'salvage'));
 
     section('3. canCast 四种情形（locked / cooldown / gold / ok）');
     const first = SKILLS[0], last = SKILLS[SKILLS.length - 1], now = 1000;
@@ -232,6 +247,66 @@ function runSkillSections(mod) {
     const r2 = statusRemaining(st, 0);
     ok('再 tick 800ms 后状态结束（剩余 <= 0）', !(r2.value > 0),
         `剩余 ${show(r2.value)}（字段 ${r2.field}），slow=${show(st.slow)}`);
+
+    section('9. 新增 6 个技能：参数常量 + 6 个纯函数（赏金 / 黑洞 / 护盾 / 斩杀 / 共鸣 / 回收）');
+    deepEq('6 个新常量的数值与设计表一致', { BOUNTY, VORTEX, SHIELD, EXECUTE, RESONANCE, SALVAGE },
+        {
+            BOUNTY: { goldBonus: 0.6, durationMs: 12000, cap: 1.2 },
+            VORTEX: { radius: 90, durationMs: 1500 },
+            SHIELD: { durationMs: 20000, hits: 3, maxHits: 6 },
+            EXECUTE: { hpThreshold: 0.25, maxHpRatio: 0.5 },
+            RESONANCE: { durationMs: 8000, auraMul: 2 },
+            SALVAGE: { towers: 3, refundRatio: 1 },
+        });
+
+    // ── 赏金：额外倍率（0.6 = +60%，不是 1.6） ──
+    near('bountyMultiplier(1) = 0.6（+60%）', bountyMultiplier(1), 0.6);
+    near('bountyMultiplier(5) 被 cap 夹到 1.2', bountyMultiplier(5), 1.2);
+    near('bountyMultiplier(非法 scale) 按 1 处理 = 0.6', bountyMultiplier(NaN), 0.6);
+
+    // ── 黑洞：半径内目标选择 ──
+    const vortexSrc = [
+        { id: 'in1', x: 100, y: 100 },   // 圆心，距 0
+        { id: 'in2', x: 180, y: 100 },   // 距 80，半径 90 内
+        { id: 'out1', x: 200, y: 100 },  // 距 100，超出默认半径 90
+    ];
+    deepEq('vortexTargets 默认半径 90：命中 in1/in2、排除距 100 的 out1',
+        idsOf(vortexTargets(vortexSrc, 100, 100)).sort(), ['in1', 'in2']);
+    deepEq('vortexTargets 距离恰等于 radius 仍命中（边界取 <=）',
+        idsOf(vortexTargets([{ id: 'edge', x: 190, y: 100 }], 100, 100, 90)), ['edge']);
+    deepEq('vortexTargets 坏输入（null / 非数组）返回 []',
+        [vortexTargets(null, 0, 0), vortexTargets(undefined, 0, 0), vortexTargets({}, 0, 0)], [[], [], []]);
+
+    // ── 护盾：吸收次数 ──
+    eq('shieldHits(1) = 3', shieldHits(1), 3);
+    eq('shieldHits(9) = 6（被 maxHits 夹住）', shieldHits(9), 6);
+    eq('shieldHits(0) 最小为 1（不会出现 0 次护盾）', shieldHits(0), 1);
+
+    // ── 斩杀：严格小于阈值 ──
+    const execSrc = [
+        { id: 'low', hp: 24, maxHp: 100 },                       // 24% → 命中
+        { id: 'edge', hp: 25, maxHp: 100 },                      // 恰好 25% → 不算
+        { id: 'high', hp: 90, maxHp: 100 },                      // 90% → 不命中
+        { id: 'boss', hp: 100, maxHp: 1000, type: 'boss' },      // 10%，BOSS 也命中
+        { id: 'nohp', maxHp: 100 },                              // 缺 hp → 跳过
+        { id: 'nomax', hp: 1 },                                  // 缺 maxHp → 跳过
+    ];
+    deepEq('executeTargets：24% 与 BOSS(10%) 命中，缺字段的两个被跳过',
+        idsOf(executeTargets(execSrc)).sort(), ['boss', 'low']);
+    ok('executeTargets 不含恰好 25% 的 edge（严格小于才命中）',
+        !idsOf(executeTargets(execSrc)).includes('edge'), `实际 ${show(idsOf(executeTargets(execSrc)))}`);
+    deepEq('executeTargets 坏输入（null / 非数组）返回 []',
+        [executeTargets(null), executeTargets(undefined)], [[], []]);
+    eq('executeDamage({maxHp:1000}) = 500（最大生命 50%）', executeDamage({ maxHp: 1000 }), 500);
+    eq('executeDamage 缺 maxHp 返回 0', executeDamage({ hp: 10 }), 0);
+
+    // ── 回收：返还金币 ──
+    eq('salvageRefund(1000, 1) = 1000（全额返还）', salvageRefund(1000, 1), 1000);
+    eq('salvageRefund(1000) 用缺省 refundRatio = 1', salvageRefund(1000), 1000);
+    eq('salvageRefund(1000, 0.5) = 500（向下取整）', salvageRefund(1000, 0.5), 500);
+
+    // ── 共鸣：光环加成倍率 ──
+    eq('resonanceMul() = 2（光环加成翻倍）', resonanceMul(), 2);
 }
 
 // ═══ 特殊塔模块 src/pages/td-special-towers.js ══════════════
@@ -241,7 +316,7 @@ function runTowerSections(mod) {
         towerUnlockWave, totalInvested, chainDamage, pickChainTargets, poisonDps, poisonTick,
         pushDistance, applyPush } = mod;
 
-    section('9. SPECIAL_TOWER_TYPES 数据形状（三座 / 三档 / 造价与累计投入）');
+    section('10. SPECIAL_TOWER_TYPES 数据形状（三座 / 三档 / 造价与累计投入）');
     const entries = Object.entries(SPECIAL_TOWER_TYPES || {});
     eq('恰好 3 座特殊塔', entries.length, 3);
     const shapeBad = [];
@@ -269,26 +344,26 @@ function runTowerSections(mod) {
     for (const [id] of entries) within(`${id} L3 累计投入落在 1600~2700`, totalInvested(id, 3), 1600, 2700);
     console.log(`  特殊塔：${entries.map(([id, d]) => `${id}@${d.unlockWave}(${d.cost.join('/')})`).join(' ')}`);
 
-    section('10. SPECIAL_TOWER_IDS 与 TYPES 键一致；isSpecialTower');
+    section('11. SPECIAL_TOWER_IDS 与 TYPES 键一致；isSpecialTower');
     deepEq('SPECIAL_TOWER_IDS 顺序 = [tesla, poison, force]', SPECIAL_TOWER_IDS, ['tesla', 'poison', 'force']);
     deepEq('SPECIAL_TOWER_TYPES 键顺序与之相同', Object.keys(SPECIAL_TOWER_TYPES || {}), ['tesla', 'poison', 'force']);
     eq('isSpecialTower(force) 为 true', isSpecialTower('force'), true);
     eq('isSpecialTower(arrow) 为 false', isSpecialTower('arrow'), false);
     eq('isSpecialTower(未知) 为 false', isSpecialTower('__nope__'), false);
 
-    section('11. specialTowersUnlockedAt 分阶段解锁');
+    section('12. specialTowersUnlockedAt 分阶段解锁');
     deepEq('specialTowersUnlockedAt(17) 为空', idsOf(specialTowersUnlockedAt(17)), []);
     sameSet('specialTowersUnlockedAt(18) 只有 tesla', specialTowersUnlockedAt(18), ['tesla']);
     sameSet('specialTowersUnlockedAt(28) 含 tesla + poison', specialTowersUnlockedAt(28), ['tesla', 'poison']);
     sameSet('specialTowersUnlockedAt(40) 含全部 3 座', specialTowersUnlockedAt(40), ['tesla', 'poison', 'force']);
 
-    section('12. towerUnlockWave（已知返回波次，未知返回 0）');
+    section('13. towerUnlockWave（已知返回波次，未知返回 0）');
     eq('towerUnlockWave(tesla) = 18', towerUnlockWave('tesla'), 18);
     eq('towerUnlockWave(poison) = 28', towerUnlockWave('poison'), 28);
     eq('towerUnlockWave(force) = 40', towerUnlockWave('force'), 40);
     eq('towerUnlockWave(未知 id) = 0', towerUnlockWave('__nope__'), 0);
 
-    section('13. chainDamage 逐跳衰减（单调递减，末跳仍 >= 1）');
+    section('14. chainDamage 逐跳衰减（单调递减，末跳仍 >= 1）');
     near('第 1 跳 = 基础伤害（34,1,0.2）= 34', chainDamage(34, 1, 0.2), 34);
     near('第 2 跳约 27（34×0.8）', chainDamage(34, 2, 0.2), 27.2, 1);
     near('第 3 跳约 22（34×0.64）', chainDamage(34, 3, 0.2), 21.76, 1);
@@ -300,7 +375,7 @@ function runTowerSections(mod) {
         `实际 ${show(chainDamage(34, 60, 0.1))}`);
     console.log(`  衰减序列：${seq.map((v) => v.toFixed(2)).join(' → ')}`);
 
-    section('14. pickChainTargets（按 dist 降序 / 数量上限 / range 与 excludeIds）');
+    section('15. pickChainTargets（按 dist 降序 / 数量上限 / range 与 excludeIds）');
     const origin = { x: 0, y: 0 };
     const chainSrc = [
         { id: 'p1', x: 100, y: 0, dist: 100 }, { id: 'p2', x: 200, y: 0, dist: 200 },
@@ -320,20 +395,20 @@ function runTowerSections(mod) {
     deepEq('excludeIds 全排除时返回空',
         idsOf(pickChainTargets(chainSrc, origin, 3, 1000, ['p1', 'p2', 'p3', 'p4', 'p5'])), []);
 
-    section('15. poisonDps 按等级取值');
+    section('16. poisonDps 按等级取值');
     near('poison L1 = 18', poisonDps('poison', 1), 18);
     near('poison L2 = 28', poisonDps('poison', 2), 28);
     near('poison L3 = 40', poisonDps('poison', 3), 40);
     eq('tesla 没有毒伤 → 0', poisonDps('tesla', 1), 0);
     eq('force 没有毒伤 → 0', poisonDps('force', 2), 0);
 
-    section('16. poisonTick 只结算剩余有效时间');
+    section('17. poisonTick 只结算剩余有效时间');
     near('(3000,18,1000) = 18（整跳）', poisonTick(3000, 18, 1000), 18);
     near('(500,18,1000) = 9（只结算剩余 500ms）', poisonTick(500, 18, 1000), 9);
     near('(1000,40,1000) = 40', poisonTick(1000, 40, 1000), 40);
     near('(0,18,1000) = 0（已到期不再扣血）', poisonTick(0, 18, 1000), 0);
 
-    section('17. pushDistance / applyPush（击退距离与不为负）');
+    section('18. pushDistance / applyPush（击退距离与不为负）');
     near('force L1 = 32（1 格）', pushDistance('force', 1, false), 32);
     near('force L2 = 35.2（1.1 格）', pushDistance('force', 2, false), 35.2);
     near('force L3 = 38.4（1.2 格）', pushDistance('force', 3, false), 38.4);
@@ -351,7 +426,7 @@ function runTowerSections(mod) {
 // ═══ 跨模块 ═════════════════════════════════════════════════
 
 function runCrossSections(skillsMod, towersMod) {
-    section('18. 跨模块一致性：技能 + 特殊塔合并后覆盖多个解锁档位');
+    section('19. 跨模块一致性：技能 + 特殊塔合并后覆盖多个解锁档位');
     const skillWaves = skillsMod.SKILLS.map((s) => s && s.unlockWave);
     const towerWaves = Object.values(towersMod.SPECIAL_TOWER_TYPES || {}).map((d) => d && d.unlockWave);
     const union = Array.from(new Set([...skillWaves, ...towerWaves])).sort((a, b) => a - b);

@@ -12,7 +12,9 @@
  *   state      唯一可变状态（波次 / 生命 / 金币 / 击杀 / 实体数组）
  *   enemies[]  { type, hp, maxHp, speed, armor, bounty, dist, slowUntil, slowFactor, x, y }
  *              dist = 沿路径的像素进度，越大越靠前 → 「最靠前的敌人」= dist 最大
- *   towers[]   { type, lv, col, row, x, y, cd, rateBuff, dmgBuff, spend }
+ *   towers[]   { type, lv, col, row, x, y, cd, rateBuff, dmgBuff, spend, oc }
+ *              oc = 超频标记（true = 同一座塔的强化态，加成由 towerStat(type, lv, oc) 现算）；
+ *              它只活在内存里、**不进存档**（endlessRun 结构一个字段都不加）：重开即重置。
  *   bullets[]  对象池复用 { x, y, tx, ty, target, dmg, splash, slow, speed, color }
  *   path       { pts, segs, length } 折线路径；敌人只存 dist，坐标靠插值算出
  * 主循环节奏：rAF 只负责「采样时间 + 渲染」，逻辑固定 1/60 s 步长——累积器
@@ -24,8 +26,9 @@
  * 本文件唯一的顶层 import（两个模块零 DOM、零时钟，时间由本文件注入）；tools/td-wave-test 的加载器会把每层相对 import 改写成 data: URL（见 toModuleUrl）。
  */
 import {
-  SKILLS, CHILL, METEOR, REPAIR, TIMESTOP, OVERLOAD,
+  SKILLS, CHILL, METEOR, REPAIR, TIMESTOP, OVERLOAD, SHIELD, BOUNTY, VORTEX, RESONANCE, SALVAGE,
   getSkill, canCast, cooldownLeft, meteorHits, purgeHits, applyChillTo, tickStatus,
+  bountyMultiplier, vortexTargets, shieldHits, executeTargets, executeDamage, salvageRefund, resonanceMul,
 } from './td-skills.js';
 import {
   SPECIAL_TOWER_TYPES, SPECIAL_TOWER_IDS, isSpecialTower, specialTowersUnlockedAt,
@@ -71,6 +74,33 @@ const HIGH_LV_DMG_STEP = 1.12;        // 每级伤害 ×1.12
 const HIGH_LV_RATE_STEP = 0.015;      // 每级攻速 +1.5%（相对 Lv.3），累计上限 +100%
 const HIGH_LV_RANGE_STEP = 0.6;       // 每级射程 +0.6，累计上限 +50
 const HIGH_LV_COST_STEP = 1.35;       // 升级价每级 ×1.35（以 Lv.3 的升级价为基点）
+
+/**
+ * 「超频」（Overclock）：**同一座塔的强化态**，不是新塔种。
+ * 塔实例上只多一个布尔字段 oc，全部加成由 towerStat(type, lv, oc) 现算 —— 所以
+ * TOWER_TYPES / SPECIAL_TOWER_TYPES 的三元素数组一个字都不用改，也不往 ALL_TOWER_TYPES 里加类型：
+ * 那两条一旦动了，塔数值表、场上塔清单与既有断言会一起被污染。
+ * oc 只活在内存里、不进存档（endlessRun 结构不新增字段）：重开 / 续玩即重置。
+ */
+const OC_DMG_MUL = 1.6;      // 伤害 ×1.6
+const OC_RATE_MUL = 1.25;    // 攻速 ×1.25
+const OC_RANGE_MUL = 1.15;   // 射程 ×1.15
+const OC_AURA_MUL = 1.4;     // 光环塔的攻速 / 伤害增幅各 ×1.4（仍受既有 +100% 上限约束）
+const OC_SLOW_ADD = 0.10;    // 冰塔减速 +10 个百分点（上限仍是 80%）
+const OC_POISON_MUL = 1.6;   // 毒塔 dot 的每秒伤害 ×1.6
+const OC_PUSH_MUL = 1.25;    // 力场塔推回距离 ×1.25
+const OC_CHAIN_COUNT = 5;    // 特斯拉链式目标数 3 → 5
+const OC_SUCCESS = 0.5;      // 成功率 50%（overclockRoll(rand) = rand < 0.5）
+const OC_FAIL_DROP = 5;      // 失败降 5 级，最低 1 级
+const OC_COST_BASE = 240;    // 超频价基数：overclockCost(1) = 240
+const OC_COST_STEP = 1.12;   // 超频价每级 ×1.12
+const OC_COUNT_MIN = 1;      // 「一键超频」的座数区间（输入框 min/max 与纯函数的夹取共用这两个常量）
+const OC_COUNT_MAX = 20;
+// 无尽存档里「剩余时长」类字段的夹取上限（10 分钟）：坏存档 / 时钟跳变都不会写进一个荒谬的值
+const RUN_LEFT_MAX_MS = 600000;
+// 超频塔的金色（画布金环 / 角标 / 清单徽章共用一份）：深色底上是亮金、浅色底上是暖金，
+// 且画布与徽章都带描边，两套主题下都有足够对比度（不跟随主题变量，免得浅色主题把金色洗淡）。
+const OC_COLOR = '#FFD166';
 
 /** 全局平衡参数 */
 const BALANCE = {  startGold: 150, startLives: 20,
@@ -411,6 +441,16 @@ export {
   describeTowers,   // 场上塔清单的数据化描述（纯函数，清单渲染与自检共用同一份口径）
   nextUpgradeTarget,   // 「快速升级」按钮的目标选择（纯函数：按建造顺序取第一个未满级的塔）
   planBatchUpgrade,    // 「批量升级」的先算后扣计划（纯函数：等级最低优先、同级先建者，金币不够就少升几座）
+  overclockCost,       // 超频价（纯函数：Lv.1 = 240，每级 ×1.12）
+  overclockRoll,       // 50% 判定（纯函数：rand 由调用方给，rand < 0.5 即成功，便于断言边界）
+  overclockFailLevel,  // 超频失败后的等级（纯函数：降 5 级、最低 1 级）
+  planBatchOverclock,  // 「一键超频」的先算后扣计划（纯函数：未超频、等级最高优先、同级先建者）
+  effectiveSkillCost,  // 技能当前花费（纯函数：解锁后每多一波 ×(1+4%)）
+  skillEffectScale,    // 技能当前效果倍率（纯函数：解锁后每多一波 ×(1+5%)，各技能再各自封顶）
+  SKILL_CASTERS,       // 12 个技能的施放实现表（id → 函数）：自检拿 SKILLS.map(s=>s.id) 逐位比对，漏接即 FAIL
+  planSalvage,         // 「回收」的选塔计划（纯函数：等级最低优先、同级先建者、全额返还）
+  SKILL_EFFECT_CAP, SKILL_CHILL_CAP,   // 技能效果的封顶值（2 倍 / 减速 80%，自检直接断言）
+  RUN_LEFT_MAX_MS,     // 存档里「剩余毫秒」类字段的夹取上限（自检断言坏值被夹住）
   mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
   towerStatRows,   // 塔数值表的行 HTML（纯函数：自检断言「并进特殊塔后不出现 NaN / undefined」）
   towerStat,       // 某塔某等级的实际数值（Lv.1~3 读数组、Lv.4+ 现算外推：战斗 / 清单 / 快速升级同源）
@@ -438,11 +478,20 @@ const state = {
   // 技能时序全部以 state.timeMs（逻辑步累计）为基准：暂停 / 隐藏 / 等续玩时 step() 不跑，
   // 冷却与持续时间一起冻结。skillReady 只活在内存里，不进存档（存档结构一个字段都不加）。
   skillReady: {},        // 技能 id → 可再次释放的逻辑毫秒
-  casting: null,         // 选点态：正在选落点的技能 id（目前只有 meteor）
+  casting: null,         // 选点态：正在选落点的技能 id（meteor / vortex，同一时刻只有一个）
   aim: null,             // 选点预览落点（画布逻辑坐标 768×448）
   stopUntil: 0,          // 时停到期时刻
   overloadUntil: 0,      // 超载到期时刻
   fatigueUntil: 0,       // 疲劳到期时刻（= overloadUntil + fatigueMs）
+  overloadScale: 1,      // 本次超载的加成倍数（施放时按 skillEffectScale 写入，上限 2；随对局重置）
+  // 赏金 / 共鸣是「花金币买来的一段纯增益」：只记到期时刻与倍率，到点自然失效，不需要清理回调。
+  // 它们**不进存档**（存档结构一个字段都没加）：续玩是从该波开头重来，存了等于让刷新白拿一段爆发。
+  bountyUntil: 0,        // 赏金加成到期时刻
+  bountyMul: 0,          // 本次赏金的**额外**倍率（0.6 = 击杀赏金 +60%）
+  resonanceUntil: 0,     // 共鸣到期时刻（光环加成 ×resonanceMul()）
+  // 护盾（技能侧的「护盾」）：{ hits, until } = 剩余可吸收次数 + 到期时刻。
+  // 它随存档保存（state.shield ⇄ endlessRun.shield），所以字段名与语义由两端共同约定。
+  shield: null,
 };
 const bulletPool = [];   // 子弹对象池：复用对象，避免每发都新建
 let nextEnemyId = 1;     // 敌人唯一 id：链式闪电靠它去重「本轮已经电过谁」（pickChainTargets 看 e.id）
@@ -462,6 +511,12 @@ function defaultProgress() { return { unlocked: 1, levelBest: {}, endlessBest: 0
 /**
  * endlessRun（无尽整局进度）校验：结构不对就整块丢掉 —— 续玩宁可不给，也不能拿半份数据造出
  * 一个歪塔阵。塔位这里只查类型与范围，「越界 / 在路径上 / 重叠」留给 resumeEndlessRun 判。
+ *
+ * 三个**可选**字段（oc / skillReady / shield）都是纯加法，规则一致：**缺了照常读，坏值只丢那一段**，
+ * 绝不因为缺字段就整份返回 null —— 那样会让 2026 年之前的所有老存档一次性失效。
+ * 反向兼容也成立：新存档被旧客户端读取时，旧代码只挑它认识的几个字段，
+ * oc / shield / skillReady 会被安静丢弃，等于「续玩回来是普通塔、没有护盾、冷却全好」——
+ * 这是可接受的降级，因此 TD1- 前缀与版本号都不用动，也不做任何版本协商。
  */
 function sanitizeRun(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -475,9 +530,37 @@ function sanitizeRun(raw) {
     if (!t || typeof t !== 'object' || !ALL_TOWER_TYPES[t.type]) continue;
     const col = num(t.col), row = num(t.row), lvl = num(t.lvl);
     if (!Number.isFinite(col) || !Number.isFinite(row) || !(lvl >= 1 && lvl <= MAX_TOWER_LEVEL)) continue;
-    towers.push({ type: t.type, col, row, lvl });
+    const item = { type: t.type, col, row, lvl };
+    // 超频标记：**只在为 true 时写回**。false 与「没有这个键」在玩法上完全等价，
+    // 而少写一个 false 能保证老存档 encode → decode 的字面一致（既有断言就按字面比）。
+    if (t.oc === true) item.oc = true;
+    towers.push(item);
   }
-  return { wave, gold, lives, kills, seed, towers, savedAt };
+  // 技能冷却剩余毫秒（只存 > 0 的项）：0 / 负数 / 非数字 / 未知技能 id 一律丢弃；
+  // 未知 id 静默丢弃而不是整份拒绝 —— 技能表将来增删技能时，老存档不该因此作废。
+  const skillReady = {};
+  const sr = raw.skillReady;
+  if (sr && typeof sr === 'object' && !Array.isArray(sr)) {
+    for (const k in sr) {
+      if (!Object.prototype.hasOwnProperty.call(sr, k) || !getSkill(k)) continue;
+      const ms = num(sr[k]);
+      if (!Number.isFinite(ms) || ms <= 0) continue;
+      skillReady[k] = Math.min(RUN_LEFT_MAX_MS, ms);
+    }
+  }
+  // 护盾剩余 { hits, ms }：两个都 > 0 才保留，并各自夹到 0..SHIELD.maxHits / 0..10 分钟
+  let shield = null;
+  const sh = raw.shield;
+  if (sh && typeof sh === 'object' && !Array.isArray(sh)) {
+    const hits = num(sh.hits), ms = num(sh.ms);
+    if (Number.isFinite(hits) && Number.isFinite(ms) && hits > 0 && ms > 0) {
+      shield = { hits: Math.min(SHIELD.maxHits, hits), ms: Math.min(RUN_LEFT_MAX_MS, ms) };
+    }
+  }
+  const out = { wave, gold, lives, kills, seed, towers, savedAt };
+  if (Object.keys(skillReady).length > 0) out.skillReady = skillReady;   // 空表不写：无冷却的存档保持老形状
+  if (shield) out.shield = shield;
+  return out;
 }
 
 /**
@@ -599,7 +682,9 @@ function resetGame() {
   state.paused = false; state.speed = 1; state.gameOver = false; state.result = ''; state.timeMs = 0;
   // 技能时序跟着本局清零：冷却不进存档（存档结构一个字段都不加），重开就是全新的一局
   state.skillReady = {}; state.casting = null; state.aim = null; state.stopUntil = 0;
-  state.overloadUntil = 0; state.fatigueUntil = 0;
+  state.overloadUntil = 0; state.fatigueUntil = 0; state.overloadScale = 1;
+  state.bountyUntil = 0; state.bountyMul = 0; state.resonanceUntil = 0;   // 赏金 / 共鸣：本局的临时增益，重开清零
+  state.shield = null;   // 护盾是「本局」的防御资源：重开清零（续玩时由 resumeEndlessRun 从存档还原）
   state.selectedType = null; state.selectedTower = null;
   state.hover.col = -1; state.hover.row = -1;
   // 实体数组长度清零（旧对象交给 GC：一次性开销，不在循环里发生）
@@ -681,10 +766,32 @@ function noteBest(wave) {
 const RUN_TTL_MS = 7 * 24 * 3600 * 1000;   // 7 天：太久以前的进度按作废处理（引擎数值可能已变）
 function noteEndlessRun() {
   if (state.mode !== 'endless' || !state.inRun || state.gameOver || state.wave < 1) return;
-  progress.endlessRun = {
+  const run = {
     wave: state.wave, gold: state.gold, lives: state.lives, kills: state.kills, seed: state.seed, savedAt: Date.now(),
-    towers: state.towers.map((t) => ({ type: t.type, col: t.col, row: t.row, lvl: t.lv })),
+    // oc 一律写成布尔（false = 普通塔）：写 false 是为了让存档自解释；解码端只在 true 时回填，
+    // 所以老存档里没有这个键也一样正确。
+    towers: state.towers.map((t) => ({ type: t.type, col: t.col, row: t.row, lvl: t.lv, oc: t.oc === true })),
   };
+  // 技能冷却「剩余毫秒」：内存里存的是绝对时刻，落盘前换算回剩余（已就绪的不写）。
+  // 为什么冷却可以存：续玩会从该波开头重来，存冷却是为了**防止刷新页面逃冷却**（漏洞方向反过来了）。
+  const sr = {};
+  for (const id in state.skillReady) {
+    if (!Object.prototype.hasOwnProperty.call(state.skillReady, id)) continue;
+    const left = Math.floor(Number(state.skillReady[id]) - state.timeMs);
+    if (Number.isFinite(left) && left > 0) sr[id] = Math.min(RUN_LEFT_MAX_MS, left);
+  }
+  if (Object.keys(sr).length > 0) run.skillReady = sr;   // 空表不写：没冷却的存档保持老形状
+  // 护盾「剩余次数 + 剩余毫秒」：它是**已经付过钱的防御资源**，波中消耗掉之后不该因为刷新而复原。
+  // 反过来，超载 / 赏金加成 / 共振这类「花金币买来的纯增益计时」一律**不存**：续玩是从该波开头
+  // 重来，存了等于让玩家刷新页面白拿一段爆发，那是漏洞而不是便利。
+  const sh = state.shield;
+  if (sh && Number.isFinite(sh.hits) && sh.hits > 0) {
+    const ms = Math.floor(Number(sh.until) - state.timeMs);
+    if (Number.isFinite(ms) && ms > 0) {
+      run.shield = { hits: Math.min(SHIELD.maxHits, sh.hits), ms: Math.min(RUN_LEFT_MAX_MS, ms) };
+    }
+  }
+  progress.endlessRun = run;
   saveProgress();
 }
 /** 清空可续记录：无尽结算、主动重开时调用（否则「继续」会续到一局已经结束/已放弃的局面） */
@@ -739,6 +846,9 @@ function spawnEnemy(spec) {
     slowUntil: 0, slowFactor: 0, hitFlash: 0, dead: false,
     // 技能状态字段（td-skills 的约定）：前三个是剩余毫秒，由 tickStatus 递减；poisonDps 是每秒毒伤
     chillMs: 0, stopMs: 0, poisonMs: 0, poisonDps: 0,
+    // 黑洞（vortex）：被拉住的到期时刻 + 圆心。holdUntil 是**绝对逻辑时刻**（= 施放时 state.timeMs + 时长），
+    // 过期即自然失效，不需要谁来清理；holdX/holdY 让插值在 hold 期间每帧都能找回圆心。
+    holdUntil: 0, holdX: 0, holdY: 0,
   });
 }
 
@@ -757,12 +867,22 @@ function updateEnemies(dt) {
       if (e.dead) { arr[i] = arr[arr.length - 1]; arr.pop(); continue; }
     }
     tickStatus(e, dtMs);   // chillMs / stopMs / poisonMs 一起递减；slowUntil / stopUntil 是绝对时刻，由主循环比较
-    if (!frozen) {
+    // 黑洞：被拉住的敌人**不推进 dist**，而是把 x,y 朝圆心插值；这里用 held 分支而不是 continue 早退，
+    // 是为了让命中闪白（hitFlash）照常衰减 —— 被拉住的敌人同样挨打，闪白不能停在原地。
+    const held = !frozen && state.timeMs < e.holdUntil;
+    if (held) {
+      const dx = e.holdX - e.x, dy = e.holdY - e.y, d = Math.hypot(dx, dy), step = VORTEX_PULL_PX * dt;
+      if (d <= step || d < 1) { e.x = e.holdX; e.y = e.holdY; }   // 到圆心就停住（不再抖动）
+      else { e.x += (dx / d) * step; e.y += (dy / d) * step; }
+    } else if (!frozen) {
       // 减速只有一个乘数（slowFactor 取「最强的那个」，寒流与冰塔谁强谁生效，绝不叠乘）
       const slowed = state.timeMs < e.slowUntil;
       e.dist += (slowed ? e.speed * (1 - e.slowFactor) : e.speed) * dt;
     }
     if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt * 5);
+    // 被拉住的这一帧既不结算漏怪、也不回写路径坐标：dist 没动，hold 结束后的下一帧
+    // 就会由下面的 pointAt(path, dist) 把坐标重新同步回路径上（= 「解除控制后归位」）。
+    if (held) continue;
     if (e.dist >= path.length) {
       arr[i] = arr[arr.length - 1];
       arr.pop();
@@ -775,18 +895,36 @@ function updateEnemies(dt) {
   }
 }
 
-/** 漏怪：扣 1 点生命 */
+/**
+ * 漏怪：扣 1 点生命。
+ * 护盾（shield 技能）在这里拦截**唯一的一道生命扣减**：有效期内（未到期且次数未耗尽）只消耗一次
+ * 吸收次数、不扣生命 —— 所以「护盾挡住漏怪」不可能有第二条漏网路径。
+ */
 function leak() {
+  const sh = state.shield;
+  if (sh && sh.hits > 0 && state.timeMs < sh.until) {
+    sh.hits -= 1;
+    addFloater(VIEW.w - 46, VIEW.h / 2, '护盾 ' + sh.hits, '#4CC9F0', 1.2);
+    addParticles(VIEW.w - 46, VIEW.h / 2, 6, '#4CC9F0');
+    if (sh.hits <= 0) state.shield = null;   // 次数耗尽即失效（到期由上面那条时间比较负责）
+    return;
+  }
   state.lives -= 1;
   addFloater(VIEW.w - 46, VIEW.h / 2, -1, palette.danger);
   if (state.lives <= 0) { state.lives = 0; gameOver(); }
 }
 
-/** 击杀结算（赏金 / 击杀数 / 粒子）：damageEnemy 与无视护甲的毒伤共用，保证两条伤害路径记同一本账 */
+/**
+ * 击杀结算（赏金 / 击杀数 / 粒子）：damageEnemy 与无视护甲的真实伤害共用，保证两条伤害路径记同一本账。
+ * 赏金加成读的是逻辑时间（state.timeMs）而不是墙钟：暂停 / 切后台 / 等续玩时不会白白烧掉赏金时段。
+ */
 function killEnemy(enemy) {
   enemy.hp = 0;
   enemy.dead = true;
-  state.gold += enemy.bounty;
+  // 赏金技能：计时有效期内赏金 ×(1 + bountyMul)。取整用四舍五入、下限 1 —— 低波次小怪的赏金
+  // 乘完可能是 1.6，宁可向上凑也不能取整成 0（「开了赏金反而没钱」是最难解释的那种 bug）。
+  const reward = state.timeMs < state.bountyUntil ? enemy.bounty * (1 + state.bountyMul) : enemy.bounty;
+  state.gold += Math.max(1, Math.round(reward));
   state.kills += 1;
   addParticles(enemy.x, enemy.y, 7, ENEMY_COLORS[enemy.type] || '#999');
 }
@@ -802,29 +940,59 @@ function damageEnemy(enemy, dmg) {
 }
 
 /**
- * 毒伤结算：**故意不走 damageEnemy** —— 那里会乘 (1 - armor)，而毒塔的唯一卖点就是「无视护甲」
- * （见 td-special-towers 里 dmg 写 0 / ignoreArmor 的说明：伤害 100% 来自 dot）。
- * 这里也不打伤害飘字：dot 每个逻辑步都在跳，逐帧飘字会把画面刷成一片数字，掉血由血条体现。
+ * 真实伤害结算（**无视护甲**）：毒塔 dot 与斩杀技能共用这一条路径 —— 两条都绕开 (1 - armor)。
+ * 死亡仍然走 killEnemy，所以「毒死的」与「斩死的」与普通击杀记同一本账（赏金 / 击杀数 / 落盘）。
+ * 这里不打伤害飘字：毒 dot 每个逻辑步都在跳，逐帧飘字会把画面刷成一片数字，掉血由血条体现。
  */
-function poisonDamage(enemy, dmg) {
+function trueDamage(enemy, dmg) {
   if (!enemy || enemy.dead || !(dmg > 0)) return;
   enemy.hp -= dmg;
   enemy.hitFlash = 1;
   if (enemy.hp <= 0) killEnemy(enemy);
 }
 
+/**
+ * 毒伤结算：**故意不走 damageEnemy** —— 那里会乘 (1 - armor)，而毒塔的唯一卖点就是「无视护甲」
+ * （见 td-special-towers 里 dmg 写 0 / ignoreArmor 的说明：伤害 100% 来自 dot）。
+ * 实现就是 trueDamage：名字保留，是为了让调用点与「毒塔的 dot」这个语义一对一，不随通用化漂移。
+ */
+function poisonDamage(enemy, dmg) {
+  trueDamage(enemy, dmg);
+}
+
 /* ===================== 7. 塔与战斗 ===================== */
+/**
+ * 超频加成（就地改传入的 st 并返回它）：在「普通塔数值」之上再乘一组固定系数。
+ * 顺序固定 —— 先按等级外推算完普通塔，再叠超频，所以超频塔在高等级下同样是「外推值 × 系数」。
+ * upgradeCost **一律不动**（超频不影响升级价）；特斯拉的目标数从 3 提到 5（chain.count 的强化态，
+ * 落在 st.chainCount 上，模块里的 def.chain.count 保持原值不动）。
+ */
+function applyOverclock(d, st) {
+  st.dmg *= OC_DMG_MUL;
+  st.rate *= OC_RATE_MUL;
+  st.range *= OC_RANGE_MUL;
+  if (d.auraRate) st.auraRate = Math.min(1, st.auraRate * OC_AURA_MUL);   // 仍受 +100% 上限
+  if (d.auraDmg) st.auraDmg = Math.min(1, st.auraDmg * OC_AURA_MUL);
+  if (d.slow) st.slow = Math.min(0.8, st.slow + OC_SLOW_ADD);             // 减速上限仍是 80%
+  if (d.poison) st.poisonDps *= OC_POISON_MUL;
+  if (d.push) st.pushTiles *= OC_PUSH_MUL;
+  if (d.chain) st.chainCount = OC_CHAIN_COUNT;
+  return st;
+}
+
 /**
  * 某座塔某个等级的实际数值（纯函数：只读塔表，不碰 state / DOM）—— 战斗、清单、快速升级共用这一份。
  * 塔表里的 cost / dmg / rate / range / auraRate / auraDmg / splash / slow / slowMs / poison.dps /
  * push.tiles **只存 Lv.1~3**，Lv.4~MAX_TOWER_LEVEL 全部按 k = lv - 3 从 Lv.3 外推，并各自封顶
  * （攻速 ×2 / 溅射 +40 / 减速 80% / 光环 +100% / 推回 +50%），所以高等级不会指数爆炸。
+ * oc 是**可缺省**的第三参：省略 / false = 普通塔（既有调用零改动），true = 超频塔（再叠 applyOverclock）。
  * 返回字段（都是有限数值，缺的补 0，调用方不必再判空）：
  *   dmg / rate / range / auraRate / auraDmg / splash / slow / slowMs / poisonDps / pushTiles（单位：格）/
+ *   chainCount（特斯拉的链式目标数，非链式塔为 0）/
  *   upgradeCost = **升到下一级**的价格（与既有语义一致：Lv.1→cost[1]、Lv.2→cost[2]、
  *   Lv.3→cost[2]×1.35、Lv.L→cost[2]×1.35^(L-2)；满级 0）。
  */
-function towerStat(type, lv) {
+function towerStat(type, lv, oc) {
   const d = ALL_TOWER_TYPES[type];
   if (!d) return null;
   const L = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(lv) || 1)));
@@ -842,21 +1010,23 @@ function towerStat(type, lv) {
     slowMs: num(d.slowMs ? d.slowMs[i] : 0),
     poisonDps: num(d.poison && d.poison.dps ? d.poison.dps[i] : 0),
     pushTiles: num(d.push && d.push.tiles ? d.push.tiles[i] : 0),
+    chainCount: d.chain && Number.isFinite(d.chain.count) ? d.chain.count : 0,
     upgradeCost: L >= MAX_TOWER_LEVEL ? 0
       : (L < 3 ? num(d.cost[L]) : Math.round(d.cost[2] * Math.pow(HIGH_LV_COST_STEP, L - 2))),
   };
-  if (k === 0) return st;                  // Lv.1~3：原样返回
-  const g = Math.pow(HIGH_LV_DMG_STEP, k);
-  st.dmg = st.dmg * g;
-  st.poisonDps = st.poisonDps * g;                                        // 毒的 dot 跟着涨
-  st.rate = st.rate * (1 + Math.min(1, HIGH_LV_RATE_STEP * k));           // 攻速封顶 = Lv.3 的 2 倍
-  st.range = st.range + Math.min(50, HIGH_LV_RANGE_STEP * k);             // 射程最多 +50
-  if (d.splash) st.splash = st.splash + Math.min(40, 4 * k);              // 溅射最多 +40
-  if (d.slow) st.slow = Math.min(0.8, st.slow + 0.01 * k);                // 减速上限 80%，慢速时长不变
-  if (d.auraRate) st.auraRate = Math.min(1, st.auraRate + 0.02 * k);      // 光环增幅各自上限 +100%
-  if (d.auraDmg) st.auraDmg = Math.min(1, st.auraDmg + 0.02 * k);
-  if (d.push) st.pushTiles = Math.min(st.pushTiles * 1.5, st.pushTiles + 0.05 * k);   // 推回最多 +50%
-  return st;
+  if (k > 0) {                             // Lv.1~3 原样返回；Lv.4+ 按 k 外推
+    const g = Math.pow(HIGH_LV_DMG_STEP, k);
+    st.dmg = st.dmg * g;
+    st.poisonDps = st.poisonDps * g;                                        // 毒的 dot 跟着涨
+    st.rate = st.rate * (1 + Math.min(1, HIGH_LV_RATE_STEP * k));           // 攻速封顶 = Lv.3 的 2 倍
+    st.range = st.range + Math.min(50, HIGH_LV_RANGE_STEP * k);             // 射程最多 +50
+    if (d.splash) st.splash = st.splash + Math.min(40, 4 * k);              // 溅射最多 +40
+    if (d.slow) st.slow = Math.min(0.8, st.slow + 0.01 * k);                // 减速上限 80%，慢速时长不变
+    if (d.auraRate) st.auraRate = Math.min(1, st.auraRate + 0.02 * k);      // 光环增幅各自上限 +100%
+    if (d.auraDmg) st.auraDmg = Math.min(1, st.auraDmg + 0.02 * k);
+    if (d.push) st.pushTiles = Math.min(st.pushTiles * 1.5, st.pushTiles + 0.05 * k);   // 推回最多 +50%
+  }
+  return oc === true ? applyOverclock(d, st) : st;
 }
 
 /**
@@ -886,6 +1056,7 @@ function placeTower(type, col, row) {
     rateBuff: 0,  // 光环给的攻速增幅
     dmgBuff: 0,   // 光环给的伤害增幅
     spend: cost,  // 历史总投入（升级累加）
+    oc: false,    // 超频标记：新建的塔一律是普通态（超频只改内存，不进存档）
   });
   addParticles((col + 0.5) * GRID.tile, (row + 0.5) * GRID.tile, 6, def.color);
   noteEndlessRun();   // 建塔后落盘：关标签页也不会丢刚布好的阵
@@ -964,6 +1135,7 @@ function round2(v) {
  *   highUnlocked 缺省 false（= Lv.4+ 还没解锁，Lv.3 就停住），调用方传 canUpgradeBeyond3()。
  * 每项字段：index（在 towers 数组里的下标，就是建造顺序）/ type / name / color / lv / maxLv /
  *   dmg / rate（**已计入光环 buff**，保留两位小数）/ range / col / row /
+ *   oc（是否超频：true 时 dmg / rate / range / 光环增幅等已经是超频后的值）/
  *   upgradeCost（下一级价格，满级 0）/ sellRefund（floor(spend × sellRatio)）/
  *   canUpgrade（未满级、高等级已解锁、金币够）/ maxed（已到 MAX_TOWER_LEVEL）/ locked（Lv.3 但未解锁）。
  * 光环塔自身没有 dmg / rate 字段（它只给别人加成），这里回落成 0，展示层改显增幅。
@@ -980,7 +1152,8 @@ function describeTowers(towers, opts) {
     const def = t ? ALL_TOWER_TYPES[t.type] : null;
     if (!def) continue;
     const lv = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(t.lv) || 1)));   // 夹到 1..上限，越界也不出 NaN
-    const st = towerStat(t.type, lv);
+    const oc = t.oc === true;
+    const st = towerStat(t.type, lv, oc);
     const maxed = lv >= MAX_TOWER_LEVEL;
     const locked = !maxed && lv >= 3 && !highUnlocked;   // Lv.3 往上要等解锁：按钮灰显 + title 说明
     const upgradeCost = maxed ? 0 : st.upgradeCost;
@@ -991,6 +1164,7 @@ function describeTowers(towers, opts) {
       color: def.color,
       lv,
       maxLv: MAX_TOWER_LEVEL,
+      oc,
       dmg: round2(st.dmg * (1 + (Number(t.dmgBuff) || 0))),
       rate: round2(st.rate * (1 + (Number(t.rateBuff) || 0))),
       range: st.range,
@@ -1098,6 +1272,156 @@ function planBatchUpgrade(towers, gold, count, highUnlocked) {
   return { targets, totalCost, canDo: targets.length > 0 };
 }
 
+/* ---------- 超频（同一座塔的强化态：50% 成功保留等级 / 失败降 5 级） ---------- */
+/** 超频价（纯函数）：Lv.1 = 240，每级 ×1.12 —— 高等级塔更贵，但超频保留等级，投在高塔上才划算 */
+function overclockCost(lv) {
+  const L = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(lv) || 1)));
+  return Math.round(OC_COST_BASE * Math.pow(OC_COST_STEP, L - 1));
+}
+
+/** 50% 判定（纯函数）：rand < 0.5 即成功 —— 判定抽成函数才好断言 0.49 / 0.5 这条边界 */
+function overclockRoll(rand) {
+  const r = Number.isFinite(rand) ? rand : 1;   // 非法随机数一律按失败处理，绝不白送一次强化
+  return r < OC_SUCCESS;
+}
+
+/** 超频失败后的等级（纯函数）：降 5 级、**最低 1 级** —— applyBatchOverclock 用的就是这一份式子 */
+function overclockFailLevel(lv) {
+  const L = Math.max(1, Math.floor(Number(lv) || 1));
+  return Math.max(1, L - OC_FAIL_DROP);
+}
+
+/**
+ * 「一键超频」计划（纯函数：不读 state、不碰 DOM、不读时钟）—— 先算计划，再一次性扣款。
+ *
+ * 挑选规则与「批量升级」相反：挑**等级最高**的塔，同级取数组下标更小的（= 先建的）。
+ * 原因很直接 —— 超频保留等级，投在 Lv.20 的塔上得到的是 Lv.20 的强化态，投在 Lv.1 上是
+ * Lv.1 的强化态；失败还降 5 级，把低等级塔拿去赌毫无意义。
+ * 跳过已超频（oc === true，提示「已超频」）、跳过未知塔类型与等级异常。
+ * 价格按 overclockCost(lv) 累加；**金币不够付下一座就停**（部分可执行：能赌几座算几座）。
+ * count 夹到 1..OC_COUNT_MAX（<1 → 1，>20 → 20，非数字 → 1）；towers 非数组 → 空计划。
+ * 返回 { targets: [{ index, tower, type, name, lv, cost }], totalCost, canDo }。
+ */
+function planBatchOverclock(towers, gold, count) {
+  const list = Array.isArray(towers) ? towers : [];
+  const g = Number.isFinite(gold) ? gold : 0;
+  const want = Math.floor(Number(count));
+  const n = Number.isFinite(want) ? Math.min(OC_COUNT_MAX, Math.max(OC_COUNT_MIN, want)) : OC_COUNT_MIN;
+  const ids = [];    // 候选下标
+  const lvs = [];    // 与 ids 平行的等级镜像（挑走的记 -1 = 已用，只看不改真塔）
+  for (let i = 0; i < list.length; i += 1) {
+    const t = list[i];
+    const def = t ? ALL_TOWER_TYPES[t.type] : null;
+    if (!def || t.oc === true) continue;             // 未知塔 / 已超频：跳过
+    const lv = Math.floor(Number(t.lv) || 0);
+    if (lv < 1 || lv > MAX_TOWER_LEVEL) continue;     // 等级异常：跳过
+    ids.push(i);
+    lvs.push(lv);
+  }
+  const targets = [];
+  let totalCost = 0;
+  while (targets.length < n) {
+    let pick = -1;
+    let pickLv = -1;
+    for (let j = 0; j < ids.length; j += 1) {
+      if (lvs[j] > pickLv) { pickLv = lvs[j]; pick = j; }   // 严格大于 → 平手保留更早建造的
+    }
+    if (pick < 0) break;                                    // 没有可超频的塔了
+    const t = list[ids[pick]];
+    const cost = overclockCost(pickLv);
+    if (!(cost > 0)) { lvs[pick] = -1; continue; }          // 价格异常：移出候选，不占名额
+    if (totalCost + cost > g) break;                        // 钱不够付下一座：停（部分可执行）
+    targets.push({
+      index: ids[pick], tower: t, type: t.type, name: ALL_TOWER_TYPES[t.type].name, lv: pickLv, cost,
+    });
+    totalCost += cost;
+    lvs[pick] = -1;                                         // 每座塔一次批量只赌一次
+  }
+  return { targets, totalCost, canDo: targets.length > 0 };
+}
+
+/**
+ * 「超频结果」弹窗：动态 import 组件库（本模块顶层保持零副作用 —— Node 下 import 本文件不会碰
+ * DOM / 组件库），组件库不可用时 showConfirm 自己会退回原生 confirm，这里只再兜一层 catch：
+ * 弹窗失败绝不影响已经结算完的金币与等级。
+ */
+function showOverclockResult(okList, failList) {
+  const ok = okList.length, fail = failList.length;
+  const parts = ['成功 ' + ok + ' 座 / 失败 ' + fail + ' 座'];
+  if (ok > 0) parts.push('已超频（保留等级）：' + okList.map((t) => t.name + ' Lv.' + t.lv).join('、'));
+  if (fail > 0) {
+    parts.push('超频失败（降 ' + OC_FAIL_DROP + ' 级）：'
+      + failList.map((t) => t.name + ' Lv.' + t.from + ' → Lv.' + t.to + '（降 ' + (t.from - t.to) + ' 级）').join('、'));
+  }
+  import('/lib/ui/popup.mjs')
+    .then(({ showConfirm }) => showConfirm({
+      title: '超频结果', text: parts.join('｜'), buttons: ['知道了'], button_style: ['primary'],
+    }))
+    .catch(() => {});
+}
+
+/**
+ * 执行一份「一键超频」计划（plan 由 planBatchOverclock 现算，这里不再挑塔、不再判价格）。
+ * 要点与 applyBatchUpgrade 一致：**金币只扣一次**（plan.totalCost），**存档只落一次**，
+ * 中途任何一座都不会因为「钱不够」被留下半截状态；成败各座独立按 50% 判定：
+ *   成功 → oc = true，**等级一分不动**；
+ *   失败 → lv = max(1, lv - 5)（**降 5 级，最低 1 级**）。
+ * 返回统计 { ok, fail, okList }（okList = 成功的那几座 { name, lv }，弹窗与自检共用）。
+ */
+function applyBatchOverclock(plan) {
+  if (!plan || !plan.canDo || !Array.isArray(plan.targets) || plan.targets.length === 0) return false;
+  state.gold -= plan.totalCost;                    // ← 唯一的扣款点（成败都一样收钱）
+  const okList = [];
+  const failList = [];
+  for (let i = 0; i < plan.targets.length; i += 1) {
+    const p = plan.targets[i];
+    const tw = p && p.tower;
+    if (!tw) continue;
+    const def = ALL_TOWER_TYPES[tw.type];
+    if (tw.oc === true) continue;                  // 计划里已排除已超频的塔，这里再兜一层
+    if (overclockRoll(Math.random())) {
+      tw.oc = true;                                // 成功：只打强化标记，等级保持不变
+      okList.push({ name: def ? def.name : tw.type, lv: Math.floor(Number(tw.lv) || 1) });
+      addParticles(tw.x, tw.y, 10, OC_COLOR);      // 金色粒子 = 成功的观感
+    } else {
+      const before = Math.max(1, Math.floor(Number(tw.lv) || 1));
+      tw.lv = overclockFailLevel(before);          // 失败：降 5 级，最低 1 级（式子只有一份）
+      failList.push({ name: def ? def.name : tw.type, from: before, to: tw.lv });
+      addParticles(tw.x, tw.y, 5, palette.danger);
+    }
+  }
+  noteEndlessRun();                                // ← 唯一的落盘点（一次批量 = 一条存档）
+  showOverclockResult(okList, failList);
+  return { ok: okList.length, fail: failList.length, okList };
+}
+
+/**
+ * 单座超频：校验（未超频 / 钱够）→ 拼一份只有这一座的计划 → 复用 applyBatchOverclock。
+ * 复用而不是另写一遍：扣款只发生在一个地方、存档只写一次、成败与弹窗口径完全一致。
+ * 被拒时给可见提示（画布飘字），不静默失败。
+ */
+function overclockTower(tower) {
+  if (!tower) return false;
+  const def = ALL_TOWER_TYPES[tower.type];
+  if (!def) return false;
+  if (tower.oc === true) {   // 已超频：不能叠第二次
+    addFloater(tower.x, tower.y - 16, '已超频', palette.warning, 1.0);
+    saveMsg('这座塔已经超频过了', true);
+    return false;
+  }
+  const lv = Math.max(1, Math.floor(Number(tower.lv) || 1));
+  const cost = overclockCost(lv);
+  if (!(cost > 0) || state.gold < cost) {
+    addFloater(tower.x, tower.y - 16, '金币不足 ' + cost, palette.danger, 1.0);
+    return false;
+  }
+  return applyBatchOverclock({
+    targets: [{ index: state.towers.indexOf(tower), tower, type: tower.type, name: def.name, lv, cost }],
+    totalCost: cost,
+    canDo: true,
+  });
+}
+
 /** 索敌：射程内沿路径进度最大（最靠近终点、最危险）的敌人 */
 function findTarget(tower, range) {
   const r2 = range * range;
@@ -1122,12 +1446,16 @@ function findTarget(tower, range) {
  */
 function updateTowers(dt) {
   const towers = state.towers;
+  const now = state.timeMs;
+  // 共鸣：把**光环本身的值**先乘倍率，再进下面的「同类取最高」。所以放大的只是每个光环的数值，
+  // 合并规则一点没变 —— 两座光环塔依旧取最高而不是相乘（否则两个光环 + 共鸣就是 4 倍）。
+  const resonance = now < state.resonanceUntil ? resonanceMul() : 1;
   for (let i = 0; i < towers.length; i++) { towers[i].rateBuff = 0; towers[i].dmgBuff = 0; }
   for (let i = 0; i < towers.length; i++) {
     const a = towers[i];
     if (a.type !== 'aura') continue;
-    const astat = towerStat('aura', a.lv);
-    const range = astat.range, rate = astat.auraRate, dmg = astat.auraDmg;
+    const astat = towerStat('aura', a.lv, a.oc === true);   // 超频光环塔的增幅更高（仍受 +100% 上限约束）
+    const range = astat.range, rate = astat.auraRate * resonance, dmg = astat.auraDmg * resonance;
     const r2 = range * range;
     for (let j = 0; j < towers.length; j++) {
       const t = towers[j];
@@ -1138,17 +1466,19 @@ function updateTowers(dt) {
       if (dmg > t.dmgBuff) t.dmgBuff = dmg;
     }
   }
-  const now = state.timeMs;
   const overloaded = now < state.overloadUntil;
   const fatigued = !overloaded && now < state.fatigueUntil;   // 疲劳排在爆发之后，两者不重叠
-  const rateMul = overloaded ? 1 + OVERLOAD.rateBonus : (fatigued ? 1 + OVERLOAD.fatigueRate : 1);
-  const dmgMul = overloaded ? 1 + OVERLOAD.dmgBonus : 1;
+  // 超载的加成会随波次放大（castSkill 时按 skillEffectScale 存进 state.overloadScale，上限 2 倍）；
+  // 疲劳是超载的代价，不跟着放大，保持「爆发越强、代价不变」的曲线。
+  const ovScale = Number.isFinite(state.overloadScale) ? state.overloadScale : 1;
+  const rateMul = overloaded ? 1 + OVERLOAD.rateBonus * ovScale : (fatigued ? 1 + OVERLOAD.fatigueRate : 1);
+  const dmgMul = overloaded ? 1 + OVERLOAD.dmgBonus * ovScale : 1;
   for (let i = 0; i < towers.length; i++) {
     const t = towers[i];
     if (t.type === 'aura') continue;               // 光环塔本身不攻击
     t.cd -= dt * (1 + t.rateBuff) * rateMul;
     if (t.cd > 0) continue;
-    const st = towerStat(t.type, t.lv);   // 伤害 / 射程 / 攻速 / 溅射 / 减速全部现算（Lv.4+ 走外推）
+    const st = towerStat(t.type, t.lv, t.oc === true);   // 伤害 / 射程 / 攻速 / 溅射 / 减速全部现算（Lv.4+ 走外推，超频再叠一层）
     const target = findTarget(t, st.range);
     if (!target) { t.cd = 0; continue; }   // 没目标不打空枪，进射程立刻开火
     t.cd += 1 / st.rate;                   // 累加不清零，倍速下节奏更稳
@@ -1167,7 +1497,8 @@ function spawnBullet(tower, target, dmg, splash, slow, slowMs) {
   b.dmg = dmg; b.splash = splash; b.slow = slow; b.slowMs = slowMs;
   b.speed = splash > 0 ? 320 : 640;
   b.type = tower.type;   // 命中特效按塔种分派（对象池复用，所以每发出一颗都必须重写）
-  b.lv = tower.lv;       // 毒的 dot dps 按等级取 towerStat('poison', lv).poisonDps（Lv.4+ 跟着涨）
+  b.lv = tower.lv;       // 毒的 dot dps 按等级取 towerStat('poison', lv, oc).poisonDps（Lv.4+ 跟着涨、超频再 ×1.6）
+  b.oc = tower.oc === true;   // 超频标记随子弹走：命中结算（毒 dot / 推回 / 链式）与发射端同源
   b.color = ALL_TOWER_TYPES[tower.type].color;
   state.bullets.push(b);
 }
@@ -1196,14 +1527,15 @@ function updateBullets(dt) {
 }
 
 /**
- * 力场推回的像素距离：Lv.1~3 仍走 td-special-towers 的 pushDistance（口径不变），
- * Lv.4+ 用 towerStat 外推的格数 + 同一条公式（格 × 32 × BOSS 减半）。
+ * 力场推回的像素距离：Lv.1~3 走 td-special-towers 的 pushDistance（口径不变）再按超频 ×1.25，
+ * Lv.4+ 用 towerStat 外推的格数（oc 已在 towerStat 里乘过）× 同一条公式（格 × 32 × BOSS 减半）。
  */
-function forcePushPx(lv, isBoss) {
-  if (lv <= 3) return pushDistance('force', lv, isBoss);
+function forcePushPx(lv, isBoss, oc) {
+  const over = oc === true;
+  if (lv <= 3) return pushDistance('force', lv, isBoss) * (over ? OC_PUSH_MUL : 1);
   const p = ALL_TOWER_TYPES.force.push;
   const half = isBoss && p && p.bossHalf ? 0.5 : 1;
-  return towerStat('force', lv).pushTiles * GRID.tile * half;
+  return towerStat('force', lv, over).pushTiles * GRID.tile * half;
 }
 
 /** 命中结算：炮塔按溅射半径命中范围内所有敌人；冰塔附加「最近一次」减速；特殊塔按 b.type 分派 */
@@ -1224,16 +1556,16 @@ function impact(b) {
   if (!target || target.dead) return;
   if (b.type === 'poison') {
     // 毒塔本体 dmg 恒为 0：命中只挂 / 刷新 dot（覆盖剩余时间、不叠加），伤害在 updateEnemies 里逐帧结算
-    const dps = towerStat('poison', b.lv).poisonDps;
+    const dps = towerStat('poison', b.lv, b.oc === true).poisonDps;
     if (dps > 0) { target.poisonMs = ALL_TOWER_TYPES.poison.poison.durationMs; target.poisonDps = dps; }
     addParticles(b.x, b.y, 3, b.color);
     return;
   }
   damageEnemy(target, b.dmg);
-  if (b.type === 'tesla') chainShock(b, target);   // 链式闪电：命中后额外跳 3 个目标
+  if (b.type === 'tesla') chainShock(b, target);   // 链式闪电：命中后额外跳 3 个目标（超频 5 个）
   if (b.type === 'force' && !target.dead) {
     // 力场：沿路径推回（dist 减小、不小于 0；BOSS 减半由 pushDistance 处理），坐标立刻回写免得看着像穿墙
-    target.dist = applyPush(target.dist, forcePushPx(b.lv, target.type === 'boss'));
+    target.dist = applyPush(target.dist, forcePushPx(b.lv, target.type === 'boss', b.oc === true));
     const pt = pointAt(state.path, target.dist);
     target.x = pt.x; target.y = pt.y;
   }
@@ -1249,11 +1581,13 @@ function impact(b) {
  * 特斯拉链式闪电：命中后挑 count 个目标（pickChainTargets 按 e.id 排除、按 dist 排序，观感是往终点
  * 方向跳），每跳按 chainDamage 衰减（34 → 27 → 22 → 17，跳数从 2 起算 = 主目标吃满伤）。
  * 链上的伤害走 damageEnemy：与普通攻击同一套护甲减免，不另开无视护甲的路。
+ * count / 射程都取 towerStat（超频塔：目标数 3 → 5、射程 ×1.15），模块里的 def.chain.count 不动。
  */
 function chainShock(b, first) {
   const def = ALL_TOWER_TYPES.tesla;
+  const st = towerStat('tesla', b.lv, b.oc === true);
   const alive = state.enemies.filter((e) => !e.dead);
-  const hops = pickChainTargets(alive, { x: b.x, y: b.y }, def.chain.count, towerStat('tesla', b.lv).range, [first.id]);
+  const hops = pickChainTargets(alive, { x: b.x, y: b.y }, st.chainCount, st.range, [first.id]);
   for (let i = 0; i < hops.length; i++) {
     if (hops[i].dead) continue;
     damageEnemy(hops[i], chainDamage(b.dmg, i + 2, def.chain.falloff));
@@ -1312,54 +1646,242 @@ function updateFx(dt) {
 /* ===================== 8b. 主动技能（只在无尽模式） ===================== */
 // 时间基准：state.timeMs（逻辑步累计）。暂停 / 隐藏 / 等续玩时 step() 不跑 → 冷却、时停、超载、
 // 疲劳一起冻结；倍速只让 timeMs 走得快。冷却表 skillReady 只活在内存里，不进存档。
-/** 技能当前状态：解锁 / 冷却 / 金币三条判定交给模块的 canCast（它的 reason 就是文案依据） */
+/**
+ * 技能随波次强化：解锁之后每多一波，花费 +4%、效果 +5%（两条斜率都基于「超出解锁波次的波数」）。
+ * 花费与效果分开算，是因为它们要各自封顶：钱没有上限（涨钱本来就是压力来源），但效果必须有，
+ * 否则高波次一个陨石就能把整波清空、时停能冻到天荒地老。
+ * td-skills.js 一个字都不改：两个纯函数算的是「主文件这一层的当前口径」，模块仍是基础值。
+ */
+const SKILL_COST_STEP = 0.04;     // 每超出一波，花费 +4%
+const SKILL_EFFECT_STEP = 0.05;   // 每超出一波，效果 +5%
+const SKILL_EFFECT_CAP = 2;       // 时停时长 / 超载加成最多 2 倍
+const SKILL_CHILL_CAP = 0.8;      // 寒流减速上限 80%（与冰塔、Lv.4+ 外推同一条上限）
+
+/** 超出解锁波次多少波（未解锁 / 非法输入一律 0 = 不放大） */
+function skillWaveGap(skill, wave) {
+  const unlock = skill && Number.isFinite(skill.unlockWave) ? skill.unlockWave : 0;
+  const w = Number.isFinite(wave) ? wave : 0;
+  return Math.max(0, w - unlock);
+}
+
+/**
+ * 技能当前花费（纯函数）= round(基础价 × (1 + 4% × 超出波数))。
+ * canCast 与施放扣款、按钮文案全都走这一份，所以「按钮上写的价」与「真实扣的钱」不可能不一致。
+ */
+function effectiveSkillCost(skill, wave) {
+  if (!skill) return 0;
+  const base = Number.isFinite(skill.cost) ? skill.cost : 0;
+  return Math.round(base * (1 + SKILL_COST_STEP * skillWaveGap(skill, wave)));
+}
+
+/** 技能当前效果倍率（纯函数）= 1 + 5% × 超出波数；各技能再各自封顶（见 castSkill / confirmMeteor） */
+function skillEffectScale(skill, wave) {
+  return 1 + SKILL_EFFECT_STEP * skillWaveGap(skill, wave);
+}
+
+/**
+ * 技能当前状态：解锁 / 冷却 / 金币三条判定。
+ * 金币这一条**不能交给模块的 canCast**：它比的是基础价 skill.cost，而实际扣的是涨过价的
+ * effectiveSkillCost。所以这里传一个不可能不足的金币让它只判「解锁 + 冷却」，金币在主文件判 ——
+ * td-skills.js 因此保持原样（它的 90 条离线断言一个都不受影响）。
+ */
 function skillState(id) {
   const skill = getSkill(id);
   const now = state.timeMs;
   const readyAt = Number.isFinite(state.skillReady[id]) ? state.skillReady[id] : 0;   // 没放过 = 0
+  const cost = effectiveSkillCost(skill, state.wave);      // 当前花费（随波次涨）
+  const scale = skillEffectScale(skill, state.wave);       // 当前效果倍率（随波次涨）
   const left = cooldownLeft(skill, readyAt, now);
-  const chk = canCast(skill, { wave: state.wave, gold: state.gold, readyAt, now });
-  return { skill, ok: chk.ok && state.mode === 'endless', reason: chk.reason, left, now };
+  const chk = canCast(skill, { wave: state.wave, gold: Number.MAX_SAFE_INTEGER, readyAt, now });
+  const afford = state.gold >= cost;
+  const ok = chk.ok && afford && state.mode === 'endless';
+  const reason = chk.ok ? (afford ? undefined : 'gold') : chk.reason;
+  return { skill, ok, reason, left, now, cost, scale };
 }
 
-/** 扣金币 + 写冷却（只在效果真正生效后调：失败路径一分钱都不动） */
-function payForSkill(skill) {
-  state.gold -= skill.cost; state.skillReady[skill.id] = state.timeMs + skill.cooldownMs; syncHud();
+/** 扣金币 + 写冷却（只在效果真正生效后调：失败路径一分钱都不动）；price 是当前花费 */
+function payForSkill(skill, price) {
+  const c = Number.isFinite(price) ? price : effectiveSkillCost(skill, state.wave);
+  state.gold -= c; state.skillReady[skill.id] = state.timeMs + skill.cooldownMs; syncHud();
 }
 /** 取消选点态（Esc / 右键 / 点到画布外）：还没扣钱，什么都不用回滚 */
 function cancelCasting() {
   if (state.casting) { state.casting = null; syncHud(); }
 }
 
-/** 施放技能。陨石两段式：先进选点态（不扣钱），落点确认时才扣钱进冷却 —— 点错了取消也不亏。 */
+/* ---------- 回收：先算计划（纯函数）再执行 ---------- */
+/**
+ * 「回收」的选塔计划（纯函数：只读 towers，不碰 state / 金币 / DOM）。
+ * 规则：**等级最低**的 count 座优先，同级取下标更小者（= 先建的先卖）；
+ * 返还额 = salvageRefund(tower.spend, SALVAGE.refundRatio) —— refundRatio 当前是 1，即**全额返还**。
+ * 注意它和出售不是一回事：sellTower 走 BALANCE.sellRatio（60%），回收是另一条语义，不能复用那个函数。
+ * 返回 { targets: [{ index, tower, type, name, lv, refund }], totalRefund }：
+ * 塔不足 count 时返回全部，空场返回空计划（totalRefund = 0）；排序只作用于下标镜像，不改任何塔字段。
+ */
+function planSalvage(towers, count) {
+  const list = Array.isArray(towers) ? towers : [];
+  const want = Number.isFinite(count) ? count : SALVAGE.towers;
+  const n = Math.min(list.length, Math.max(0, Math.floor(want)));
+  const rows = [];
+  for (let i = 0; i < list.length; i += 1) {
+    const t = list[i];
+    if (!t) continue;
+    const def = ALL_TOWER_TYPES[t.type];
+    rows.push({ index: i, tower: t, type: t.type, name: def ? def.name : String(t.type), lv: Math.floor(Number(t.lv) || 1) });
+  }
+  rows.sort((a, b) => (a.lv - b.lv) || (a.index - b.index));   // 等级最低优先；同级先建者
+  const targets = [];
+  let totalRefund = 0;
+  for (let i = 0; i < rows.length && i < n; i += 1) {
+    const r = rows[i];
+    const spend = Number.isFinite(r.tower.spend) ? r.tower.spend : 0;
+    const refund = salvageRefund(spend, SALVAGE.refundRatio);
+    targets.push({ index: r.index, tower: r.tower, type: r.type, name: r.name, lv: r.lv, refund });
+    totalRefund += refund;
+  }
+  return { targets, totalRefund };
+}
+
+/**
+ * 执行一份回收计划（plan 由 planSalvage 现算，这里不再挑塔、不再算钱）：逐座移除 → 金币一次到账 → 清选中。
+ * 落盘不在这里做：castSkill 会在**扣完技能费之后**落一次盘（顺序反了，刷新页面就能白拿返还、白逃冷却）。
+ * 返回实际移除的座数（空计划返回 0）。
+ */
+function applySalvage(plan) {
+  if (!plan || !Array.isArray(plan.targets) || plan.targets.length === 0) return 0;
+  let removed = 0;
+  for (const row of plan.targets) {
+    const i = state.towers.indexOf(row.tower);
+    if (i < 0) continue;                  // 计划是现算的，塔仍可能已被别的路径挪走：下标失效就跳过
+    state.towers.splice(i, 1);
+    if (state.selectedTower === row.tower) state.selectedTower = null;
+    addParticles(row.tower.x, row.tower.y, 5, palette.warning);
+    removed += 1;
+  }
+  state.gold += plan.totalRefund;         // 回收 = 全额返还：唯一的入账点
+  clearTowerSelect();                     // 被卖掉的塔可能正是选中的那座：清画布圈 + 清单高亮
+  syncHud();
+  return removed;
+}
+
+const VORTEX_PULL_PX = 180;   // 黑洞把敌人拉向圆心的速度（px/s）：半径 90px 约 0.5s 到圆心，1.5s 的 hold 够聚拢
+
+/**
+ * 12 个技能的施放实现表：id → 函数。每项**只负责效果**；扣钱 / 写冷却 / 解锁 / 金币判定一律由 castSkill
+ * 统一处理（所以「按钮上写的价」与「真实扣的钱」不可能再分叉）。返回值约定：
+ *   true  —— 效果已生效，castSkill 随后 payForSkill 扣钱进冷却；
+ *   'aim' —— 进入 / 退出选点态，此刻一分钱都不扣（落点确认时才由 confirmMeteor / confirmVortex 收钱）；
+ *   其他  —— 什么都不做（不扣钱、不进冷却）。
+ * 为什么是一张表而不是一长串 if/else：漏接一个技能的后果是「按钮亮着、点了没反应、也不报错」——
+ * 这正是「新增 6 个技能只有前 6 个能用」的成因。表化之后 tools/td-wave-test 第 19 节拿
+ * SKILLS.map(s => s.id) 逐位比对，缺一个就 FAIL。**新增技能必须同时登记到这里。**
+ */
+const SKILL_CASTERS = {
+  // 寒流：只有比当前生效的更强才覆盖（模块内的取更强逻辑），所以寒流与冰塔不叠乘；
+  // 减速随波次放大，但封顶 80%（与冰塔 / Lv.4+ 外推同一条上限，再高就等于让敌人站住不动）
+  chill: (st) => {
+    const slow = Math.min(SKILL_CHILL_CAP, CHILL.slow * st.scale);
+    const n = applyChillTo(state.enemies, st.now, slow, CHILL.durationMs);
+    addFloater(VIEW.w / 2, 44, '寒流 ' + Math.round(slow * 100) + '% ×' + n, '#4CC9F0', 1.4);
+    return true;
+  },
+  meteor: () => enterAim('meteor'),
+  // 赏金：只写两个计时字段，击杀处（killEnemy）现读现乘；到点自然失效，没有清理回调
+  bounty: (st) => {
+    state.bountyUntil = st.now + BOUNTY.durationMs;
+    state.bountyMul = bountyMultiplier(st.scale);
+    addFloater(VIEW.w / 2, 44, '赏金 +' + Math.round(state.bountyMul * 100) + '% '
+      + Math.round(BOUNTY.durationMs / 1000) + 's', palette.warning, 1.6);
+    return true;
+  },
+  repair: (st) => {
+    const before = state.lives;
+    // 修复量随波次放大（向上取整：17.6 → 18 条，宁可多给一点也别让放大看起来没生效）；
+    // 生命上限仍是 BALANCE.startLives，靠技能刷不出无限生命
+    state.lives = Math.min(BALANCE.startLives, state.lives + Math.ceil(REPAIR.lives * st.scale));
+    addFloater(VIEW.w - 46, VIEW.h / 2 - 18, '+' + (state.lives - before), palette.primary, 1.4);
+    return true;
+  },
+  vortex: () => enterAim('vortex'),
+  // 时停：时长随波次放大，上限 2 倍（否则后期一次时停能白嫖半波）
+  timestop: (st) => {
+    state.stopUntil = st.now + TIMESTOP.durationMs * Math.min(SKILL_EFFECT_CAP, st.scale);
+    return true;
+  },
+  // 护盾：次数随波次放大（shieldHits 已夹到 1..maxHits），到期时刻用逻辑时间 —— 暂停 / 后台都不流逝
+  shield: (st) => {
+    state.shield = { hits: shieldHits(st.scale), until: st.now + SHIELD.durationMs };
+    addFloater(VIEW.w - 46, VIEW.h / 2 - 18, '护盾 ' + state.shield.hits + ' 次', '#4CC9F0', 1.6);
+    return true;
+  },
+  // 超载：加成倍数存进 state，由 updateTowers 现乘（那里持有 OVERLOAD 的基础值），上限 2 倍
+  overload: (st) => {
+    state.overloadScale = Math.min(SKILL_EFFECT_CAP, st.scale);
+    state.overloadUntil = st.now + OVERLOAD.durationMs;
+    state.fatigueUntil = state.overloadUntil + OVERLOAD.fatigueMs;   // 爆发结束才轮到疲劳，两段不重叠
+    addFloater(VIEW.w / 2, 44, '超载 ×' + round2(state.overloadScale) + ' ' + OVERLOAD.durationMs / 1000 + 's', palette.warning, 1.6);
+    return true;
+  },
+  // 斩杀：血线 <25% 的目标吃「最大生命 50%」的**真实伤害**（走 trueDamage，与毒塔同一路径、无视护甲）；
+  // 死亡仍由 killEnemy 记账，所以该给的赏金 / 击杀数一分不少
+  execute: (st) => {
+    const hits = executeTargets(state.enemies);
+    let n = 0;
+    for (const e of hits) {
+      if (e.dead) continue;                       // 同一帧里先后被别的伤害打死：跳过，别再结算一次
+      const dmg = executeDamage(e);
+      if (dmg > 0) { trueDamage(e, dmg); n += 1; }
+    }
+    addFloater(VIEW.w / 2, 44, '斩杀 ×' + n, palette.danger, 1.6);
+    return true;
+  },
+  // 共鸣：只写到期时刻，倍率由 updateTowers 现取（resonanceMul 留成函数是为以后做强化不动调用方）
+  resonance: (st) => {
+    state.resonanceUntil = st.now + RESONANCE.durationMs;
+    addFloater(VIEW.w / 2, 44, '共鸣 光环 ×' + resonanceMul() + ' '
+      + Math.round(RESONANCE.durationMs / 1000) + 's', palette.primary, 1.6);
+    return true;
+  },
+  // 净化本来就是清场：效果不放大，只有价格跟着波次涨
+  purge: () => { purgeEnemies(); return true; },
+  // 回收：先算计划（纯函数）再执行；场上没有塔时什么都不做，一分钱都不扣（与「批量升级」无可升级即禁用同一口径）
+  salvage: () => {
+    const plan = planSalvage(state.towers, SALVAGE.towers);
+    const n = applySalvage(plan);
+    if (n === 0) return false;
+    addFloater(VIEW.w / 2, 44, '回收 ×' + n + ' 返还 ' + plan.totalRefund, palette.warning, 1.6);
+    return true;
+  },
+};
+
+/**
+ * 进入 / 退出选点态（陨石与黑洞**共用这一处**）：同一时刻只允许一个选点态 ——
+ * 再点同一个技能 = 取消；点另一个技能 = 直接切过去（技能 id 与 aim 一起换，准星半径按 id 现取）。
+ * 状态只有 state.casting + state.aim 两个字段，所以「两种技能不会互相干扰」是结构上的，不靠时序。
+ */
+function enterAim(id) {
+  state.casting = state.casting === id ? null : id;
+  if (state.casting && !state.aim) state.aim = { x: VIEW.w / 2, y: VIEW.h / 2 };
+  syncHud();
+  return 'aim';
+}
+
+/**
+ * 施放技能：唯一入口。判定（模式 / 结算 / 解锁 / 冷却 / 金币）在这里，效果在 SKILL_CASTERS 里，
+ * 扣钱 + 写冷却统一走 payForSkill。陨石与黑洞是两段式：先'aim'（不扣钱），落点确认时才扣钱进冷却。
+ */
 function castSkill(id) {
   if (state.mode !== 'endless' || state.gameOver || !state.inRun) return false;
   const st = skillState(id);
   if (!st.ok) return false;
-  if (id === 'meteor') {   // 选点态（再点一次 = 取消），此时一分钱都没扣
-    state.casting = state.casting === 'meteor' ? null : 'meteor';
-    if (state.casting && !state.aim) state.aim = { x: VIEW.w / 2, y: VIEW.h / 2 };
-    syncHud();
-    return true;
-  }
-  if (id === 'chill') {
-    // 只有比当前生效的更强才覆盖（模块内的取更强逻辑），所以寒流与冰塔不叠乘
-    const n = applyChillTo(state.enemies, st.now, CHILL.slow, CHILL.durationMs);
-    addFloater(VIEW.w / 2, 44, '寒流 ×' + n, '#4CC9F0', 1.4);
-  } else if (id === 'repair') {
-    const before = state.lives;
-    state.lives = Math.min(BALANCE.startLives, state.lives + REPAIR.lives);   // 封顶 20：不能靠技能刷无限生命
-    addFloater(VIEW.w - 46, VIEW.h / 2 - 18, '+' + (state.lives - before), palette.primary, 1.4);
-  } else if (id === 'timestop') {
-    state.stopUntil = st.now + TIMESTOP.durationMs;   // 期间敌人不移动但仍可被攻击（见 updateEnemies）
-  } else if (id === 'overload') {
-    state.overloadUntil = st.now + OVERLOAD.durationMs;
-    state.fatigueUntil = state.overloadUntil + OVERLOAD.fatigueMs;   // 爆发结束才轮到疲劳，两段不重叠
-    addFloater(VIEW.w / 2, 44, '超载 ' + OVERLOAD.durationMs / 1000 + 's', palette.warning, 1.6);
-  } else if (id === 'purge') {
-    purgeEnemies();
-  } else return false;
-  payForSkill(st.skill);
+  const cast = SKILL_CASTERS[id];
+  if (typeof cast !== 'function') return false;   // 表里没登记（自检第 19 节会拦住）：什么都不做
+  const r = cast(st);
+  if (r === 'aim') return true;                    // 选点态：一分钱都还没扣
+  if (r !== true) return false;
+  payForSkill(st.skill, st.cost);   // 扣的是当前花费（涨过价的那个数），不是模块里的基础价
+  // 回收改动的是塔阵，必须**扣完钱再落盘**：若在效果里先落盘，刷新页面就能白拿返还、白逃冷却
+  if (id === 'salvage') noteEndlessRun();
   return true;
 }
 
@@ -1368,11 +1890,35 @@ function confirmMeteor(x, y) {
   const st = skillState('meteor');
   state.casting = null;
   if (!st.ok) { syncHud(); return false; }   // 选点期间金币被花光 / 技能已过期：什么都不做
-  const hits = meteorHits(state.enemies, x, y, METEOR.radius);
-  for (let i = 0; i < hits.length; i++) if (!hits[i].dead) damageEnemy(hits[i], METEOR.damage);
+  const hits = meteorHits(state.enemies, x, y, METEOR.radius);   // 半径不变，只有伤害随波次放大
+  const dmg = METEOR.damage * st.scale;
+  for (let i = 0; i < hits.length; i++) if (!hits[i].dead) damageEnemy(hits[i], dmg);
   addParticles(x, y, 10, '#F0643C');
   addFloater(x, y - 18, '陨石 ×' + hits.length, '#F0643C', 1.4);
-  payForSkill(st.skill);
+  payForSkill(st.skill, st.cost);
+  return true;
+}
+
+/**
+ * 黑洞落点：vortexTargets 取半径内的敌人 → 逐个挂 holdUntil（绝对逻辑时刻）+ 圆心，
+ * 位移插值由 updateEnemies 每帧做（它才是唯一动坐标的地方）。半径内没有敌人也照常扣钱进冷却，
+ * 与陨石「落空也进冷却」保持一致。
+ */
+function confirmVortex(x, y) {
+  const st = skillState('vortex');
+  state.casting = null;
+  if (!st.ok) { syncHud(); return false; }   // 选点期间金币被花光 / 技能已过期：什么都不做
+  const hits = vortexTargets(state.enemies, x, y, VORTEX.radius);
+  const until = st.now + VORTEX.durationMs;
+  let n = 0;
+  for (const e of hits) {
+    if (e.dead) continue;
+    e.holdUntil = until; e.holdX = x; e.holdY = y;
+    n += 1;
+  }
+  addParticles(x, y, 10, '#6C4CF0');
+  addFloater(x, y - 18, '黑洞 ×' + n, '#6C4CF0', 1.4);
+  payForSkill(st.skill, st.cost);
   return true;
 }
 /**
@@ -1474,14 +2020,20 @@ function drawFieldFx(ctx) {
   ctx.fillText('停滞 ' + ((state.stopUntil - state.timeMs) / 1000).toFixed(1) + 's', VIEW.w / 2, 24);
 }
 
-/** 陨石选点预览：十字准星 + 落点半径圆圈（跟指针走；点了才扣钱，Esc / 右键取消） */
+/**
+ * 选点预览：十字准星 + 落点半径圆圈（跟指针走；点了才扣钱，Esc / 右键取消）。
+ * 半径与配色按 state.casting 现取 —— 陨石（红 · METEOR.radius）与黑洞（紫 · VORTEX.radius）共用同一套绘制。
+ */
 function drawAim(ctx) {
-  const a = state.casting && state.aim;
+  const id = state.casting, a = id && state.aim;
   if (!a) return;
-  ctx.fillStyle = 'rgba(240,100,60,.10)';
-  ctx.beginPath(); ctx.arc(a.x, a.y, METEOR.radius, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#F0643C'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
-  ctx.beginPath(); ctx.arc(a.x, a.y, METEOR.radius, 0, Math.PI * 2); ctx.stroke();
+  const vortex = id === 'vortex';
+  const radius = vortex ? VORTEX.radius : METEOR.radius;
+  const color = vortex ? '#6C4CF0' : '#F0643C';
+  ctx.fillStyle = vortex ? 'rgba(108,76,240,.12)' : 'rgba(240,100,60,.10)';
+  ctx.beginPath(); ctx.arc(a.x, a.y, radius, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+  ctx.beginPath(); ctx.arc(a.x, a.y, radius, 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]);
   ctx.beginPath();   // 十字：横 10px、竖 10px
   ctx.moveTo(a.x - 10, a.y); ctx.lineTo(a.x + 10, a.y);
@@ -1533,23 +2085,39 @@ function drawHover(ctx) {
   ctx.setLineDash([]); ctx.globalAlpha = 1;
 }
 
-/** 塔：底盘 + 图标 + 等级点；选中时画射程圈 */
+/** 塔：底盘 + 图标 + 等级点；选中时画射程圈；超频塔多一圈金色脉冲环 + 右上角金色角标 */
 function drawTowers(ctx) {
   const towers = state.towers;
   for (let i = 0; i < towers.length; i++) {
     const t = towers[i];
     const def = ALL_TOWER_TYPES[t.type];
     const on = state.selectedTower === t;
-    if (on) {   // 选中：射程圈
+    const oc = t.oc === true;
+    if (on) {   // 选中：射程圈（超频塔画的是放大后的射程）
       ctx.strokeStyle = def.color; ctx.globalAlpha = 0.35; ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 6]);
-      ctx.beginPath(); ctx.arc(t.x, t.y, towerStat(t.type, t.lv).range, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(t.x, t.y, towerStat(t.type, t.lv, oc).range, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    if (oc) {
+      // 金色脉冲环：半径与不透明度都随 state.timeMs 呼吸（2.6s 一圈），一眼就能从一片塔里认出来。
+      // 用 state.timeMs（逻辑步累计）而不是 Date.now()，暂停时环也跟着停，与其它动效同一口径。
+      const pulse = 0.5 + 0.5 * Math.sin(state.timeMs / 260);
+      ctx.strokeStyle = OC_COLOR; ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.45 + 0.45 * pulse;
+      ctx.beginPath(); ctx.arc(t.x, t.y, 15.5 + pulse * 2.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
     }
     ctx.fillStyle = palette.card;
     ctx.beginPath(); ctx.arc(t.x, t.y, 13, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = def.color; ctx.lineWidth = on ? 3.5 : 2.5; ctx.stroke();
     drawTowerGlyph(ctx, t, def.color);
+    if (oc) {   // 右上角金色角标：一个小三角（塔身外的强化标记，与清单里的「超频」徽章同一件事）
+      ctx.fillStyle = OC_COLOR;
+      ctx.beginPath();
+      ctx.moveTo(t.x + 8, t.y - 10); ctx.lineTo(t.x + 15, t.y - 10); ctx.lineTo(t.x + 11.5, t.y - 3);
+      ctx.closePath(); ctx.fill();
+    }
     ctx.fillStyle = def.color;   // 等级：Lv.1~3 画塔底小圆点；Lv.4+ 画不下一百个点，直接写等级数字
     if (t.lv <= 3) {
       for (let k = 0; k < t.lv; k++) { ctx.beginPath(); ctx.arc(t.x + 9 - k * 6, t.y + 11, 2, 0, Math.PI * 2); ctx.fill(); }
@@ -1706,7 +2274,9 @@ function onPointerDown(ev) {
   if (ev.cancelable) ev.preventDefault();
   if (state.casting) {   // 选点态优先：画布上的一次点击 = 落点确认（点画布外 = 取消）
     const pt = eventToPoint(ev);
-    if (pt) confirmMeteor(pt.x, pt.y); else cancelCasting();
+    if (!pt) cancelCasting();
+    else if (state.casting === 'vortex') confirmVortex(pt.x, pt.y);   // 谁在选点态，落点就交给谁
+    else confirmMeteor(pt.x, pt.y);
     return;
   }
   const cell = eventToCell(ev);
@@ -1769,14 +2339,16 @@ function towerListSignature(rows, activeIdx) {
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     s += '|' + r.index + ',' + r.lv + ',' + r.dmg + ',' + r.rate + ',' + r.range + ','
-      + r.col + ',' + r.row + ',' + r.upgradeCost + ',' + r.sellRefund + ',' + r.canUpgrade + ',' + r.maxed + r.locked;
+      + r.col + ',' + r.row + ',' + r.upgradeCost + ',' + r.sellRefund + ',' + r.canUpgrade + ',' + r.maxed + r.locked
+      + ',' + r.oc;   // 超频标记也要进签名：否则超频成功后这一行不会重画（徽章与数值都停在旧样子）
   }
   return s;
 }
 
-/** 一行塔的 HTML：名称（塔色）+ 等级 + 伤害/攻速/射程 + 位置 + 升级/删除两个按钮 */
+/** 一行塔的 HTML：名称（塔色）+ 超频徽章 + 等级 + 伤害/攻速/射程 + 位置 + 升级/删除两个按钮 */
 function towerRowHtml(r, active) {
-  const st = towerStat(r.type, r.lv);   // 与战斗同源：光环增幅 / 毒伤 / 射程都现算
+  const oc = r.oc === true;
+  const st = towerStat(r.type, r.lv, oc);   // 与战斗同源：光环增幅 / 毒伤 / 射程都现算（超频再叠一层）
   // 光环塔自身不攻击：显示它给别人的增幅（与塔数值表一致；describeTowers 里它的伤害/攻速是 0）
   // 毒塔 dmg 恒为 0，唯一输出是无视护甲的 dot，直接写每秒毒伤比「伤害 0.00」有用
   const stats = r.type === 'aura'
@@ -1791,15 +2363,26 @@ function towerRowHtml(r, active) {
       ? '第 ' + HIGH_LV_UNLOCK_WAVE + ' 波后解锁 Lv.4 及以上（升到 Lv.' + (r.lv + 1) + ' 需 ' + r.upgradeCost + ' 金币）'
       : (r.canUpgrade ? '花 ' + r.upgradeCost + ' 金币升到 Lv.' + (r.lv + 1)
         : '金币不足：还差 ' + (r.upgradeCost - state.gold));
-  return '<div class="td-ti-row' + (active ? ' is-active' : '') + '" data-tower-index="' + r.index + '"'
+  // 行内「超频」：单座赌一次（50% 成功保留等级 / 失败降 5 级），已超频的塔不能再赌
+  const ocCost = overclockCost(r.lv);
+  const ocText = oc ? '已超频' : '超频 ' + ocCost;
+  const ocTitle = oc
+    ? '这座塔已经超频过了（同一座塔只能超频一次）'
+    : (state.gold >= ocCost
+      ? '花 ' + ocCost + ' 金币赌一次：50% 成功（保留 Lv.' + r.lv + '，伤害 ×1.6 攻速 ×1.25 射程 ×1.15），失败降 ' + OC_FAIL_DROP + ' 级'
+      : '金币不足：还差 ' + (ocCost - state.gold));
+  return '<div class="td-ti-row' + (active ? ' is-active' : '') + (oc ? ' is-oc' : '') + '" data-tower-index="' + r.index + '"'
     + ' title="点击选中这座塔">'
     + '<span class="td-ti-name" style="color:' + r.color + '">' + r.name + '</span>'
+    + (oc ? '<span class="td-ti-oc" title="已超频：伤害 ×1.6、攻速 ×1.25、射程 ×1.15（特殊塔另有加成）">超频</span>' : '')
     + '<span class="td-ti-lv">Lv.' + r.lv + '/' + r.maxLv + '</span>'
     + '<span class="td-ti-stats">' + stats.map((p) => '<span>' + p + '</span>').join('') + '</span>'
     + '<span class="td-ti-pos">(' + r.col + ', ' + r.row + ')</span>'
     + '<span class="td-ti-acts">'
     + '<button type="button" data-act="upgrade" data-tower-index="' + r.index + '"'
     + (r.canUpgrade ? '' : ' disabled') + ' title="' + upTitle + '">' + upText + '</button>'
+    + '<button type="button" data-act="oc" data-tower-index="' + r.index + '"'
+    + (oc || state.gold < ocCost ? ' disabled' : '') + ' title="' + ocTitle + '">' + ocText + '</button>'
     + '<button type="button" data-act="sell" data-tower-index="' + r.index + '"'
     + ' title="删除这座塔，返还 ' + r.sellRefund + ' 金币">删除（返还 ' + r.sellRefund + '）</button>'
     + '</span></div>';
@@ -1852,6 +2435,9 @@ function onTowerListClick(ev) {
   if (act === 'upgrade') {
     if (btn.disabled) return;               // 满级 / 金币不足：disabled 已经拦了，这里再兜一层
     upgradeTower(tower);                    // 复用现成的 upgradeTower（扣钱 / 升级 / 落盘）
+  } else if (act === 'oc') {
+    if (btn.disabled) return;               // 已超频 / 金币不足：同上
+    overclockTower(tower);                  // 单座超频：50% 成功保留等级 / 失败降 5 级，结果弹窗告知
   } else if (act === 'sell') {
     sellTower(tower);                       // 复用现成的 sellTower（返还 / 移除 / 落盘）
     clearTowerSelect();                     // 删掉的那一行不能还留着高亮
@@ -1902,8 +2488,10 @@ function buildSpecialTowerBar() {
 let skillBarSig = '';   // 技能栏上次写的签名（副标题 + disabled + class + title），没变就不写 DOM
 
 /**
- * 技能按钮三态：未解锁（「第 N 波」）/ 冷却中（「12s」）/ 可用（花费；金币不足则禁用）。签名只由
- * **显示出来的字**拼成，绝不把 state.timeMs 放进去 —— 否则每帧都是新签名、每帧写 DOM。
+ * 技能按钮三态：未解锁（「第 N 波」）/ 冷却中（「12s」）/ 可用（**当前花费**；金币不足则禁用）。
+ * 签名只由**显示出来的字**拼成，绝不把 state.timeMs 放进去 —— 否则每帧都是新签名、每帧写 DOM。
+ * 花费随波次涨（effectiveSkillCost），所以按钮上写的是当前价；涨价时 title 里补一句
+ * 「基础 150 → 当前 186（第 50 波）」，玩家看得懂钱为什么变多了。
  */
 function syncSkillButtons() {
   if (!ui.skillBtns || !ui.skillBtns.length) return;
@@ -1912,19 +2500,22 @@ function syncSkillButtons() {
   let sig = endless ? 'e' : 'l';
   for (const btn of ui.skillBtns) {
     const id = btn.dataset.skill, s = getSkill(id), st = skillState(id);
+    const costNow = st.cost;   // 当前花费（＝真实扣款数）
+    const costNote = costNow === s.cost ? '' : ('（基础 ' + s.cost + ' → 当前 ' + costNow + '，第 ' + state.wave + ' 波）');
+    const effNote = st.scale > 1 ? '· 效果 ×' + round2(st.scale) : '';
     const row = { info: '', off: true, cls: '', title: '' };
     if (!endless || state.wave < s.unlockWave) {
       row.cls = 'is-locked'; row.info = '第 ' + s.unlockWave + ' 波';
       row.title = s.name + '：第 ' + s.unlockWave + ' 波解锁（' + s.desc + '）';
     } else if (st.left > 0) {
       row.cls = 'is-cooling'; row.info = Math.ceil(st.left / 1000) + 's';
-      row.title = s.name + '：冷却中，还剩 ' + Math.ceil(st.left / 1000) + ' 秒（' + s.desc + '）';
-    } else if (state.gold < s.cost) {
-      row.cls = 'is-poor'; row.info = String(s.cost);
-      row.title = '金币不足：还差 ' + (s.cost - state.gold);
+      row.title = s.name + '：冷却中，还剩 ' + Math.ceil(st.left / 1000) + ' 秒（' + s.desc + '）' + costNote;
+    } else if (state.gold < costNow) {
+      row.cls = 'is-poor'; row.info = String(costNow);
+      row.title = '金币不足：还差 ' + (costNow - state.gold) + costNote;
     } else {
-      row.off = false; row.info = String(s.cost);
-      row.title = s.desc + '（' + s.cost + ' 金币 · 冷却 ' + Math.round(s.cooldownMs / 1000) + 's）';
+      row.off = false; row.info = String(costNow);
+      row.title = s.desc + '（' + costNow + ' 金币 · 冷却 ' + Math.round(s.cooldownMs / 1000) + 's' + effNote + '）' + costNote;
     }
     if (state.casting === id) row.cls += ' is-selected';
     rows.push(row);
@@ -1958,6 +2549,7 @@ function syncHud() {
   renderTowerList();   // 每帧走到这里，但签名没变就只做一次字符串拼接，不写 DOM
   syncQuickUpgrade();  // 同上：按钮三态由签名比较决定写不写
   syncBatchUpgrade();  // 「批量升级」同上（文案里的合计价随金币/塔等级变，签名比较照样只写一次）
+  syncBatchOverclock(); // 「一键超频」同上（合计价与成功率提示随金币/塔等级变）
   syncSkillButtons();  // 技能栏三态同上（冷却秒数只反映到秒，不会每帧写）
 }
 
@@ -2056,6 +2648,71 @@ function syncBatchUpgrade() {
   const sig = text + '#' + off + '#' + title;
   if (sig === bUpSig) return;
   bUpSig = sig;
+  btn.textContent = text;
+  btn.disabled = off;
+  btn.title = title;
+}
+
+let bOcSig = '';   // 「一键超频」按钮上次写的签名（文案 + disabled + title），没变就不动 DOM
+
+/**
+ * 「一键超频」输入框里的座数，**始终是夹好的 1..20**（nan / 空串 / 'abc' / 0 / -5 → 1，99 → 20）。
+ * 按钮状态与实际执行都走这里取值，所以哪怕玩家在框里留着 99，一次也只会赌 20 座。
+ */
+function ocCount() {
+  const el = ui.ocCount;
+  const raw = el ? Math.floor(Number(el.value)) : NaN;
+  if (!Number.isFinite(raw)) return OC_COUNT_MIN;
+  return Math.min(OC_COUNT_MAX, Math.max(OC_COUNT_MIN, raw));
+}
+
+/** 把一键超频的输入框原地夹好（失焦 / change 时用）：99 → 20、'' → 1、'abc' → 1 */
+function clampOcCountInput() {
+  const el = ui.ocCount;
+  if (!el) return OC_COUNT_MIN;
+  const v = ocCount();
+  const want = String(v);
+  if (el.value !== want) el.value = want;   // 只在真的越界时才写，不打断正常输入
+  return v;
+}
+
+/**
+ * 「一键超频」按钮三态（与 syncBatchUpgrade 同一套签名写法：每帧由 syncHud 调，没变就不写 DOM）。
+ *   有可超频的塔且钱够 → 可用，文案「一键超频（合计 X）」，title 写清座数 / 合计价 / 50% 成功率；
+ *   没塔 / 全部已超频 / 钱连第一座都不够 → disabled，title 说明原因。
+ */
+function syncBatchOverclock() {
+  const btn = ui.btnBatchOc;
+  if (!btn) return;
+  const count = ocCount();
+  const plan = planBatchOverclock(state.towers, state.gold, count);
+  let text = '一键超频';
+  let title;
+  let off = false;
+  if (plan.canDo) {
+    const got = plan.targets.length;
+    text = '一键超频（合计 ' + plan.totalCost + '）';
+    title = '超频 ' + got + ' 座（合计 ' + plan.totalCost + ' 金币）·成功率 50%，失败降 ' + OC_FAIL_DROP + ' 级'
+      + (got < count ? '·金币只够赌 ' + got + ' 座' : '');
+  } else {
+    off = true;
+    let open = 0;
+    let cheapest = 0;
+    for (let i = 0; i < state.towers.length; i += 1) {
+      const t = state.towers[i];
+      if (!t || !ALL_TOWER_TYPES[t.type] || t.oc === true) continue;
+      const c = overclockCost(t.lv);
+      if (!(c > 0)) continue;
+      open += 1;
+      if (cheapest === 0 || c < cheapest) cheapest = c;
+    }
+    title = state.towers.length === 0 ? '场上没有塔'
+      : (open === 0 ? '所有塔都已超频'
+        : '金币不足：最便宜的一座要 ' + cheapest);
+  }
+  const sig = text + '#' + off + '#' + title;
+  if (sig === bOcSig) return;
+  bOcSig = sig;
   btn.textContent = text;
   btn.disabled = off;
   btn.title = title;
@@ -2165,6 +2822,12 @@ function towerStatRows() {
     // 第 4 行 = Lv.4~MAX 的汇总（与上面 3 行共用 rowspan="4" 的塔名格），不铺 100 行
     rows += '<tr class="td-tstats-note"><td colspan="6">' + highLevelNote(key) + '</td></tr>';
   }
+  // 表尾补一行「超频」说明：同一张表里讲完，不另起一张表（结构化的一行，读屏也能念到）。
+  // 刻意写成 <tr class="…"> 而不是裸 <tr>，这样「7 种塔 × 3 级 = 21 行 + 1 行表头」这条
+  // 既有断言的计数口径一个字都不用改。
+  rows += '<tr class="td-tstats-oc"><td colspan="7">超频塔（画布上的金色脉冲环）：伤害 ×1.6、攻速 ×1.25、'
+    + '射程 ×1.15；光环增幅 ×1.4、冰塔减速 +10%、毒 dot ×1.6、推回 ×1.25、特斯拉目标数 3 → 5。'
+    + '超频成功率 50%，失败降 ' + OC_FAIL_DROP + ' 级（最低 1 级），超频不改变升级价</td></tr>';
   return '<table><thead><tr><th>' + head.join('</th><th>') + '</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
@@ -2335,6 +2998,9 @@ function syncView() {
   // 批量升级（座数输入 + 按钮）整组同样只在无尽模式：闯关最多 28 波、没有 Lv.4+ 玩法，用不上
   show(ui.batchBox, playing && state.mode === 'endless');
   show(ui.btnBatchUp, playing && state.mode === 'endless');
+  // 一键超频（座数输入 + 按钮）同样只在无尽模式：闯关最多 28 波、等级上不去，赌超频没有意义
+  show(ui.ocBox, playing && state.mode === 'endless');
+  show(ui.btnBatchOc, playing && state.mode === 'endless');
   show(ui.tInfo, playing);   // 场上塔清单只在对局中显示；回关卡列表 / 切模式一起收起
   show(ui.levels, menu);
   if (ui.btnBack) ui.btnBack.hidden = state.mode !== 'level';
@@ -2349,6 +3015,7 @@ function syncView() {
   syncSkillButtons();   // 模式一变，技能栏整排的解锁文案就变（签名比较，没变不写）
   syncTowerButtons();   // 同上：闯关模式要摘掉特殊塔
   syncBatchUpgrade();   // 同上：换模式后「批量升级」的显隐与文案立刻对齐
+  syncBatchOverclock(); // 同上：「一键超频」换模式后收起并同步文案
   if (playing) setupCanvas();   // 从 hidden 恢复时元素才有宽度，必须重算 backing store
 }
 
@@ -2477,7 +3144,24 @@ function resumeEndlessRun() {
     state.towers.push({
       type: t.type, lv: t.lvl, col: t.col, row: t.row, x: (t.col + 0.5) * GRID.tile, y: (t.row + 0.5) * GRID.tile,
       cd: 0, rateBuff: 0, dmgBuff: 0, spend: def.cost.slice(0, t.lvl).reduce((s, c) => s + c, 0),  // 还原总投入，出售不亏
+      oc: t.oc === true,   // 超频随存档还原（数值由 towerStat(type, lv, oc) 现算，等级一分不动）
     });
+  }
+  // 技能冷却：存档里是「剩余毫秒」，还原成绝对时刻（本局逻辑时间基准 state.timeMs，此刻刚从 0 起步）。
+  // 这样刷新页面不能把冷却清零，玩家也没法靠重载白拿四轮技能。
+  state.skillReady = {};
+  if (run.skillReady) for (const id in run.skillReady) {
+    if (!Object.prototype.hasOwnProperty.call(run.skillReady, id) || !getSkill(id)) continue;
+    const left = Math.floor(Number(run.skillReady[id]));
+    if (Number.isFinite(left) && left > 0) state.skillReady[id] = state.timeMs + Math.min(RUN_LEFT_MAX_MS, left);
+  }
+  // 护盾：已付过钱的防御资源，剩余次数与到期时刻一起还原（hits 已在校验层夹到 0..SHIELD.maxHits）
+  state.shield = null;
+  if (run.shield && run.shield.hits > 0 && run.shield.ms > 0) {
+    state.shield = {
+      hits: Math.min(SHIELD.maxHits, run.shield.hits),
+      until: state.timeMs + Math.min(RUN_LEFT_MAX_MS, run.shield.ms),
+    };
   }
   if (skipped > 0) console.warn('[tower-defense] 续玩跳过 ' + skipped + ' 座非法塔位（越界/在路径上/重叠）');
   state.resumeDone = true;                      // 已经选过「继续」，别再拦一次
@@ -2570,6 +3254,18 @@ function bindEvents() {
     ui.batchCount.addEventListener('input', () => syncBatchUpgrade());
     ui.batchCount.addEventListener('change', () => { clampBatchCountInput(); syncBatchUpgrade(); });
     ui.batchCount.addEventListener('blur', () => { clampBatchCountInput(); syncBatchUpgrade(); });
+  }
+  // 「一键超频」：先算整份计划 → 一次扣款 → 逐座按 50% 判定（只扣一次钱、只落一次盘，见 applyBatchOverclock）
+  if (ui.btnBatchOc) ui.btnBatchOc.addEventListener('click', () => {
+    const plan = planBatchOverclock(state.towers, state.gold, clampOcCountInput());
+    if (!plan.canDo) return;               // 没塔 / 全部已超频 / 连第一座都买不起：不提示也不扣钱
+    applyBatchOverclock(plan);             // 结果由 showOverclockResult 弹窗告知
+    syncHud();                             // 金币 / 清单 / 按钮合计价立即刷新
+  });
+  if (ui.ocCount) {
+    ui.ocCount.addEventListener('input', () => syncBatchOverclock());
+    ui.ocCount.addEventListener('change', () => { clampOcCountInput(); syncBatchOverclock(); });
+    ui.ocCount.addEventListener('blur', () => { clampOcCountInput(); syncBatchOverclock(); });
   }
   ui.btnAgain.addEventListener('click', restart);
 
@@ -2671,6 +3367,9 @@ function boot() {
   ui.batchCount = byId('tdBatchCount');     // 批量升级的座数输入框（1..100，夹取见 batchCount）
   // 整组 = 包着输入框的 <label class="td-batch">：它自己带 display:inline-flex，hidden 要靠 CSS 让位
   ui.batchBox = ui.batchCount && ui.batchCount.closest ? ui.batchCount.closest('.td-batch') : null;
+  ui.btnBatchOc = byId('tdBatchOcBtn');     // 「一键超频」（1~20 座，只在无尽模式出现，见 syncView）
+  ui.ocCount = byId('tdBatchOcCount');      // 一键超频的座数输入框（1..20，夹取见 ocCount）
+  ui.ocBox = ui.ocCount && ui.ocCount.closest ? ui.ocCount.closest('.td-batch') : null;
   ui.btnSpeed = byId('tdSpeed'); ui.btnRestart = byId('tdRestart'); ui.btnBack = byId('tdBack');
   ui.hud = byId('tdHud'); ui.bar = byId('tdBar'); ui.hint = byId('tdHint');
   ui.levels = byId('tdLevels'); ui.levelGrid = byId('tdLevelGrid'); ui.levelsProg = byId('tdLevelsProg');
@@ -2722,8 +3421,12 @@ function boot() {
     addGold: (n) => { state.gold += n; },
     skipWait: () => { state.nextWaveIn = 0; },
     cast: castSkill,   // 技能调试：cast('meteor') 进选点态、cast('purge') 直接清场
-    skills: () => SKILLS.map((s) => ({ id: s.id, readyAt: skillReadyAt(s.id), state: skillState(s.id).reason || 'ok' })),
-    skillTimers: () => ({ timeMs: state.timeMs, stopUntil: state.stopUntil, overloadUntil: state.overloadUntil, fatigueUntil: state.fatigueUntil }),
+    skills: () => SKILLS.map((s) => ({ id: s.id, readyAt: state.skillReady[s.id] || 0, state: skillState(s.id).reason || 'ok' })),
+    skillTimers: () => ({
+      timeMs: state.timeMs, stopUntil: state.stopUntil, overloadUntil: state.overloadUntil, fatigueUntil: state.fatigueUntil,
+      bountyUntil: state.bountyUntil, bountyMul: state.bountyMul, resonanceUntil: state.resonanceUntil,
+      shield: state.shield ? { hits: state.shield.hits, until: state.shield.until } : null,
+    }),
     restart,
   };
   requestAnimationFrame(frame);

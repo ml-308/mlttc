@@ -858,6 +858,330 @@ section('16. 「批量升级」计划 planBatchUpgrade（先算后扣：等级�
 }
 
 
+// ─── 17. 超频 + 技能随波次强化 ───────────────────────────────
+
+//  17. 超频（towerStat 第三参 / 50% 判定 / 一键计划）与技能随波次强化（花费 4% / 效果 5%）
+section('17. 超频（towerStat 第三参 / overclockCost / overclockRoll / planBatchOverclock）与技能随波次强化');
+{
+    const {
+        towerStat, describeTowers, overclockCost, overclockRoll, overclockFailLevel,
+        planBatchOverclock, effectiveSkillCost, skillEffectScale, MAX_TOWER_LEVEL,
+        SKILL_EFFECT_CAP, SKILL_CHILL_CAP,
+    } = mod;
+    const near = (a, b, tol = 0.01) => Math.abs(a - b) <= tol;
+    const plain = (type, lv) => towerStat(type, lv, false);
+    const over = (type, lv) => towerStat(type, lv, true);
+    const tower = (type, lv, oc) => ({ type, lv, col: 0, row: 0, x: 0, y: 0, cd: 0, spend: 60, dmgBuff: 0, rateBuff: 0, oc });
+    const show = (p) => (p.targets.length ? p.targets.map((t) => '#' + t.index + '/Lv.' + t.lv + '/' + t.cost).join(' ') : '（空计划）')
+        + ' 合计=' + p.totalCost + ' canDo=' + p.canDo;
+
+    // 17.1 普通塔：超频 = dmg ×1.6 / rate ×1.25 / range ×1.15，升级价不变（含 Lv.4+ 外推后的等级）
+    const badMul = [];
+    for (const [type, lv] of [['arrow', 1], ['cannon', 3], ['frost', 5], ['arrow', 12]]) {
+        const b = plain(type, lv), o = over(type, lv);
+        if (!near(o.dmg, b.dmg * 1.6)) badMul.push(`${type}Lv.${lv} dmg ${o.dmg}≠${b.dmg * 1.6}`);
+        if (!near(o.rate, b.rate * 1.25)) badMul.push(`${type}Lv.${lv} rate ${o.rate}≠${b.rate * 1.25}`);
+        if (!near(o.range, b.range * 1.15)) badMul.push(`${type}Lv.${lv} range ${o.range}≠${b.range * 1.15}`);
+        if (o.upgradeCost !== b.upgradeCost) badMul.push(`${type}Lv.${lv} 升级价被超频改了`);
+    }
+    assert('towerStat(type, lv, true) 相对 false：dmg ×1.6 / rate ×1.25 / range ×1.15（容差 0.01，升级价不变）',
+        badMul.length === 0, badMul.join('；'));
+
+    // 17.2 第三参可缺省：省略 = 普通塔（既有调用零改动）
+    const same = ['arrow', 'tesla', 'aura'].every((t) => {
+        const a = towerStat(t, 4), b = towerStat(t, 4, false);
+        return JSON.stringify(a) === JSON.stringify(b);
+    });
+    assert('第三参可缺省：towerStat(type, lv) 与 towerStat(type, lv, false) 完全一致（省略不等于超频）',
+        same, '省略第三参的结果与 false 不同');
+
+    // 17.3 特殊塔：毒 dot ×1.6 / 力场推回 ×1.25 / 特斯拉目标数 3→5 / 光环增幅 ×1.4（仍受 +100% 上限）
+    const p0 = plain('poison', 2), p1 = over('poison', 2);
+    const f0 = plain('force', 2), f1 = over('force', 2);
+    const a0 = plain('aura', 2), a1 = over('aura', 2);
+    const maxAura = over('aura', MAX_TOWER_LEVEL);
+    assert('特殊塔加成：毒 dot ×1.6、力场推回 ×1.25、特斯拉 chainCount 3→5、光环 auraRate / auraDmg ×1.4',
+        near(p1.poisonDps, p0.poisonDps * 1.6) && near(f1.pushTiles, f0.pushTiles * 1.25)
+        && plain('tesla', 1).chainCount === 3 && over('tesla', 1).chainCount === 5
+        && near(a1.auraRate, a0.auraRate * 1.4) && near(a1.auraDmg, a0.auraDmg * 1.4),
+        JSON.stringify({ poison: [p0.poisonDps, p1.poisonDps], push: [f0.pushTiles, f1.pushTiles], aura: [a0.auraRate, a1.auraRate] }));
+
+    // 17.4 上限：光环增幅仍 <= 1（+100%），冰塔减速 +10 个百分点但封顶 80%
+    const frostMax = over('frost', MAX_TOWER_LEVEL);
+    assert('超频没突破既有上限：光环 auraRate / auraDmg <= 1（+100%），冰塔减速 <= 80%（+10 个百分点）',
+        maxAura.auraRate <= 1 && maxAura.auraDmg <= 1
+        && near(over('frost', 1).slow, Math.min(0.8, plain('frost', 1).slow + 0.10)) && frostMax.slow <= 0.8,
+        JSON.stringify({ aura: [maxAura.auraRate, maxAura.auraDmg], slow: [plain('frost', 1).slow, over('frost', 1).slow, frostMax.slow] }));
+
+    // 17.5 超频价：Lv.1 = 240，且 1..MAX 严格递增
+    const costs = [];
+    for (let lv = 1; lv <= MAX_TOWER_LEVEL; lv += 1) costs.push(overclockCost(lv));
+    assert('overclockCost(1) = 240，且在 Lv.1..MAX 上严格递增（每级 ×1.12）',
+        overclockCost(1) === 240 && costs.every((c, i) => i === 0 || c > costs[i - 1]),
+        'Lv.1=' + costs[0] + ' Lv.2=' + costs[1] + ' Lv.100=' + costs[99]);
+
+    // 17.6 50% 边界：rand < 0.5 成功（0.49 成功 / 0.5 失败）
+    assert('成功率 50% 的边界明确：overclockRoll(0.49) === true、overclockRoll(0.5) === false（0 成功 / 0.99 失败）',
+        overclockRoll(0.49) === true && overclockRoll(0.5) === false
+        && overclockRoll(0) === true && overclockRoll(0.99) === false,
+        [0.49, 0.5, 0, 0.99].map((r) => r + '→' + overclockRoll(r)).join(' '));
+
+    // 17.7 失败降 5 级，但最低 1 级
+    assert('失败降 5 级且不低于 1 级：Lv.3 → 1、Lv.10 → 5、Lv.1 → 1、Lv.MAX → MAX-5',
+        overclockFailLevel(3) === 1 && overclockFailLevel(10) === 5
+        && overclockFailLevel(1) === 1 && overclockFailLevel(MAX_TOWER_LEVEL) === MAX_TOWER_LEVEL - 5,
+        [3, 10, 1, MAX_TOWER_LEVEL].map((l) => 'Lv.' + l + '→' + overclockFailLevel(l)).join(' '));
+
+    // 17.8 count 夹取：0 / -3 / 非数字 → 1 座；99 → 20 座
+    const many = [];
+    for (let i = 0; i < 30; i += 1) many.push(tower('arrow', 1));
+    const c0 = planBatchOverclock(many, 9e9, 0), cNeg = planBatchOverclock(many, 9e9, -3);
+    const cBad = planBatchOverclock(many, 9e9, 'x'), c99 = planBatchOverclock(many, 9e9, 99);
+    const c5 = planBatchOverclock(many, 9e9, 5);
+    assert('count 夹到 1..20：0 / -3 / 非数字 → 1 座，99 → 20 座（30 座塔的场景，上限确实生效）',
+        c0.targets.length === 1 && cNeg.targets.length === 1 && cBad.targets.length === 1
+        && c99.targets.length === 20 && c5.targets.length === 5,
+        [c0, cNeg, cBad, c99, c5].map((p) => p.targets.length).join('/'));
+
+    // 17.9 挑选顺序：等级最高优先、同级取先建、跳过已超频
+    const mix = [tower('arrow', 2), tower('cannon', 9), tower('frost', 2), tower('poison', 9, true)];
+    const pmix = planBatchOverclock(mix, 9e9, 3);
+    assert('等级最高优先、同级取先建、跳过已超频：[Lv.2, Lv.9, Lv.2, Lv.9(已超频)] 取 3 座 → index 1（Lv.9）、index 0、index 2（同为 Lv.2，先建的在前）',
+        pmix.targets.length === 3 && pmix.targets[0].index === 1
+        && pmix.targets[1].index === 0 && pmix.targets[2].index === 2
+        && pmix.targets.every((t) => t.index !== 3),
+        show(pmix));
+
+    // 17.10 部分执行：钱只够 2 座、要求 5 座 → 2 座，totalCost <= 金币
+    const one = overclockCost(1);
+    const fiveT = [tower('arrow', 1), tower('frost', 1), tower('cannon', 1), tower('aura', 1), tower('arrow', 1)];
+    const partial = planBatchOverclock(fiveT, one * 2, 5);
+    const partialMinus = planBatchOverclock(fiveT, one * 3 - 1, 5);   // 差 1 金币才够第三座
+    assert('部分执行：钱只够 2 座（或差 1 金够第三座）、要求 5 座 → 只返回 2 座，totalCost = 2 × 单价且 <= 金币',
+        partial.targets.length === 2 && partial.canDo === true && partial.totalCost === one * 2
+        && partial.totalCost <= one * 2
+        && partialMinus.targets.length === 2 && partialMinus.totalCost <= one * 3 - 1,
+        show(partial) + ` 单价=${one}`);
+
+    // 17.11 钱不够第一座 → 空计划
+    const broke = planBatchOverclock([tower('arrow', 1)], one - 1, 5);
+    assert('钱连第一座都不够 → targets 为空、canDo === false、totalCost === 0',
+        broke.targets.length === 0 && broke.canDo === false && broke.totalCost === 0,
+        show(broke) + ` 金币=${one - 1}`);
+
+    // 17.12 纯函数：算计划不改塔（oc 一处都不写），坏输入不抛
+    const beforeOc = mix.map((t) => t.oc);
+    let badInput = 'ok';
+    try {
+        if (planBatchOverclock(undefined, 100, 3).targets.length !== 0) badInput = 'undefined 未返回空计划';
+        if (planBatchOverclock([null, tower('nope', 1)], 9e9, 3).targets.length !== 0) badInput = '坏元素未跳过';
+        if (planBatchOverclock([tower('arrow', 0)], 9e9, 1).targets.length !== 0) badInput = '等级 0 未跳过';
+    } catch (err) { badInput = String(err && err.message); }
+    assert('纯函数：算计划不改塔的 oc；非数组 / null 元素 / 未知塔类型 / 等级异常都不抛异常',
+        JSON.stringify(mix.map((t) => t.oc)) === JSON.stringify(beforeOc) && badInput === 'ok', badInput);
+
+    // 17.13 清单同源：describeTowers 把 oc 带出来，且数值已经是超频后的
+    const rows = describeTowers([
+        { type: 'arrow', lv: 4, col: 1, row: 1, x: 0, y: 0, cd: 0, spend: 900, dmgBuff: 0, rateBuff: 0, oc: true },
+        { type: 'arrow', lv: 4, col: 2, row: 2, x: 0, y: 0, cd: 0, spend: 900, dmgBuff: 0, rateBuff: 0 },
+    ], { gold: 0, highUnlocked: true });
+    assert('describeTowers：清单行的 oc 字段为 true / false，dmg 与 range 已经是超频后的值（与战斗同源）',
+        rows.length === 2 && rows[0].oc === true && rows[1].oc === false
+        && near(rows[0].dmg, towerStat('arrow', 4, true).dmg) && near(rows[0].range, towerStat('arrow', 4, true).range),
+        JSON.stringify(rows.map((r) => [r.lv, r.oc, r.dmg, r.range])));
+
+    // 17.14 技能随波次强化：解锁前不放大，解锁后每波 +4% 花费 / +5% 效果
+    //      （用与 SKILLS 同形的fixture 直接喂纯函数：它们是纯函数，只认传进去的 skill 对象）
+    const meteor = { id: 'meteor', cost: 150, unlockWave: 8 };
+    const chill = { id: 'chill', cost: 60, unlockWave: 4 };
+    const timestop = { id: 'timestop', cost: 380, unlockWave: 26 };
+    const overload = { id: 'overload', cost: 500, unlockWave: 32 };
+    assert('未解锁阶段不放大：第 1 波（陨石解锁于第 8 波）花费 = 基础 150、倍率 = 1；解锁当波同样不加价',
+        effectiveSkillCost(meteor, 1) === 150 && skillEffectScale(meteor, 1) === 1
+        && effectiveSkillCost(meteor, 8) === 150 && skillEffectScale(meteor, 8) === 1,
+        `w1=${effectiveSkillCost(meteor, 1)}/${skillEffectScale(meteor, 1)} w8=${effectiveSkillCost(meteor, 8)}/${skillEffectScale(meteor, 8)}`);
+    assert('超出解锁波次 N 波按线性放价：陨石第 9 波 156、第 10 波 162、第 50 波 = round(150×(1+4%×42))',
+        effectiveSkillCost(meteor, 9) === 156 && effectiveSkillCost(meteor, 10) === 162
+        && effectiveSkillCost(meteor, 50) === Math.round(150 * (1 + 0.04 * 42))
+        && near(skillEffectScale(meteor, 50), 1 + 0.05 * 42),
+        `w9=${effectiveSkillCost(meteor, 9)} w10=${effectiveSkillCost(meteor, 10)} w50=${effectiveSkillCost(meteor, 50)}`);
+    const s100 = skillEffectScale(timestop, 100);
+    assert('效果上限：时停 / 超载的倍率在施放处封顶 2 倍，寒流减速封顶 80%（倍率本身仍线性长）',
+        s100 > 2 && Math.min(SKILL_EFFECT_CAP, s100) === 2 && SKILL_EFFECT_CAP === 2
+        && Math.min(SKILL_CHILL_CAP, 0.5 * s100) === 0.8 && SKILL_CHILL_CAP === 0.8
+        && Math.min(SKILL_EFFECT_CAP, skillEffectScale(overload, 100)) === 2
+        && Math.min(SKILL_CHILL_CAP, 0.5 * skillEffectScale(chill, 100)) === 0.8,
+        `时停w100=${s100} 寒流=${0.5 * s100}`);
+
+    // 真实取样（报告里贴的就是这几行）
+    console.log('  超频数值对比（普通 → 超频）：');
+    for (const [type, lv] of [['arrow', 1], ['arrow', 12], ['cannon', 3], ['tesla', 1], ['poison', 2], ['force', 2], ['aura', 2]]) {
+        const b = plain(type, lv), o = over(type, lv);
+        console.log('    ' + type.padEnd(7) + ' Lv.' + String(lv).padStart(2) + '：'
+            + 'dmg ' + b.dmg.toFixed(2) + ' → ' + o.dmg.toFixed(2)
+            + ' · rate ' + b.rate.toFixed(3) + ' → ' + o.rate.toFixed(3)
+            + ' · range ' + b.range.toFixed(1) + ' → ' + o.range.toFixed(1)
+            + ' · 特效 ' + JSON.stringify({
+                slow: o.slow, auraRate: o.auraRate, auraDmg: o.auraDmg,
+                poisonDps: Number(o.poisonDps.toFixed(1)), pushTiles: Number(o.pushTiles.toFixed(2)), chainCount: o.chainCount,
+            }));
+    }
+    console.log('  overclockCost 取样：Lv.1=' + overclockCost(1) + ' Lv.5=' + overclockCost(5)
+        + ' Lv.20=' + overclockCost(20) + ' Lv.50=' + overclockCost(50) + ' Lv.100=' + overclockCost(100));
+    console.log('  技能随波次：陨石(w8 解锁) 花费 ' + [8, 20, 50, 100].map((w) => 'w' + w + '=' + effectiveSkillCost(meteor, w)).join(' ')
+        + ' · 倍率 ' + [8, 20, 50, 100].map((w) => 'w' + w + '=' + skillEffectScale(meteor, w).toFixed(2)).join(' '));
+}
+
+
+// ─── 18. 存档：超频 / 护盾 / 技能冷却的落盘与向后兼容 ────────
+
+//  18. 存档新增字段（oc / shield / skillReady）：往返、旧存档兼容、只存 >0 项、坏值不炸
+section('18. 无尽存档新增可选字段（oc / shield / skillReady）：往返 / 旧存档兼容 / 只存 >0 / 坏值不炸');
+{
+    const { encodeSave, decodeSave, RUN_LEFT_MAX_MS } = mod;
+    const mk = (run) => ({ unlocked: 1, levelBest: {}, endlessBest: 0, endlessRun: run });
+    const baseRun = {
+        wave: 9, gold: 420, lives: 14, kills: 208, seed: 'run-x', savedAt: 1700000000000,
+        towers: [{ type: 'arrow', col: 3, row: 5, lvl: 2, oc: true }, { type: 'aura', col: 4, row: 5, lvl: 3, oc: false }],
+    };
+
+    // 18.1 往返：oc:true 保留；oc:false 不写回（false 与「缺键」等价，老存档的字面往返因此不变）
+    const trip = decodeSave(encodeSave(mk(baseRun)));
+    assert('超频往返：oc:true 的塔经 encodeSave → decodeSave 仍是 true；oc:false 不写回（契约上等于普通塔）',
+        !!trip && !!trip.endlessRun && trip.endlessRun.towers[0].oc === true
+        && trip.endlessRun.towers[1].oc === undefined,
+        JSON.stringify(trip && trip.endlessRun && trip.endlessRun.towers));
+
+    // 18.2 旧存档兼容：老格式（没有 oc / shield / skillReady）必须能读
+    const oldRun = {
+        wave: 3, gold: 100, lives: 20, kills: 5, seed: 'run-old', savedAt: 1700000000001,
+        towers: [{ type: 'arrow', col: 1, row: 2, lvl: 4 }],
+    };
+    const oldBack = decodeSave(encodeSave(mk(oldRun)));
+    assert('旧存档兼容：不含 oc / shield / skillReady 的老格式 run 解码不为 null，塔的 oc 为假值、三个字段都不凭空出现',
+        !!oldBack && !!oldBack.endlessRun && !oldBack.endlessRun.towers[0].oc
+        && !('shield' in oldBack.endlessRun) && !('skillReady' in oldBack.endlessRun),
+        JSON.stringify(oldBack && oldBack.endlessRun));
+
+    // 18.3 只存 > 0 的项：0 / 负数 / 非数字 / hits:0 一律丢弃，连字段都不写
+    const zeroRun = Object.assign({}, baseRun, {
+        skillReady: { chill: 0, meteor: -5, repair: 'abc' },
+        shield: { hits: 0, ms: 5000 },
+    });
+    const zeroBack = decodeSave(encodeSave(mk(zeroRun)));
+    assert('冷却 / 护盾只存 > 0 的项：{chill:0, meteor:-5, repair:"abc"} 与 hits:0 全部丢弃，skillReady / shield 两个字段都不出现',
+        !!zeroBack && !('skillReady' in zeroBack.endlessRun) && !('shield' in zeroBack.endlessRun),
+        JSON.stringify(zeroBack && zeroBack.endlessRun));
+
+    // 18.4 坏值不炸 + 夹取：脏数据丢弃、越界值夹到上限
+    const dirtyRun = Object.assign({}, baseRun, {
+        shield: { hits: -5, ms: 'abc' },
+        skillReady: { chill: -1, nope: 99999 },
+    });
+    const clampRun = Object.assign({}, baseRun, {
+        shield: { hits: 99, ms: 9e9 },
+        skillReady: { chill: 9e9 },
+    });
+    let threw = null, dirty = null, clamped = null;
+    try {
+        dirty = decodeSave(encodeSave(mk(dirtyRun)));
+        clamped = decodeSave(encodeSave(mk(clampRun)));
+    } catch (err) { threw = err; }
+    assert('坏值不炸：shield:{hits:-5,ms:"abc"} 与 skillReady:{chill:-1, nope:99999} 解码不抛异常，两个字段被丢弃',
+        threw === null && !!dirty && !('shield' in dirty.endlessRun) && !('skillReady' in dirty.endlessRun),
+        threw ? '抛出异常：' + threw : JSON.stringify(dirty && dirty.endlessRun));
+    assert('越界值夹到上限：shield.hits 夹到 SHIELD.maxHits(6)、ms 与冷却剩余夹到 ' + RUN_LEFT_MAX_MS + '（10 分钟）',
+        !!clamped && clamped.endlessRun.shield.hits === 6
+        && clamped.endlessRun.shield.ms === RUN_LEFT_MAX_MS
+        && clamped.endlessRun.skillReady.chill === RUN_LEFT_MAX_MS,
+        JSON.stringify(clamped && clamped.endlessRun));
+
+    // 18.5 往返取样（报告里贴的就是这两行）
+    console.log('  旧格式存档（无新字段）：' + JSON.stringify(oldRun));
+    console.log('  解码结果：' + JSON.stringify(oldBack && oldBack.endlessRun));
+    console.log('  超频 + 冷却 + 护盾齐全的往返：' + JSON.stringify(decodeSave(encodeSave(mk(Object.assign({}, baseRun, {
+        skillReady: { chill: 12000 }, shield: { hits: 3, ms: 8000 },
+    }))))?.endlessRun));
+}
+
+
+// ─── 19. 技能施放接线：SKILL_CASTERS 覆盖 12 个技能 + 回收计划 ──
+
+//  19. 防「按钮有、点了没反应」：SKILL_CASTERS 的键集与 SKILLS 逐位比对；planSalvage 的选塔 / 返还 / 纯度
+section('19. 技能施放接线：SKILL_CASTERS 覆盖全部 12 个技能 + 回收计划 planSalvage');
+{
+    const { SKILL_CASTERS, planSalvage } = mod;
+    const skillsMod = await import(toModuleUrl(path.join(root, 'src', 'pages', 'td-skills.js')));
+    const { SKILLS, SALVAGE, salvageRefund } = skillsMod;
+
+    // 19.1 覆盖：SKILLS 里有的 id，表里必须有函数 —— 漏一个就 FAIL（本次 bug 的复发保险）
+    const ids = SKILLS.map((s) => s.id);
+    const missing = ids.filter((id) => typeof SKILL_CASTERS[id] !== 'function');
+    assert('SKILL_CASTERS 覆盖全部 ' + ids.length + ' 个技能 id（' + ids.join('/') + '），缺一个即失败',
+        ids.length === 12 && missing.length === 0,
+        'missing=' + JSON.stringify(missing));
+
+    // 19.2 反向：表里不许有多余 / 拼错的 id（键集必须与 SKILLS 完全一致）
+    const keys = Object.keys(SKILL_CASTERS);
+    assert('SKILL_CASTERS 的键集与 SKILLS 完全一致（没有多余 / 拼错的 id）',
+        keys.length === ids.length && keys.every((k) => ids.includes(k)),
+        JSON.stringify(keys));
+
+    // 19.3 每个 caster 都是函数（不是 undefined / 占位字符串 / 对象）
+    assert('12 个 caster 全部是函数（typeof === "function"）',
+        keys.length === 12 && keys.every((k) => typeof SKILL_CASTERS[k] === 'function'),
+        JSON.stringify(keys.map((k) => k + ':' + typeof SKILL_CASTERS[k])));
+
+    // 19.4 选塔：5 座不同等级取 3 座 → 等级最低优先，同级取下标更小者（= 先建者）
+    const mkTower = (type, lv, spend, i) => ({
+        type, lv, spend, col: i, row: 0, x: i * 32, y: 0, cd: 0, rateBuff: 0, dmgBuff: 0,
+    });
+    const five = [
+        mkTower('arrow', 3, 400, 0),
+        mkTower('cannon', 5, 900, 1),
+        mkTower('frost', 2, 300, 2),
+        mkTower('tesla', 4, 700, 3),
+        mkTower('aura', 2, 260, 4),
+    ];
+    const plan5 = planSalvage(five, 3);
+    assert('planSalvage：5 座不同等级取 3 座 → 等级最低的 frost(2)/aura(2)/arrow(3)，同为 2 级时先建的 frost 在前',
+        plan5.targets.length === 3
+        && plan5.targets.map((t) => t.index).join(',') === '2,4,0'
+        && plan5.targets.map((t) => t.lv).join(',') === '2,2,3',
+        JSON.stringify(plan5.targets.map((t) => [t.index, t.type, t.lv])));
+
+    // 19.5 不足 count / 空场
+    const two = [mkTower('arrow', 7, 500, 0), mkTower('frost', 6, 400, 1)];
+    const plan2 = planSalvage(two, 3);
+    const plan0 = planSalvage([], 3);
+    assert('planSalvage：不足 3 座时返回全部（2 座 → 2 项，等级低的排前面）；空数组 → 空计划且 totalRefund === 0',
+        plan2.targets.length === 2 && plan2.targets[0].index === 1 && plan2.targets[0].lv === 6
+        && plan0.targets.length === 0 && plan0.totalRefund === 0,
+        JSON.stringify({ plan2: plan2.targets.map((t) => t.index), plan0 }));
+
+    // 19.6 全额返还（不是出售的 60%）：refund = salvageRefund(spend, 1) = spend
+    const fullOk = plan5.targets.every((t) => t.refund === salvageRefund(t.tower.spend, 1) && t.refund === t.tower.spend);
+    const sumOk = plan5.totalRefund === plan5.targets.reduce((s, t) => s + t.refund, 0);
+    const notSale = plan5.targets.every((t) => t.refund !== Math.floor(t.tower.spend * BALANCE.sellRatio));
+    assert('planSalvage 的 refund 是全额（= salvageRefund(spend, 1) = spend），不是出售的 60%；totalRefund = 各项之和',
+        SALVAGE.refundRatio === 1 && fullOk && sumOk && notSale,
+        JSON.stringify({ refunds: plan5.targets.map((t) => t.refund), total: plan5.totalRefund }));
+
+    // 19.7 纯度：连算三次（3 / 5 / 0 座）不改塔的任何字段
+    const snapshot = JSON.stringify(five);
+    planSalvage(five, 3);
+    planSalvage(five, 5);
+    planSalvage(five, 0);
+    assert('planSalvage 是纯函数：连算三次（3 / 5 / 0 座）之后每座塔的字段一字未变',
+        JSON.stringify(five) === snapshot,
+        JSON.stringify(five) === snapshot ? '' : '塔被改写了：' + JSON.stringify(five));
+
+    console.log('  SKILL_CASTERS 键：' + keys.join(' / '));
+    console.log('  5 座塔取 3 座的计划：' + JSON.stringify(plan5.targets.map((t) => ({ i: t.index, n: t.name, lv: t.lv, refund: t.refund })))
+        + ' · totalRefund=' + plan5.totalRefund);
+}
+
+
 // ─── 汇总 ────────────────────────────────────────────────────
 
 const total = passed + failures.length;
