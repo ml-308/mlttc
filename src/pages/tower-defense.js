@@ -1379,14 +1379,14 @@ function openSpecPicker(tower, tier) {
       '<button type="button" data-spec-idx="' + i + '" title="' + o.desc + '">'
       + o.name + '（' + o.desc + '）</button>').join('');
   }
-  show(ui.specPicker, true);
+  if (ui.specPicker) ui.specPicker.hidden = false;
 }
 
 /** 关闭专精面板（选了 / 稍后 / 塔没了都走这里） */
 function closeSpecPicker() {
   state.pendingSpec = null;
   specDialogOpen = false;
-  show(ui.specPicker, false);
+  if (ui.specPicker) ui.specPicker.hidden = true;
 }
 
 /** 点选项：写入 pick（含归属校验）后关闭面板 */
@@ -2483,7 +2483,13 @@ function step(dt) {
   state.timeMs += dt * 1000;
   // 自动升级必须由逻辑步驱动：它自己就是升级的触发者，不能挂在"升级完成之后"
   // （曾经误放在 upgradeTower 里，导致开关打开也永远不生效）
-  if (state.autoUpgrade) autoUpgradeTick();
+  if (state.autoUpgrade) {
+    // 自动升级是便利功能：它出任何错都只跳过本次，绝不能把整局拖停
+    try { autoUpgradeTick(); } catch (e) {
+      console.warn('[tower-defense] 自动升级异常（已跳过本次）：', e);
+      state.autoUpNextAt = state.timeMs + 2000;
+    }
+  }
   updateWaves(dt);
   updateEnemies(dt);
   if (state.gameOver) return;
