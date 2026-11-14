@@ -1362,7 +1362,7 @@
          若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
          启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
          **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
-    <script src="/src/pages/tower-defense.js?v=1.6.16" type="module"></script>
+    <script src="/src/pages/tower-defense.js?v=1.6.17" type="module"></script>
 </head>
 
 <body class="td-page-body">
@@ -1480,6 +1480,8 @@
                 <button id="tdRestart">重开</button>
                 <!-- 快速升级：把建造顺序上第一个未满级的塔升一级（文案/title/disabled 由 syncQuickUpgrade 管） -->
                 <button id="tdQuickUpgrade" disabled title="场上没有塔">快速升级</button>
+                <!-- 自动升级：按「等级最低优先」持续升级，但专精（Lv.10/25/50）一律停手等玩家手动选 -->
+                <button id="tdAutoUp" type="button" title="自动升级（专精需要你手动选择）">自动升级：关</button>
                 <!-- 批量升级：一次把「座数」那么多座塔各升一级，总价一次扣掉（计划/扣款见 planBatchUpgrade /
                      applyBatchUpgrade；整组只在无尽模式出现，显隐由 syncView 管） -->
                 <label class="td-batch"><input type="number" id="tdBatchCount" min="1" max="100" step="1" value="5"> 座</label>

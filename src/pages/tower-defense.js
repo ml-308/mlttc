@@ -594,6 +594,7 @@ export {
   planSalvage,         // 「回收」的选塔计划（纯函数：等级最低优先、同级先建者、全额返还）
   SKILL_EFFECT_CAP, SKILL_CHILL_CAP,   // 技能效果的封顶值（2 倍 / 减速 80%，自检直接断言）
   RUN_LEFT_MAX_MS,     // 存档里「剩余毫秒」类字段的夹取上限（自检断言坏值被夹住）
+  autoUpgradeTarget,   // 「自动升级」的目标选择（专精弹窗打开时返回 null）
   mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
   towerStatRows,   // 塔数值表的行 HTML（纯函数：自检断言「并进特殊塔后不出现 NaN / undefined」）
   towerStat,       // 某塔某等级的实际数值（Lv.1~3 读数组、Lv.4+ 现算外推：战斗 / 清单 / 快速升级同源）
@@ -652,6 +653,7 @@ const state = {
   overloadRateMul: 1,    // 连携「共鸣→超载」只放大**攻速**通道：单独一个乘数，绝不并进 overloadScale（那会连伤害一起放大）
   // 技能连携：上一次**真正施放成功（已扣钱）**的技能 id 与时刻。两个字段一起写、一起清（重开归零）。
   // lastSkillAtMs 恒写 state.timeMs —— 与 matchSynergy 的 nowMs 同源；用 Date.now() 会让窗口在暂停 / 倍速下漂移。
+  autoUpgrade: false, autoUpNextAt: 0,   // 「自动升级」开关 + 下次可升级的逻辑时刻
   lastSkillId: '', lastSkillAtMs: 0,
   // 赏金 / 共鸣是「花金币买来的一段纯增益」：只记到期时刻与倍率，到点自然失效，不需要清理回调。
   // 它们**不进存档**（存档结构一个字段都没加）：续玩是从该波开头重来，存了等于让刷新白拿一段爆发。
@@ -1446,6 +1448,7 @@ function upgradeTower(tower) {
   addParticles(tower.x, tower.y, 8, def.color);
   noteEndlessRun();   // 升级后落盘
   maybeOfferSpecialization();   // 跨过 Lv.10 / 25 / 50 且该档还没选 → 弹二选一（取消则下次升级再问）
+  if (state.autoUpgrade) autoUpgradeTick();
   return true;
 }
 
@@ -2810,6 +2813,7 @@ function onPointerDown(ev) {
     // 金币不够下一座就自动取消选中，省一次点击
     if (state.gold < ALL_TOWER_TYPES[state.selectedType].cost[0]) state.selectedType = null;
     syncTowerButtons();
+  syncAutoUpButton();
   }
 }
 
@@ -3215,6 +3219,17 @@ let qUpSig = '';   // 「快速升级」按钮上次写的签名（文案 + disa
  * 点下去却查到 null 直接 return，表现为「快速升级按钮不可用」。
  * 现在两处都走这里，参数只在一个地方给，不可能再分叉。
  */
+const AUTO_UP_INTERVAL_MS = 700;   // 自动升级节奏（逻辑时间）：每 0.7 秒最多升一座
+
+/**
+ * 「自动升级」每一步的目标。与 quickUpgradeTarget 同源（等级最低优先、受高等级解锁闸约束），
+ * 但**专精弹窗打开时直接返回 null** —— 专精必须由玩家手动选，自动流程不能替他决定。
+ */
+function autoUpgradeTarget(towers, gold, highUnlocked, specBusy) {
+  if (specBusy) return null;
+  return nextUpgradeTarget(towers, gold, highUnlocked);
+}
+
 function quickUpgradeTarget() {
   return nextUpgradeTarget(state.towers, state.gold, canUpgradeBeyond3());
 }
@@ -3223,6 +3238,30 @@ function quickUpgradeTarget() {
  * 「快速升级」按钮三态：没有塔 / 全部满级 / 金币不足 → disabled（title 说明原因）；
  * 可升级 → 可用，title 写清「把 X 升到 Lv.N（价格）」。每帧由 syncHud 调，沿用 tListSig 的签名比较办法。
  */
+/**
+ * 自动升级的节拍器：每 AUTO_UP_INTERVAL_MS 最多升一座，避免一瞬间把钱花光。
+ * 专精弹窗打开时 autoUpgradeTarget 返回 null → 自动暂停，等玩家选完再继续。
+ */
+function autoUpgradeTick() {
+  const now = state.timeMs;
+  if (now < state.autoUpNextAt) return;
+  const target = autoUpgradeTarget(state.towers, state.gold, canUpgradeBeyond3(), specDialogOpen);
+  if (!target || !target.canAfford) { state.autoUpNextAt = now + AUTO_UP_INTERVAL_MS; return; }
+  state.autoUpNextAt = now + AUTO_UP_INTERVAL_MS;
+  upgradeTower(target.tower);   // 复用既有升级：扣钱 / 升级 / 落盘 / 触发专精弹窗
+  syncHud();
+}
+
+function syncAutoUpButton() {
+  const b = ui.btnAutoUp;
+  if (!b) return;
+  b.textContent = state.autoUpgrade ? '自动升级：开' : '自动升级：关';
+  b.classList.toggle('is-on', state.autoUpgrade === true);
+  b.title = state.autoUpgrade
+    ? '正在自动升级（等级最低优先）· 专精需要你手动选择 · 点击关闭'
+    : '自动升级（专精需要你手动选择）';
+}
+
 function syncQuickUpgrade() {
   const btn = ui.btnQuickUp;
   if (!btn) return;
@@ -3713,6 +3752,7 @@ function syncView() {
   // 批量升级（座数输入 + 按钮）整组同样只在无尽模式：闯关最多 28 波、没有 Lv.4+ 玩法，用不上
   show(ui.batchBox, playing && state.mode === 'endless');
   show(ui.btnBatchUp, playing && state.mode === 'endless');
+  show(ui.btnAutoUp, playing && state.mode === 'endless');
   // 一键超频（座数输入 + 按钮）同样只在无尽模式：闯关最多 28 波、等级上不去，赌超频没有意义
   show(ui.ocBox, playing && state.mode === 'endless');
   show(ui.btnBatchOc, playing && state.mode === 'endless');
@@ -3990,6 +4030,12 @@ function bindEvents() {
   });
   // 「批量升级」：先算整份计划 → 一次扣款 → 逐座 +1 级（只扣一次钱、只落一次盘，见 applyBatchUpgrade）。
   // 计划为空（没塔 / 全满级 / Lv.3 未解锁 / 连第一座都买不起）时直接返回，不提示也不扣钱。
+  // 「自动升级」开关：只切 state.autoUpgrade；真正的升级动作在 autoUpgradeTick（每 0.7s 一座）
+  if (ui.btnAutoUp) ui.btnAutoUp.addEventListener('click', () => {
+    state.autoUpgrade = !state.autoUpgrade;
+    state.autoUpNextAt = state.timeMs + AUTO_UP_INTERVAL_MS;   // 打开后稍等一下再开始，避免瞬间连升
+    syncAutoUpButton();
+  });
   if (ui.btnBatchUp) ui.btnBatchUp.addEventListener('click', () => {
     const plan = planBatchUpgrade(state.towers, state.gold, clampBatchCountInput(), canUpgradeBeyond3());
     if (!plan.canDo) return;
@@ -4113,6 +4159,7 @@ function boot() {
   ui.overTitle = byId('tdOverTitle'); ui.overSub = byId('tdOverSub');
   ui.btnAgain = byId('tdBtnAgain'); ui.btnNext = byId('tdBtnNext'); ui.btnList = byId('tdBtnList');
   ui.btnPause = byId('tdPause');
+  ui.btnAutoUp = byId('tdAutoUp');          // 「自动升级」开关（同 .td-controls，跟 .td-bar 一起显隐）
   ui.btnQuickUp = byId('tdQuickUpgrade');   // 「快速升级」（在 .td-controls 里，跟着 .td-bar 一起显隐）
   ui.btnBatchUp = byId('tdBatchUpgrade');   // 「批量升级」（同上，另加「只在无尽模式」一道闸，见 syncView）
   ui.batchCount = byId('tdBatchCount');     // 批量升级的座数输入框（1..100，夹取见 batchCount）
