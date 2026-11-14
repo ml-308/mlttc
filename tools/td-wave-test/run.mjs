@@ -621,6 +621,139 @@ section('13. 特殊塔并入 ALL_TOWER_TYPES 后：清单与数值表仍正常')
     }
 }
 
+// ─── 14. 高波次叠乘血量（lateHpMul）+ 倍速档位 ─────────────────
+
+section('14. 高波次叠乘血量 lateHpMul（第 ' + mod.LATE_HP_FROM + ' 波起 ×' + mod.LATE_HP_STEP + '/波）与倍速档位');
+{
+    const { ENEMY_TYPES, LEVEL_TWEAKS, LATE_HP_FROM, LATE_HP_STEP, SPEED_LEVELS } = mod;
+    // 「改动前」口径：只按 1.06^(n-1) 算血（BOSS 组照旧 ×8），完全不看 lateHpMul。
+    // 期望值独立重算，不读被测实现的 g.hp —— 否则实现改错也测不出来。
+    const baselineHp = (g, n) => Math.max(1, Math.round(
+        ENEMY_TYPES[g.type].hp * Math.pow(1.06, n - 1) * (g.type === 'boss' ? 8 : 1)));
+    const waveOf = (n) => generateEndlessWave(n, SEED);
+    const sumOf = (w) => w.groups.reduce((s, g) => s + g.count * g.hp, 0);
+    const baselineSum = (n) => waveOf(n).groups.reduce((s, g) => s + g.count * baselineHp(g, n), 0);
+    const hpByType = (w) => {
+        const m = {};
+        for (const g of w.groups) if (g.type !== 'boss') m[g.type] = g.hp;
+        return m;
+    };
+
+    // 14.1 阈值前一个数都没动：第 1/10/20/30 波的每一组血量都等于「只用 1.06^(n-1)」的期望值
+    const earlyWaves = [1, 10, 20, 30];
+    const earlyBad = [];
+    for (const n of earlyWaves) for (const g of waveOf(n).groups) {
+        const want = baselineHp(g, n);
+        if (g.hp !== want) earlyBad.push(`第${n}波 ${g.type} ${g.hp}≠${want}`);
+    }
+    assert(`第 ${earlyWaves.join('/')} 波的每组血量与「只按 1.06^(n-1)」完全相等（阈值前数值未变）`,
+        earlyBad.length === 0, earlyBad.slice(0, 4).join(' '));
+
+    // 14.2 第 31 波起加成生效：每组的血量必须等于 round(基础 × 1.06^(n-1) × LATE_HP_STEP)
+    const w30 = waveOf(30), w31 = waveOf(31);
+    const bad31 = w31.groups.filter((g) => g.type !== 'boss').filter((g) => g.hp !== Math.max(1, Math.round(
+        ENEMY_TYPES[g.type].hp * Math.pow(1.06, 30) * LATE_HP_STEP)));
+    assert(`第 31 波每组血量 = round(基础 × 1.06^30 × ${LATE_HP_STEP})（加成正好从第 31 波起、只乘一档）`,
+        bad31.length === 0, bad31.map((g) => `${g.type} ${g.hp}`).join(' '));
+    const h30 = hpByType(w30), h31 = hpByType(w31);
+    const notHigher = Object.keys(h31).filter((t) => h30[t] === undefined
+        ? false
+        : !(h31[t] > Math.max(1, Math.round(ENEMY_TYPES[t].hp * Math.pow(1.06, 29)))));
+    assert('第 31 波同类怪血量 > 第 30 波「仅 1.06 增长」的期望值（加成确实生效）',
+        notHigher.length === 0 && sumOf(w31) > baselineSum(31),
+        `第31波总血 ${sumOf(w31)} vs 仅1.06期望 ${baselineSum(31)}；未超过的类型 ${notHigher.join(',') || '无'}`);
+
+    // 14.3 加成的单调性：40 / 50 / 75 / 100 严格递增，且 100 波 ≥ 50 波的 2 倍
+    const ladder = [40, 50, 75, 100].map((n) => ({ n, sum: sumOf(waveOf(n)) }));
+    let monoBad = null;
+    for (let i = 1; i < ladder.length; i += 1) {
+        if (!(ladder[i].sum > ladder[i - 1].sum)) {
+            monoBad = `第 ${ladder[i - 1].n} 波 ${ladder[i - 1].sum} → 第 ${ladder[i].n} 波 ${ladder[i].sum}`;
+            break;
+        }
+    }
+    assert('第 40/50/75/100 波的单波总血量严格递增',
+        monoBad === null, monoBad || ladder.map((r) => `${r.n}:${r.sum}`).join(' '));
+    const grow = ladder[3].sum / ladder[1].sum;
+    assert(`第 100 波总血量 ≥ 第 50 波的 2 倍（高波次明显更硬，实际 ×${grow.toFixed(2)}）`,
+        grow >= 2, `第 50 波 ${ladder[1].sum} → 第 100 波 ${ladder[3].sum}`);
+
+    // 14.4 硬门槛：阈值必须 ≥ 30（闯关每关最多 28 波 = 4 + floor(L×0.24)，L100 → 28）
+    assert(`LATE_HP_FROM ≥ 30（硬门槛：闯关最多 28 波，阈值必须落在闯关范围之外，实际 ${LATE_HP_FROM}）`,
+        LATE_HP_FROM >= 30, `实际 ${LATE_HP_FROM}`);
+    assert(`LATE_HP_STEP 取 (1, 1.06] 之间（比 1.06 更陡则过度，更缓则等于没加；实际 ${LATE_HP_STEP}）`,
+        LATE_HP_STEP > 1 && LATE_HP_STEP <= 1.06, `实际 ${LATE_HP_STEP}`);
+
+    // 14.5 闯关未受影响：L100 的 28 波（28 < 30）每组血量 = 「不含 lateHpMul」的期望值
+    const lv100 = generateLevel(LEVEL_MAX);
+    const hpScale100 = lv100.diff * ((LEVEL_TWEAKS[lv100.level] || {}).hp || 1);
+    const lvBad = [];
+    for (let n = 1; n <= lv100.waves; n += 1) {
+        for (const g of buildLevelWave(lv100, n).groups) {
+            const want = Math.max(1, Math.round(baselineHp(g, n) * hpScale100));
+            if (g.hp !== want) lvBad.push(`L${lv100.level} 第${n}波 ${g.type} ${g.hp}≠${want}`);
+        }
+    }
+    assert(`闯关 L${lv100.level}（${lv100.waves} 波 < 阈值 ${LATE_HP_FROM}）全部血量 = 不含 lateHpMul 的期望值`,
+        lvBad.length === 0 && lv100.waves < LATE_HP_FROM, lvBad.slice(0, 4).join(' ') || `waves=${lv100.waves}`);
+    const oneWave = buildLevelWave(generateLevel(100), 28);
+    assert('buildLevelWave(generateLevel(100), 28) 的第 1 组血量 = 只按 1.06^27 × hpScale 的期望值',
+        oneWave.groups[0].hp === Math.max(1, Math.round(baselineHp(oneWave.groups[0], 28) * hpScale100)),
+        `实际 ${oneWave.groups[0].hp} / 期望 ${Math.max(1, Math.round(baselineHp(oneWave.groups[0], 28) * hpScale100))}`);
+
+    // 14.6 倍速档位：升序 1→2→3→4，且最高档必须小于单帧补帧上限（否则 60fps 下会丢欠账）
+    const stepCap = Number((source.match(/MAX_STEPS_PER_FRAME\s*=\s*(\d+)/) || [])[1]);
+    assert('倍速档位为 1,2,3,4 升序（按钮点一下走一档，4x 之后回到 1x）',
+        Array.isArray(SPEED_LEVELS) && SPEED_LEVELS.join(',') === '1,2,3,4', String(SPEED_LEVELS));
+    assert(`最高倍速 ${Math.max(...SPEED_LEVELS)}x < 单帧补帧上限 ${stepCap} 步（60fps 下一帧 ≈ speed 步，不触发丢欠账）`,
+        stepCap === 5 && Math.max(...SPEED_LEVELS) < stepCap, `cap=${stepCap}`);
+
+    // 14.7 实测表（供人工核对曲线，不是断言）
+    console.log('  实测表（单波总血量 / 相对改动前倍数 / 所需 DPS）：');
+    for (const n of [1, 10, 20, 30, 31, 40, 50, 75, 100]) {
+        const sum = sumOf(waveOf(n)), base = baselineSum(n);
+        console.log(`    ${String(n).padStart(3)} 波  总血量 ${String(sum).padStart(10)}  改动前 ${String(base).padStart(10)}`
+            + `  ×${(sum / base).toFixed(3).padStart(6)}  需DPS ${String(Math.round(waveStat(n).dps)).padStart(8)}`);
+    }
+}
+
+//  15. 无尽「真的无尽」：波次无上限 + 血量封顶不溢出
+section('15. 无尽模式「真的无尽」：波次无上限 + 血量不溢出');
+{
+    const { generateEndlessWave } = mod;
+    const HP_CEIL = mod.HP_CEIL;
+    assert('导出了 HP_CEIL 且为有限正数', Number.isFinite(HP_CEIL) && HP_CEIL > 0, String(HP_CEIL));
+
+    // 波次本身没有上限：这些超大波次都必须能正常生成（有分组、有出怪数）
+    const huge = [1000, 8000, 10000, 50000, 100000, 1000000];
+    let waveOk = true, hpOk = true, details = [];
+    for (const n of huge) {
+        const w = generateEndlessWave(n, 'endless-probe');
+        const okWave = w && w.groups && w.groups.length >= 1 && w.total >= 1;
+        const okHp = okWave && w.groups.every((g) => Number.isFinite(g.hp) && g.hp > 0 && g.hp <= HP_CEIL);
+        if (!okWave) waveOk = false;
+        if (!okHp) hpOk = false;
+        if (!okWave || !okHp) details.push(n + ':' + JSON.stringify(w && w.groups && w.groups.map((g) => g.hp)));
+    }
+    assert('超大波次（1000 ~ 100 万）都能正常生成，没有波次上限', waveOk, details.join(' '));
+    // 指数叠乘在第 ~1 万波会算成 Infinity；封顶后必须仍是有限正数
+    assert('超大波次的每组血量都是有限正数且不超过 HP_CEIL（不会变 Infinity）', hpOk, details.join(' '));
+
+    const w1e6 = generateEndlessWave(1000000, 'endless-probe');
+    assert('第 100 万波的血量已被封顶（说明是「涨到头」而不是「溢出」）',
+        w1e6.groups.every((g) => g.hp === HP_CEIL), w1e6.groups.map((g) => g.hp).join('/'));
+
+    // 封顶不能影响正常范围：第 40/60/80/100 波仍要严格递增
+    let rising = true; let prev = 0;
+    for (const n of [40, 60, 80, 100]) {
+        const w = generateEndlessWave(n, 'endless-probe');
+        const hp = w.groups.reduce((sum, g) => sum + g.count * g.hp, 0);
+        if (!(hp > prev)) rising = false;
+        prev = hp;
+    }
+    assert('正常范围（40→60→80→100 波）单波总血量仍严格递增（封顶没波及日常区间）', rising);
+}
+
 // ─── 汇总 ────────────────────────────────────────────────────
 
 const total = passed + failures.length;

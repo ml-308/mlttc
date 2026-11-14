@@ -69,6 +69,20 @@ const BALANCE = {  startGold: 150, startLives: 20,
 
 const STEP = 1 / 60;                  // 固定逻辑步长
 const MAX_STEPS_PER_FRAME = 5;        // 单帧最多补偿 5 步
+/**
+ * 倍速档位：1x → 2x → 3x → 4x → 回到 1x（按钮点一下走一档，见 tower-defense.html 的 tdSpeed）。
+ * 为什么封顶 4x —— 这是从主循环算出来的硬上限，不是口味问题：
+ *  · 主循环是固定步长 STEP = 1/60，每帧 `acc += dt * state.speed` 后最多补
+ *    MAX_STEPS_PER_FRAME = 5 步，追不上就把欠账丢掉（`if (steps >= MAX_STEPS_PER_FRAME) acc = 0`）。
+ *  · 60fps 下 dt ≈ 1/60，一帧需要补的步数 ≈ speed —— 所以**倍速上限 ≈ 5x**。
+ *    5x 正好压在补帧上限上，任何一帧抖动（dt 稍大）就触发丢欠账，表现是
+ *    **画面变卡、实际速度却上不去**；再往上（6x/8x）连 60fps 都吃不满，只会更卡。
+ *  · 4x 留了 1 步余量（dt 涨到 20ms 才顶格），常见掉帧下仍然跟得上，所以最高档取 4x。
+ *  · MAX_STEPS_PER_FRAME 不许跟着调大：一次补太多步时敌人单帧位移过大，
+ *    会出现「瞬移穿塔」（射程/碰撞按每步位置判定）。本倍速上限与它同时成立。
+ *  · 倍速只放大 acc 的累积（逻辑步数），不改 requestAnimationFrame 的渲染帧率。
+ */
+const SPEED_LEVELS = [1, 2, 3, 4];
 const EARLY_WAVE_MUL = 1.3;           // 无尽前 5 波赏金系数（只在 startWave 调用处乘，见那里的注释）
 const BEST_KEY = 'mlttc-td-best';     // 第一步的旧存档键：只做一次性迁移，迁移后立即删除
 const PROGRESS_KEY = 'mlttc-td-progress'; // 唯一存档键（unlocked / levelBest / endlessBest）
@@ -130,7 +144,44 @@ function mulberry32(a) {
  *  · spawnGap 从 1.15s 收到 0.22s 封顶，只压缩到 1/5，防止后期一帧刷出整波。
  *  · BOSS 波 n%10===0：额外插入 1+floor(n/25) 只 BOSS（血量 ×8、速度 ×0.85），
  *    不计入 total → 实际出场数 = total + bossCount。
+ *  · 高波次叠乘 LATE_HP_STEP^(n-LATE_HP_FROM)（见下面的常量注释）：1.06 单层在高波次
+ *    偏软，第 30 波之后再加一层更陡的增长，让「无尽后期明显更硬」。
  */
+
+/**
+ * 无尽高波次叠乘血量。设计取舍（为什么是这两个数）：
+ *  · 为什么从第 30 波起：**闯关模式每关最多 28 波**（waves = 4 + floor(L×0.24)，L100 → 28），
+ *    而闯关的血量基数也走 generateEndlessWave —— 阈值 ≥ 30（= LATE_HP_FROM ≥ 30，自检第 14.4
+ *    条钉住这条硬门槛）才能保证这一层**完全不进入闯关**，闯关平衡一点不动。
+ *  · 为什么选 1.025：与 1.06 叠成每波 ×1.0865（约 8.4 波翻倍，原来约 12 波）——足够让
+ *    高波次明显更硬，又不至于把「能不能推到 100 波」直接判死：第 100 波 lateHpMul = 1.025^70 ≈ 5.6。
+ *    再陡（1.04+）会和 BOSS 的 ×8 叠成墙，高波次变成纯看脸。
+ *  · n ≤ LATE_HP_FROM 时 lateHpMul 严格等于 1（不是 ≈1、也不参与取整），第 1~30 波的
+ *    每次取整结果都与改动前完全一致。
+ */
+const LATE_HP_FROM = 30;      // 第 30 波起额外加血（必须 ≥ 30，见上面「闯关最多 28 波」）
+const LATE_HP_STEP = 1.025;   // 每多一波，血量再 ×1.025（叠在 1.06 之上）
+
+/**
+ * 血量的有限上限。
+ *
+ * 无尽模式的波次本身没有上限，但血量是「1.06^(n-1) × 1.025^(n-30)」的指数叠乘：
+ * 实测第 8000 波还是有限值，到第 ~10000 波就溢出成 Infinity —— 那时 `hp - 伤害`
+ * 仍是 Infinity，敌人永远打不死，参与显示/结算还可能产生 NaN。也就是说「无尽」
+ * 会在数值上先烂掉。
+ *
+ * 这里封顶到安全整数上限（约 9.0e15）：波次仍可无限推进、出怪照常，只是血量不再涨。
+ * 玩家实际到不了这个波次（第 200 波每只怪已数千万血），但这样能同时保证
+ * 「波次无上限」与「数值永远有限」两个性质。
+ */
+const HP_CEIL = Number.MAX_SAFE_INTEGER;
+
+/** 按倍率算血量：指数溢出时封顶到 HP_CEIL，而不是放任它变成 Infinity */
+function scaledHp(baseHp, mult) {
+  const v = Math.round(baseHp * mult);
+  if (!Number.isFinite(v)) return HP_CEIL;
+  return Math.min(HP_CEIL, Math.max(1, v));
+}
 function generateEndlessWave(n, seed) {
   // 每波独立随机流：第 n 波的组成只由 (n, seed) 决定，与前面的波无关
   const rng = mulberry32(hashSeed('endless:' + n + ':' + seed));
@@ -156,6 +207,8 @@ function generateEndlessWave(n, seed) {
   // 血量增长：1.06^(n-1) 约 12 波翻倍。原来取 1.155（4.6 波翻倍）实测第 30 波就要 1.6 万
   // DPS，而满配塔阵只能到 2 千上下 —— 等于 30 波左右必死，数值上不可行。
   const hpMul = Math.pow(1.06, n - 1);
+  // 高波次叠乘：第 31 波起生效，n ≤ LATE_HP_FROM 时严格 = 1（第 1~30 波数值与改动前完全一致）
+  const lateHpMul = n > LATE_HP_FROM ? Math.pow(LATE_HP_STEP, n - LATE_HP_FROM) : 1;
   const spdMul = Math.min(2.2, 1 + 0.012 * (n - 1));
   // 赏金增长：1.05^(n-1)。与血量曲线同量级，避免后期钱多到没处花。
   const goldMul = Math.pow(1.05, n - 1);
@@ -164,7 +217,7 @@ function generateEndlessWave(n, seed) {
     const base = ENEMY_TYPES[p.type];
     return {
       type: p.type, count: counts[i],
-      hp: Math.max(1, Math.round(base.hp * hpMul)),
+      hp: scaledHp(base.hp, hpMul * lateHpMul),   // 极高波次封顶，避免 Infinity
       speed: base.speed * spdMul,
       bounty: Math.max(1, Math.round(base.bounty * goldMul)),
       armor: base.armor,
@@ -179,7 +232,9 @@ function generateEndlessWave(n, seed) {
     const b = ENEMY_TYPES.boss;
     groups.push({
       type: 'boss', count: bossCount,
-      hp: Math.max(1, Math.round(b.hp * hpMul * 8)),
+      // BOSS 同样乘 lateHpMul：否则高波次 BOSS 相对小兵反而变软（BOSS 波都在 n%10===0，
+      // 第 30 波是 BOSS 波但正好在阈值上，lateHpMul = 1；第 40 波起吃到 1.025^10 及以上）
+      hp: scaledHp(b.hp, hpMul * lateHpMul * 8),   // 同样封顶
       speed: b.speed * spdMul * 0.85,
       bounty: Math.max(1, Math.round(b.bounty * goldMul)),
       armor: b.armor,
@@ -345,6 +400,7 @@ export {
   nextUpgradeTarget,   // 「快速升级」按钮的目标选择（纯函数：按建造顺序取第一个未满级的塔）
   mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
   towerStatRows,   // 塔数值表的行 HTML（纯函数：自检断言「并进特殊塔后不出现 NaN / undefined」）
+  LATE_HP_FROM, LATE_HP_STEP, SPEED_LEVELS, HP_CEIL,   // 高波次叠乘阈值/斜率 + 倍速档位（自检直接断言）
 };
 
 /* ===================== 4. 运行时状态 ===================== */
@@ -2189,10 +2245,14 @@ function bindEvents() {
     }
   });
   ui.btnPause.addEventListener('click', togglePause);
+  // 倍速：按 SPEED_LEVELS 循环（1→2→3→4→1）。文案就是当前倍速；is-on 表示「已加速」，
+  // 与原来 2x 时点亮的观感一致（不新增指示器，外观风格不变）。上限 4x 的算术见 SPEED_LEVELS 注释。
+  ui.btnSpeed.title = '点击切换倍速（最高 4x）';
   ui.btnSpeed.addEventListener('click', () => {
-    state.speed = state.speed === 1 ? 2 : 1;
+    const i = SPEED_LEVELS.indexOf(state.speed);
+    state.speed = SPEED_LEVELS[(i + 1) % SPEED_LEVELS.length];   // i = -1（异常值）时回到 1x
     ui.btnSpeed.textContent = state.speed + 'x';
-    ui.btnSpeed.classList.toggle('is-on', state.speed === 2);
+    ui.btnSpeed.classList.toggle('is-on', state.speed > 1);
   });
   ui.btnRestart.addEventListener('click', restart);
   // 「快速升级」：把建造顺序上第一个未满级的塔升一级——扣钱/升级/累加 spend/落盘全在 upgradeTower 里
