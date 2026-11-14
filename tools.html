@@ -15,6 +15,7 @@
     <script src="lib/ui/init.mjs" type="module"></script>
     <script src="/lib/ui/popup.mjs" type="module"></script>
     <script src="/src/auth-header.js" type="module"></script>
+    <script src="/src/pages/game-data.js" type="module"></script>
 </head>
 
 <body>
@@ -61,6 +62,18 @@
                     <hcw-button primary href="tower-defense.html">立即使用</hcw-button>
                 </hcw-card>
             </div>
+
+            <!-- 游戏数据清理：只清三个小游戏在本机保存的成绩/进度（显式白名单键），
+                 不碰账号登录、时刻表、主题与同意记录。逻辑见 /src/pages/game-data.js -->
+            <hcw-card style="margin-top: 1.5rem;">
+                <h3 hcw-card-title>游戏数据</h3>
+                <p>小游戏的最高分与关卡进度只保存在本浏览器，不会上传服务器。想从头开始时可以在这里清除。</p>
+                <div id="gameDataList"></div>
+                <hcw-button flat id="clearGameDataBtn">清除游戏数据</hcw-button>
+                <p style="color: var(--text-muted); font-size: .8rem; margin-top: .5rem;">
+                    只清除贪吃蛇、走迷宫、塔防的成绩与进度；账号登录、时刻表数据、主题与同意记录不受影响。
+                </p>
+            </hcw-card>
         </section>
 
         <!-- 文本与随机 -->
