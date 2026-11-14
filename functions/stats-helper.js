@@ -3,7 +3,7 @@
  * 首页「数据速览」统计的维护
  *
  * ─── 口径（唯一定义，别再处各算一套）────────────────────────— 
- *   lines   = 「不同线路数」= COUNT(DISTINCT (CITY, WAY))
+ *   lines   = 「已收录时刻表条数」= COUNT(*)（一条记录算一条，含同一线路的多个版本）
  *   cities  = 「覆盖城市数」= 城市名去重后的 JSON 数组（/api/stats 取它的长度）
  *   updated = 最后一次重算时间（ISO）
  *
@@ -44,7 +44,7 @@ export async function recomputeStats(env) {
   try {
     const row = await env.mlttcd.prepare(
       `SELECT
-         (SELECT COUNT(*) FROM (SELECT DISTINCT CITY, WAY FROM TIMETABLE)) AS lineCount,
+         (SELECT COUNT(*) FROM TIMETABLE) AS lineCount,
          (SELECT COUNT(*) FROM (SELECT DISTINCT CITY FROM TIMETABLE WHERE ${CITY_NOT_BLANK})) AS cityCount`
     ).first();
 

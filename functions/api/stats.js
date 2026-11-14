@@ -49,24 +49,35 @@ async function setStat(env, key, value) {
 }
 
 /**
- * 全表扫描统计（惰性初始化与兜底共用同一条 DISTINCT 查询，
- * 原来是 ensureStats / computeLive 各写一遍完全相同的 SQL）。
+ * 全表扫描统计（惰性初始化与兜底共用）。
+ *
+ * 口径必须与 functions/stats-helper.js 的 recomputeStats 完全一致，
+ * 否则「初始化一次」和「增量维护」会各算一套，数字又漂移：
+ *   lines  = COUNT(*)                   —— 一条记录算一条（含同一线路的多个版本）
+ *   cities = 去重后的城市名数组（忽略空串）
  *
  * @returns {Promise<{lines: number, cities: string[]}>}
- *          lines  = DISTINCT (CITY, WAY) 的行数（一条线路一行）
- *          cities = 去重后的城市名数组
  */
 async function scanTimetable(env) {
-  const { results } = await env.mlttcd.prepare(
-    'SELECT DISTINCT CITY, WAY FROM TIMETABLE'
-  ).all();
+  // 一条语句同时取「记录总数」与「城市名列表」：
+  // 标量子查询恒返回一行，json_group_array 把去重城市拼成一个 JSON 数组，
+  // 省掉一次往返（D1 支持 JSON1 函数）。
+  const row = await env.mlttcd.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM TIMETABLE) AS lineCount,
+       (SELECT json_group_array(CITY) FROM (
+          SELECT DISTINCT CITY FROM TIMETABLE
+          WHERE TRIM(COALESCE(CITY, '')) <> '' ORDER BY CITY
+        )) AS cityList`
+  ).first();
 
-  const citySet = new Set();
-  for (const r of results) {
-    const c = (r.CITY || '').toString().trim();
-    if (c) citySet.add(c);
+  let cities = [];
+  try {
+    cities = JSON.parse((row && row.cityList) || '[]');
+  } catch {
+    cities = [];
   }
-  return { lines: results.length, cities: [...citySet] };
+  return { lines: Number((row && row.lineCount) || 0), cities: cities.filter(Boolean) };
 }
 
 /**
