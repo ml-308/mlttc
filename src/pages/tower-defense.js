@@ -41,99 +41,20 @@ import {
   SPEC_TIERS, specOptions, specById, applySpecialization, specSummary,
 } from './td-specialization.js';
 
-/* ===================== 1. 常量区（调数值只改这里） ===================== */
-const GRID = { cols: 24, rows: 14, tile: 32 };          // 24×14 格、每格 32px
-const VIEW = { w: GRID.cols * GRID.tile, h: GRID.rows * GRID.tile };  // 逻辑画布 768×448
+/* ===== 阶段一拆出的纯逻辑模块（常量 / 波次 / 塔数值）=====
+ * 这三个模块零 state、零 DOM：主文件从这里 import，再在文件末尾的 export 块里原样转发，
+ * 所以 run.mjs / 调试台拿到的名字与原来完全一致。 */
+import {
+  GRID, VIEW, ENEMY_TYPES, TOWER_TYPES, ALL_TOWER_TYPES, MAX_TOWER_LEVEL, STAT_CEIL, HIGH_LV_UNLOCK_WAVE, MAX_TOWERS, FX_CROWD_ENEMIES, FX_CROWD_TOWERS, HIGH_LV_DMG_STEP, HIGH_LV_RATE_STEP, HIGH_LV_RANGE_STEP, HIGH_LV_COST_STEP, OC_DMG_MUL, OC_RATE_MUL, OC_RANGE_MUL, OC_AURA_MUL, OC_SLOW_ADD, OC_POISON_MUL, OC_PUSH_MUL, OC_CHAIN_COUNT, OC_SUCCESS, OC_FAIL_DROP, OC_COST_BASE, OC_COST_STEP, OC_COUNT_MIN, OC_COUNT_MAX, RUN_LEFT_MAX_MS, OC_COLOR, BALANCE, SPEED_LEVELS, EARLY_WAVE_MUL, BEST_KEY, PROGRESS_KEY, LEVEL_MAX, DEFAULT_SEED, LEVEL_DIFF_STEP, LEVEL_POT, LEVEL_POT_EXP, LEVEL_POT_FALL, LEVEL_TWEAKS, LATE_HP_FROM, LATE_HP_STEP, HP_CEIL, MAP_TEMPLATES, BATCH_UP_MIN, BATCH_UP_MAX,
+} from './td/td-constants.js';
+import {
+  hashSeed, mulberry32, scaledHp, generateEndlessWave, generateLevel, buildLevelWave, levelTotalCache, levelTotalEnemies,
+  debugWaveCurve,   // 它在模块里是 export function（声明即导出），这里照样取进来转发
+} from './td/td-wave.js';
+import {
+  applyOverclock, towerStat, towerStatSpec, towerStatOf, round2, describeTowers, nextUpgradeTarget, planBatchUpgrade, overclockCost, overclockRoll, overclockFailLevel, planBatchOverclock, planSalvage, highLevelNote, towerStatRows,
+} from './td/td-tower-math.js';
 
-/** 敌人基础数值（波次里再乘 hp / speed / gold 倍率） */
-const ENEMY_TYPES = {
-  basic: { name: '步兵', hp: 40, speed: 55, armor: 0, bounty: 6 },
-  swift: { name: '快兵', hp: 45, speed: 95, armor: 0, bounty: 5 },
-  armor: { name: '重甲', hp: 110, speed: 40, armor: 0.25, bounty: 14 },
-  shield: { name: '盾兵', hp: 160, speed: 35, armor: 0.35, bounty: 22 },
-  boss: { name: 'BOSS', hp: 600, speed: 32, armor: 0.35, bounty: 80 },
-};
-
-/** 4 种塔 × 3 级：数组下标 = 等级-1；cost[0] 是建造价、cost[lv] 是升级价 */
-const TOWER_TYPES = {
-  arrow: { name: '箭塔', cost: [60, 120, 220], dmg: [8, 14, 24], rate: [1.6, 1.9, 2.2], range: [110, 120, 130], color: '#1DB954' },
-  cannon: { name: '炮塔', cost: [110, 200, 340], dmg: [22, 38, 62], rate: [0.6, 0.7, 0.8], range: [130, 140, 150], splash: [45, 55, 65], color: '#E8A33D' },
-  frost: { name: '冰塔', cost: [90, 160, 280], dmg: [4, 6, 8], rate: [0.8, 0.9, 1.0], range: [110, 120, 130], slow: [0.35, 0.45, 0.55], slowMs: [1200, 1500, 1800], color: '#4CC9F0' },
-  aura: { name: '光环塔', cost: [130, 180, 300], range: [120, 140, 160], auraRate: [0.15, 0.25, 0.35], auraDmg: [0, 0, 0.15], color: '#B693FD' },
-};
-
-/**
- * 塔定义总表 = 4 种基础塔 + 3 种特殊塔。建造 / 升级 / 出售 / 清单 / 数值表 / 续玩校验全部遍历这一份，
- * 特殊塔因此自动获得既有的经济与 UI 流程。TOWER_TYPES 仍只含 4 种基础塔：它是自检按「正好 4 种」
- * 断言的形状基准，且特殊塔另带 unlockWave / chain / poison / push，混进来会让两件事互相污染。
- */
-const ALL_TOWER_TYPES = { ...TOWER_TYPES, ...SPECIAL_TOWER_TYPES };
-
-/**
- * 高等级（Lv.4+）的外推参数：塔表里的数组仍然只存 Lv.1~3（自检按「三档齐全」断言），
- * Lv.4~MAX_TOWER_LEVEL 一律由 towerStat() 以 Lv.3 为基点现算，不往数组里塞 100 个数字。
- * 解锁条件：**只无尽模式、且过了第 HIGH_LV_UNLOCK_WAVE 波**（闯关最多 28 波，天然用不到）。
- */
-// 塔的最高等级：实质无限制。
-// 为什么不直接写 Infinity：伤害是 1.12^k 的指数、升级价是 1.12^L 的指数，
-// 真给 Infinity 会让比较失真并算出 NaN 污染显示与存档。取 100 万级：
-// 正常玩最多到几百级，等效"无限制"，同时所有运算仍在有限域内。
-const MAX_TOWER_LEVEL = 1000000;
-const STAT_CEIL = 1e15;   // 伤害 / 毒 dot / 升级价 / 超频价的有限上限
-const HIGH_LV_UNLOCK_WAVE = 50;       // 无尽模式第 50 波后才允许升级到 Lv.4+
-/**
- * 同屏塔数硬上限。每座塔每帧都要绘制塔身 / 等级 / 光环脉冲 / 超频金环并参与索敌，而 90 波之后
- * 金币充裕，玩家会把每个可建格都铺满 —— 实测铺到 300 座上下时帧率塌方，画面看着就是「完全卡死」。
- * 80 座已远超清掉一波所需的火力，所以它是纯兜底：超限时 placeTower 拒绝建造（不扣钱），
- * 已有塔的升级 / 超频 / 拆除都不受影响。
- */
-// 塔数量软上限：**只用于拦截"继续无节制铺满全图"**，绝不裁剪既有存档。
-// 曾经设为 80 并配合「超限只恢复前 80 座」，结果把玩家合法攒出的整图布局削掉了 ——
-// 数据丢失比掉帧严重得多。降到 400 后正常玩家碰不到，同时仍能挡住病态存档。
-const MAX_TOWERS = 400;
-/** 特效降载阈值（见 perfSkipFx）：同屏敌人数 / 塔数超过它就不再生成粒子与飘字 */
-const FX_CROWD_ENEMIES = 200;
-const FX_CROWD_TOWERS = 40;
-const HIGH_LV_DMG_STEP = 1.12;        // 每级伤害 ×1.12
-const HIGH_LV_RATE_STEP = 0.015;      // 每级攻速 +1.5%（相对 Lv.3），累计上限 +100%
-const HIGH_LV_RANGE_STEP = 0.6;       // 每级射程 +0.6，累计上限 +50
-// 升级价每级 ×1.12（以 Lv.3 的升级价为基点）：让 100 级真正可达（Lv.50 单次约 8 万，而非 4 亿）。
-// 原来的 1.35 在 Lv.50 就是 220×1.35^48 ≈ 4 亿 —— 曲线还在，但玩家永远摸不到高等级。
-const HIGH_LV_COST_STEP = 1.12;
-
-/**
- * 「超频」（Overclock）：**同一座塔的强化态**，不是新塔种。
- * 塔实例上只多一个布尔字段 oc，全部加成由 towerStat(type, lv, oc) 现算 —— 所以
- * TOWER_TYPES / SPECIAL_TOWER_TYPES 的三元素数组一个字都不用改，也不往 ALL_TOWER_TYPES 里加类型：
- * 那两条一旦动了，塔数值表、场上塔清单与既有断言会一起被污染。
- * oc 只活在内存里、不进存档（endlessRun 结构不新增字段）：重开 / 续玩即重置。
- */
-const OC_DMG_MUL = 1.6;      // 伤害 ×1.6
-const OC_RATE_MUL = 1.25;    // 攻速 ×1.25
-const OC_RANGE_MUL = 1.15;   // 射程 ×1.15
-const OC_AURA_MUL = 1.4;     // 光环塔的攻速 / 伤害增幅各 ×1.4（仍受既有 +100% 上限约束）
-const OC_SLOW_ADD = 0.10;    // 冰塔减速 +10 个百分点（上限仍是 80%）
-const OC_POISON_MUL = 1.6;   // 毒塔 dot 的每秒伤害 ×1.6
-const OC_PUSH_MUL = 1.25;    // 力场塔推回距离 ×1.25
-const OC_CHAIN_COUNT = 5;    // 特斯拉链式目标数 3 → 5
-const OC_SUCCESS = 0.5;      // 成功率 50%（overclockRoll(rand) = rand < 0.5）
-const OC_FAIL_DROP = 5;      // 失败降 5 级，最低 1 级
-const OC_COST_BASE = 240;    // 超频价基数：overclockCost(1) = 240
-const OC_COST_STEP = 1.12;   // 超频价每级 ×1.12
-const OC_COUNT_MIN = 1;      // 「一键超频」的座数区间（输入框 min/max 与纯函数的夹取共用这两个常量）
-const OC_COUNT_MAX = 20;
-// 无尽存档里「剩余时长」类字段的夹取上限（10 分钟）：坏存档 / 时钟跳变都不会写进一个荒谬的值
-const RUN_LEFT_MAX_MS = 600000;
-// 超频塔的金色（画布金环 / 角标 / 清单徽章共用一份）：深色底上是亮金、浅色底上是暖金，
-// 且画布与徽章都带描边，两套主题下都有足够对比度（不跟随主题变量，免得浅色主题把金色洗淡）。
-const OC_COLOR = '#FFD166';
-
-/** 全局平衡参数 */
-const BALANCE = {  startGold: 150, startLives: 20,
-  sellRatio: 0.6,          // 出售返还「总投入」的 60%
-  waveGapMs: 2500,         // 波与波之间的喘息
-  maxEnemiesPerWave: 400,  // 软上限，防掉帧（触顶后靠血量与速度继续施压）
-};
 
 const STEP = 1 / 60;                  // 固定逻辑步长
 const MAX_STEPS_PER_FRAME = 5;        // 单帧最多补偿 5 步
@@ -150,185 +71,9 @@ const MAX_STEPS_PER_FRAME = 5;        // 单帧最多补偿 5 步
  *    会出现「瞬移穿塔」（射程/碰撞按每步位置判定）。本倍速上限与它同时成立。
  *  · 倍速只放大 acc 的累积（逻辑步数），不改 requestAnimationFrame 的渲染帧率。
  */
-const SPEED_LEVELS = [1, 2, 3, 4];
-const EARLY_WAVE_MUL = 1.3;           // 无尽前 5 波赏金系数（只在 startWave 调用处乘，见那里的注释）
-const BEST_KEY = 'mlttc-td-best';     // 第一步的旧存档键：只做一次性迁移，迁移后立即删除
-const PROGRESS_KEY = 'mlttc-td-progress'; // 唯一存档键（unlocked / levelBest / endlessBest）
-const LEVEL_MAX = 100;                // 闯关模式总关数
-const DEFAULT_SEED = 'mlttc-td-demo'; // 自检脚本用的固定种子
-const LEVEL_DIFF_STEP = 0.05;         // 关卡难度斜率：diff = 1 + 斜率 ×(L-1)，L100 → 5.95
-/**
- * 闯关模式经济参数（详见 buildLevelWave 的经济说明）。
- * 赏金不再按「只数」累积，而是每波一个固定赏金池，池子按基础赏金权重摊到每只怪头上。
- *  · LEVEL_POT      第 1 关第 1 波的赏金池（金）。由「可买 DPS ≈ 所需 DPS」反解，再留余量
- *                   （曲线峰值 ratio ≈ 0.78，红线 0.85 见 tools/td-wave-test 第 6 节）。
- *  · LEVEL_POT_EXP  池子随 diff 的指数：血量/数量一起涨，金币必须涨得更快才跟得上。
- *  · LEVEL_POT_FALL 池子随波次号的衰减指数：后段靠已建好的火力，不靠新钱（否则波数越
- *                   多、钱越多，高关卡反而比低关卡轻松 —— 这就是原来难度倒挂的根因之一）。
- */
-const LEVEL_POT = 664;
-const LEVEL_POT_EXP = 2.5;
-const LEVEL_POT_FALL = 1.5;
-
-/**
- * 前 12 关手工调参（以「倍率」形式压平公式值，1 = 不额外调整）。
- * 为什么要有它：diff 从第 1 关就按 5% 起跳，光靠公式前几关的 hp/数量对新手仍然偏硬，
- * 这里把 1~12 关的血量与数量各乘一个 <1 的系数做缓坡；13 关起不再查表，完全走公式。
- */
-const LEVEL_TWEAKS = {
-  1: { hp: 0.72, count: 0.70 }, 2: { hp: 0.76, count: 0.74 }, 3: { hp: 0.80, count: 0.78 },
-  4: { hp: 0.83, count: 0.81 }, 5: { hp: 0.86, count: 0.84 }, 6: { hp: 0.89, count: 0.87 },
-  7: { hp: 0.91, count: 0.89 }, 8: { hp: 0.93, count: 0.91 }, 9: { hp: 0.95, count: 0.93 },
-  10: { hp: 0.96, count: 0.95 }, 11: { hp: 0.98, count: 0.97 }, 12: { hp: 0.99, count: 0.98 },
-};
 /* ===================== 2. 无尽波次生成器 ===================== */
-/** 字符串 → uint32（FNV-1a 变体）：让波次可复现，调试与第二步自检都靠它 */
-function hashSeed(str) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
-  return h >>> 0;
-}
-/** mulberry32：32 位状态的小 PRNG，快、无依赖、同种子同序列 */
-function mulberry32(a) {
-  let t = a >>> 0;
-  return function random() {
-    t = (t + 0x6d2b79f5) >>> 0;
-    let x = t;
-    x = Math.imul(x ^ (x >>> 15), x | 1);
-    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
-}
-/**
- * 无尽波次生成器。设计取舍（为什么这么取）：
- *  · total = 6 + 1.5n + 0.05n²：一次项让每波略增，二次项让后期「成群」；数量涨得
- *    比血量慢，压力来自血量而不是帧率；再套 maxEnemiesPerWave 软上限。
- *  · 权重漂移：basic 恒为 1（保证场面不空），swift 第 4 波、armor 第 9 波、shield
- *    第 18 波解锁，权重随 n 线性上升 → 每解锁一档都「换味」，不是一次把池子倒完。
- *  · 拆组：按权重向下取整、每组至少 1（避免某档解锁后长期 0 只），向下取整的余数
- *    补给权重最大的组，使各组计数之和严格等于 total。
- *  · hpMul = 1.06^(n-1)（约 12 波翻倍，与塔的攻击成长同量级）；spdMul 封顶 2.2（再快玩家
- *    来不及反应）；goldMul = 1.10^(n-1) 略低于血量增速，制造后期金币紧张。
- *  · spawnGap 从 1.15s 收到 0.22s 封顶，只压缩到 1/5，防止后期一帧刷出整波。
- *  · BOSS 波 n%10===0：额外插入 1+floor(n/25) 只 BOSS（血量 ×8、速度 ×0.85），
- *    不计入 total → 实际出场数 = total + bossCount。
- *  · 高波次叠乘 LATE_HP_STEP^(n-LATE_HP_FROM)：1.06 单层在高波次偏软，第 30 波之后再加一层
- *    **轻量**叠乘（1.010/波）——它是「加一点点」，不是陡坡：陡到 1.025 时第 90 波单波 4144 万血，而
- *    「场上不清空就不算这波结束」的收尾条件会让玩家永远停在同一波（BUG 的血量侧成因）。
- */
 
-/**
- * 无尽高波次叠乘血量。设计取舍（为什么是这两个数）：
- *  · 为什么从第 30 波起：**闯关模式每关最多 28 波**（waves = 4 + floor(L×0.24)，L100 → 28），
- *    而闯关的血量基数也走 generateEndlessWave —— 阈值 ≥ 30（= LATE_HP_FROM ≥ 30，自检第 14.4
- *    条钉住这条硬门槛）才能保证这一层**完全不进入闯关**，闯关平衡一点不动。
- *  · 为什么从 1.025 改成 1.010 —— 它只该是「加一点点」，不该是第二堵墙：
- *    - 老值 1.025 与 1.06 叠成每波 ×1.0865：第 90 波 lateHpMul ≈ 4.40、单波 4144 万血，而玩家在
- *      90 波的实际输出（复现存档：3 座 Lv.50 超频塔）只有几万 DPS → 一波要打 20 分钟以上。
- *    - 新值 1.010：第 90 波 lateHpMul ≈ 1.82、单波 1711 万血；配合已降到 1.12 的升级价斜率
- *      （自检第 20.8 条），按参考 DPS 10 万算约 171 秒清完，落在第 21 节「< 240 秒」的护栏内。
- *    - 边界：再缓（≤1.005）等于没加、高波次失去「明显更硬」；再陡（≥1.02）又走回那堵墙。
- *      这一层**只乘 hp**：hpMul = 1.06^(n-1) 一个数都没动（第 1~30 波逐组相等由第 21.7 条钉住）。
- *  · n ≤ LATE_HP_FROM 时 lateHpMul 严格等于 1（不是 ≈1、也不参与取整），第 1~30 波的
- *    每次取整结果都与改动前完全一致。
- */
-const LATE_HP_FROM = 30;      // 第 30 波起额外加血（必须 ≥ 30，见上面「闯关最多 28 波」）
-const LATE_HP_STEP = 1.010;   // 每多一波，血量再 ×1.010（叠在 1.06 之上；老值 1.025 见上面的 BUG 复盘）
 
-/**
- * 血量的有限上限。
- *
- * 无尽模式的波次本身没有上限，但血量是「1.06^(n-1) × 1.010^(n-30)」的指数叠乘：
- * 实测第 8000 波还是有限值，到第 ~10000 波就溢出成 Infinity —— 那时 `hp - 伤害`
- * 仍是 Infinity，敌人永远打不死，参与显示/结算还可能产生 NaN。也就是说「无尽」
- * 会在数值上先烂掉。
- *
- * 这里封顶到安全整数上限（约 9.0e15）：波次仍可无限推进、出怪照常，只是血量不再涨。
- * 玩家实际到不了这个波次（第 200 波每只怪已数千万血），但这样能同时保证
- * 「波次无上限」与「数值永远有限」两个性质。
- */
-const HP_CEIL = Number.MAX_SAFE_INTEGER;
-
-/** 按倍率算血量：指数溢出时封顶到 HP_CEIL，而不是放任它变成 Infinity */
-function scaledHp(baseHp, mult) {
-  const v = Math.round(baseHp * mult);
-  if (!Number.isFinite(v)) return HP_CEIL;
-  return Math.min(HP_CEIL, Math.max(1, v));
-}
-function generateEndlessWave(n, seed) {
-  // 每波独立随机流：第 n 波的组成只由 (n, seed) 决定，与前面的波无关
-  const rng = mulberry32(hashSeed('endless:' + n + ':' + seed));
-
-  let total = 6 + Math.floor(1.5 * n + 0.05 * n * n);
-  total = Math.min(total, BALANCE.maxEnemiesPerWave);
-
-  // 种类池：解锁条件 + 权重漂移（basic 恒有权重 1）
-  const pool = [{ type: 'basic', w: 1 }];
-  if (n >= 4) pool.push({ type: 'swift', w: 0.35 + 0.01 * n });
-  if (n >= 9) pool.push({ type: 'armor', w: 0.20 + 0.012 * n });
-  if (n >= 18) pool.push({ type: 'shield', w: 0.05 + 0.008 * n });
-
-  // 按权重拆组：先向下取整并保证每组 ≥1，再把余数补给权重最大的组
-  const sumW = pool.reduce((s, p) => s + p.w, 0);
-  const counts = pool.map((p) => Math.max(1, Math.floor((total * p.w) / sumW)));
-  const assigned = counts.reduce((s, c) => s + c, 0);
-  let topIdx = 0;
-  for (let i = 1; i < pool.length; i++) if (pool[i].w > pool[topIdx].w) topIdx = i;
-  counts[topIdx] += total - assigned;
-  if (counts[topIdx] < 1) counts[topIdx] = 1;   // 兜底：极端权重下别出现 0 或负数
-
-  // 血量增长：1.06^(n-1) 约 12 波翻倍。原来取 1.155（4.6 波翻倍）实测第 30 波就要 1.6 万
-  // DPS，而满配塔阵只能到 2 千上下 —— 等于 30 波左右必死，数值上不可行。
-  const hpMul = Math.pow(1.06, n - 1);
-  // 高波次叠乘：第 31 波起生效，n ≤ LATE_HP_FROM 时严格 = 1（第 1~30 波数值与改动前完全一致）
-  const lateHpMul = n > LATE_HP_FROM ? Math.pow(LATE_HP_STEP, n - LATE_HP_FROM) : 1;
-  const spdMul = Math.min(2.2, 1 + 0.012 * (n - 1));
-  // 赏金增长：1.05^(n-1)。与血量曲线同量级，避免后期钱多到没处花。
-  const goldMul = Math.pow(1.05, n - 1);
-
-  const groups = pool.map((p, i) => {
-    const base = ENEMY_TYPES[p.type];
-    return {
-      type: p.type, count: counts[i],
-      hp: scaledHp(base.hp, hpMul * lateHpMul),   // 极高波次封顶，避免 Infinity
-      speed: base.speed * spdMul,
-      bounty: Math.max(1, Math.round(base.bounty * goldMul)),
-      armor: base.armor,
-    };
-  });
-
-  // BOSS 波：额外插入，不占 total
-  const isBossWave = n % 10 === 0;
-  let bossCount = 0;
-  if (isBossWave) {
-    bossCount = 1 + Math.floor(n / 25);
-    const b = ENEMY_TYPES.boss;
-    groups.push({
-      type: 'boss', count: bossCount,
-      // BOSS 同样乘 lateHpMul：否则高波次 BOSS 相对小兵反而变软（BOSS 波都在 n%10===0，
-      // 第 30 波是 BOSS 波但正好在阈值上，lateHpMul = 1；第 40 波起吃到 1.025^10 及以上）
-      hp: scaledHp(b.hp, hpMul * lateHpMul * 8),   // 同样封顶
-      speed: b.speed * spdMul * 0.85,
-      bounty: Math.max(1, Math.round(b.bounty * goldMul)),
-      armor: b.armor,
-    });
-  }
-
-  // 出场间隔（ms）：每波 -15ms，钳在 [220, 1150]
-  const spawnGap = Math.max(0.22, Math.min(1.15, 1.15 - 0.015 * n)) * 1000;
-  void rng;   // 随机流保留给第二步做组内出场抖动
-  return { n, total, bossCount, groups, spawnGap, isBossWave };
-}
-/**
- * 波次曲线自检：返回 [{ wave, total, hp }]（hp = 该波第一个组的血量）。
- * 不含任何 DOM 代码，`node --input-type=module -e "import(...)"` 可直接调。
- */
-export function debugWaveCurve(waves) {
-  return (waves || []).map((n) => {
-    const w = generateEndlessWave(n, DEFAULT_SEED);
-    return { wave: w.n, total: w.total, hp: w.groups[0].hp };
-  });
-}
 
 /* ===================== 2a. 波次僵局判定（无尽模式的「打不完」出口） ===================== */
 /**
@@ -366,64 +111,7 @@ export function isWaveStalled(info) {
 }
 
 /* ===================== 2b. 闯关模式：关卡派生 + 关卡波次 ===================== */
-/**
- * 第 L 关的完整配置（L 夹到 [1,100]，非法输入按第 1 关处理）：
- *  waves    = 4 + floor(L*0.24)          L1→4、L50→16、L100→28（波数固定 ⇒ 有明确结局）
- *  lives    = max(3, 20 - floor(L/6))    20 一路压到 4
- *  gold     = 160 + 10L                 起步资金随关卡给，后期补得起塔
- *  diff     = 1 + 0.05(L-1)             hp 与 count 的统一系数（斜率见 LEVEL_DIFF_STEP）
- *  mapIndex = (L-1) % 6                  6 张路点模板轮换（换图会作废旧塔，见 resetGame）
- */
-function generateLevel(L) {
-  const level = Math.max(1, Math.min(LEVEL_MAX, Math.floor(Number(L) || 0) || 1));
-  return {
-    level,
-    waves: 4 + Math.floor(level * 0.24),
-    lives: Math.max(3, 20 - Math.floor(level / 6)),
-    gold: 160 + 10 * level,
-    diff: 1 + LEVEL_DIFF_STEP * (level - 1),
-    mapIndex: (level - 1) % 6,
-  };
-}
 
-/**
- * 第 L 关第 n 波的出场配置：先向 generateEndlessWave 要一份「标准波」，再把 hp 与 count
- * 乘上 diff（前 12 关再叠 LEVEL_TWEAKS）——所以闯关模式同样没有写死的出怪表，BOSS 波
- * 判定也仍然来自无尽生成器（n % 10 === 0）。
- * 两条工程约束只防失控，不改数值曲线：
- *  · 数量软上限：放大后超过 BALANCE.maxEnemiesPerWave 就等比压缩数量系数（血量照常放大，
- *    压力仍落在血量上），否则高关单波上千只，帧率与单波时长会一起崩。
- *  · 出场间隔压缩：按系数开方缩短 spawnGap，让放大后的波次出场时长与无尽模式同量级。
- * 经济（这一段决定难度曲线是否倒挂，改之前先看 tools/td-wave-test 的可通性断言）：
- *  · 旧做法是把基波赏金直接搬过来，等于「赏金 × 只数」累积 —— 数量随 diff 涨，赏金跟着涨，
- *    于是越到高关越富；而「所需 DPS」是 单波总血量 / 出怪时长，与只数无关，被 maxEnemiesPerWave
- *    压住。两者一起导致中段关卡（L20~L60）预算追不上压力、后期又反过来比低关轻松。
- *  · 现在改成「每波一个赏金池」pot，池子按基础赏金权重摊到每只怪身上：与只数解耦，且
- *    池子 = LEVEL_POT × diff^2.5 ÷ n^1.5 —— 随关卡难度涨、随波次号衰减。
- */
-function buildLevelWave(lv, n) {
-  const base = generateEndlessWave(n, 'level:' + lv.level);
-  const tweak = LEVEL_TWEAKS[lv.level] || null;
-  const hpScale = lv.diff * ((tweak && tweak.hp) || 1);
-  let cntScale = lv.diff * ((tweak && tweak.count) || 1);
-  const baseTotal = Math.max(1, base.total);
-  if (baseTotal * cntScale > BALANCE.maxEnemiesPerWave) cntScale = BALANCE.maxEnemiesPerWave / baseTotal;
-  const groups = base.groups.map((g) => ({
-    ...g,
-    count: Math.max(1, Math.ceil(g.count * cntScale)),      // 向上取整：别让某组被压成 0
-    hp: Math.max(1, Math.round(g.hp * hpScale)),
-  }));
-  // 赏金池：按各组「基础赏金 × 只数」的权重摊成单只赏金（income 因此恒等于 pot，与只数无关）
-  const pot = (LEVEL_POT * Math.pow(lv.diff, LEVEL_POT_EXP)) / Math.pow(n, LEVEL_POT_FALL)
-    * ((tweak && tweak.bounty) || 1);
-  const weight = groups.reduce((s, g) => s + g.bounty * g.count, 0) || 1;
-  for (const g of groups) g.bounty = Math.max(1, Math.round((pot * g.bounty) / weight));
-  const total = groups.reduce((s, g) => s + (g.type === 'boss' ? 0 : g.count), 0);
-  return {
-    ...base, groups, total,
-    spawnGap: Math.max(120, Math.min(base.spawnGap, base.spawnGap / Math.sqrt(cntScale))),
-  };
-}
 
 /* ===================== 2c. 下一波预告（纯函数） ===================== */
 /**
@@ -495,21 +183,6 @@ function nextWavePreview(state) {
 }
 
 /* ===================== 3. 地图与路径 ===================== */
-/**
- * 路点模板（6 张）：每张是折线拐点数组（单位＝格）。三条硬约束（新增图形也必须满足）：
- *  · 第一个点 x = -1 → 从画布左侧外进入；最后一个点 x = cols(24) → 从右侧外离开；
- *  · 相邻两点必须共 x 或共 y（斜线会让 buildPathTiles 与像素路径不一致）；
- *  · 拐点不重合、非相邻线段不交叉（每条路径不重复占同一格）。
- * 无尽模式固定用第 1 张；闯关模式按 (L-1) % 6 轮换。
- */
-const MAP_TEMPLATES = [
-  [[-1, 2], [6, 2], [6, 9], [18, 9], [18, 4], [24, 4]],                              // 1 长廊
-  [[-1, 11], [4, 11], [4, 4], [10, 4], [10, 11], [16, 11], [16, 6], [24, 6]],        // 2 蛇形
-  [[-1, 7], [8, 7], [8, 2], [16, 2], [16, 10], [22, 10], [22, 6], [24, 6]],          // 3 阶梯
-  [[-1, 1], [5, 1], [5, 12], [12, 12], [12, 2], [19, 2], [19, 11], [24, 11]],        // 4 双拐（上下大幅折返）
-  [[-1, 1], [20, 1], [20, 5], [4, 5], [4, 9], [16, 9], [16, 12], [24, 12]],          // 5 回环（向内收拢再甩出）
-  [[-1, 2], [8, 2], [8, 6], [2, 6], [2, 10], [14, 10], [14, 4], [21, 4], [21, 12], [24, 12]], // 6 长蛇（九弯）
-];
 
 /** 格坐标路点 → 像素路点 + 累计长度线段表（敌人只记 dist，索敌不用排序） */
 function buildPath(points) {
@@ -610,6 +283,7 @@ export {
   MAX_TOWERS,   // 同屏塔数硬上限（自检断言存在 + 其余计划类纯函数不受它影响）
   pointAt,          // 路径进度 → 坐标（纯函数：自检用坏 dist 断言「有限坐标、不抛异常」）
   PUSH_IMMUNE_MS, PUSH_BACK_FLOOR_PX, PUSH_DECAY, PUSH_MIN_PX,   // 力场回推收敛的四个数（自检直接断言）
+  debugWaveCurve,   // 波次曲线自检（搬进 td-wave.js 后在这里转发，导出面与重构前完全一致）
 };
 
 /* ===================== 4. 运行时状态 ===================== */
@@ -1212,95 +886,9 @@ function poisonDamage(enemy, dmg) {
 }
 
 /* ===================== 7. 塔与战斗 ===================== */
-/**
- * 超频加成（就地改传入的 st 并返回它）：在「普通塔数值」之上再乘一组固定系数。
- * 顺序固定 —— 先按等级外推算完普通塔，再叠超频，所以超频塔在高等级下同样是「外推值 × 系数」。
- * upgradeCost **一律不动**（超频不影响升级价）；特斯拉的目标数从 3 提到 5（chain.count 的强化态，
- * 落在 st.chainCount 上，模块里的 def.chain.count 保持原值不动）。
- */
-function applyOverclock(d, st) {
-  st.dmg *= OC_DMG_MUL;
-  st.rate *= OC_RATE_MUL;
-  st.range *= OC_RANGE_MUL;
-  if (d.auraRate) st.auraRate = Math.min(1, st.auraRate * OC_AURA_MUL);   // 仍受 +100% 上限
-  if (d.auraDmg) st.auraDmg = Math.min(1, st.auraDmg * OC_AURA_MUL);
-  if (d.slow) st.slow = Math.min(0.8, st.slow + OC_SLOW_ADD);             // 减速上限仍是 80%
-  if (d.poison) st.poisonDps *= OC_POISON_MUL;
-  if (d.push) st.pushTiles *= OC_PUSH_MUL;
-  if (d.chain) st.chainCount = OC_CHAIN_COUNT;
-  return st;
-}
 
-/**
- * 某座塔某个等级的实际数值（纯函数：只读塔表，不碰 state / DOM）—— 战斗、清单、快速升级共用这一份。
- * 塔表里的 cost / dmg / rate / range / auraRate / auraDmg / splash / slow / slowMs / poison.dps /
- * push.tiles **只存 Lv.1~3**，Lv.4~MAX_TOWER_LEVEL 全部按 k = lv - 3 从 Lv.3 外推，并各自封顶
- * （攻速 ×2 / 溅射 +40 / 减速 80% / 光环 +100% / 推回 +50%），所以高等级不会指数爆炸。
- * oc 是**可缺省**的第三参：省略 / false = 普通塔（既有调用零改动），true = 超频塔（再叠 applyOverclock）。
- * 返回字段（都是有限数值，缺的补 0，调用方不必再判空）：
- *   dmg / rate / range / auraRate / auraDmg / splash / slow / slowMs / poisonDps / pushTiles（单位：格）/
- *   chainCount（特斯拉的链式目标数，非链式塔为 0）/
- *   upgradeCost = **升到下一级**的价格（与既有语义一致：Lv.1→cost[1]、Lv.2→cost[2]、
- *   Lv.3→cost[2]×1.35、Lv.L→cost[2]×1.35^(L-2)；满级 0）。
- */
-function towerStat(type, lv, oc) {
-  const d = ALL_TOWER_TYPES[type];
-  if (!d) return null;
-  const L = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(lv) || 1)));
-  const i = Math.min(2, L - 1);            // Lv.1~3：直接读数组（既有数值一个字都不改）
-  const k = Math.max(0, L - 3);            // 超出 Lv.3 的级数
-  const num = (v) => (Number.isFinite(v) ? v : 0);
-  const st = {
-    dmg: num(d.dmg ? d.dmg[i] : 0),
-    rate: num(d.rate ? d.rate[i] : 0),
-    range: num(d.range ? d.range[i] : 0),
-    auraRate: num(d.auraRate ? d.auraRate[i] : 0),
-    auraDmg: num(d.auraDmg ? d.auraDmg[i] : 0),
-    splash: num(d.splash ? d.splash[i] : 0),
-    slow: num(d.slow ? d.slow[i] : 0),
-    slowMs: num(d.slowMs ? d.slowMs[i] : 0),
-    poisonDps: num(d.poison && d.poison.dps ? d.poison.dps[i] : 0),
-    pushTiles: num(d.push && d.push.tiles ? d.push.tiles[i] : 0),
-    chainCount: d.chain && Number.isFinite(d.chain.count) ? d.chain.count : 0,
-    upgradeCost: L >= MAX_TOWER_LEVEL ? 0
-      : (L < 3 ? num(d.cost[L])
-        : Math.min(STAT_CEIL, Math.round(d.cost[2] * Math.pow(HIGH_LV_COST_STEP, L - 2)))),
-  };
-  if (k > 0) {                             // Lv.1~3 原样返回；Lv.4+ 按 k 外推
-    // 等级无上限后 1.12^k 在 k≈6000 会溢出成 Infinity，伤害变 Infinity 会连带把血量、
-    // 赏金、显示算成 NaN。所有指数项统一封顶到有限值。
-    const g = Math.min(STAT_CEIL, Math.pow(HIGH_LV_DMG_STEP, k));
-    st.dmg = Math.min(STAT_CEIL, st.dmg * g);
-    st.poisonDps = Math.min(STAT_CEIL, st.poisonDps * g);                                        // 毒的 dot 跟着涨
-    st.rate = st.rate * (1 + Math.min(1, HIGH_LV_RATE_STEP * k));           // 攻速封顶 = Lv.3 的 2 倍
-    st.range = st.range + Math.min(50, HIGH_LV_RANGE_STEP * k);             // 射程最多 +50
-    if (d.splash) st.splash = st.splash + Math.min(40, 4 * k);              // 溅射最多 +40
-    if (d.slow) st.slow = Math.min(0.8, st.slow + 0.01 * k);                // 减速上限 80%，慢速时长不变
-    if (d.auraRate) st.auraRate = Math.min(1, st.auraRate + 0.02 * k);      // 光环增幅各自上限 +100%
-    if (d.auraDmg) st.auraDmg = Math.min(1, st.auraDmg + 0.02 * k);
-    if (d.push) st.pushTiles = Math.min(st.pushTiles * 1.5, st.pushTiles + 0.05 * k);   // 推回最多 +50%
-  }
-  return oc === true ? applyOverclock(d, st) : st;
-}
 
-/**
- * 「按塔实例取数值」的唯一入口 = towerStat(type, lv, oc) 再叠它已选的专精。
- *
- * 为什么要包一层：专精模块只认 `picks`，拿不到塔类型，所以它做的只是「把已选的修正算进 stat」；
- * 而「这座塔选了哪几档」只有塔实例知道。**所有按塔实例取值的地方都必须走这里** —— 战斗、清单、
- * 数值表、光环、毒 dot、链式目标数、推回距离，漏一处就是「专精只在部分地方生效」。
- * upgradeCost 不受专精影响（模块的 MOD_FIELDS 白名单把升级价排除在外），所以升级价仍可直读 towerStat。
- */
-function towerStatSpec(type, lv, oc, spec) {
-  const st = towerStat(type, lv, oc);
-  return st ? applySpecialization(st, spec) : st;
-}
 
-/** 同上，入参直接是塔实例（战斗循环与清单都从塔对象出发） */
-function towerStatOf(tower) {
-  if (!tower) return null;
-  return towerStatSpec(tower.type, tower.lv, tower.oc === true, tower.spec);
-}
 
 /**
  * Lv.4+ 的解锁闸：只无尽模式、且 wave >= HIGH_LV_UNLOCK_WAVE。
@@ -1488,226 +1076,12 @@ function sellTower(tower) {
   return refund;
 }
 
-/** 保留两位小数（纯函数，避免浮点尾巴：22 × 1.15 = 25.299999999999997） */
-function round2(v) {
-  return Math.round((Number(v) || 0) * 100) / 100;
-}
 
-/**
- * 场上塔清单的数据化描述（纯函数，不碰 DOM / 不读 state）：信息区列表与自检脚本共用同一份口径，
- * 所以「列表上写的伤害」与「自检断言的值」不可能各算一套。
- *   opts = { gold, sellRatio, highUnlocked } —— gold 决定 canUpgrade；sellRatio 缺省取 BALANCE.sellRatio；
- *   highUnlocked 缺省 false（= Lv.4+ 还没解锁，Lv.3 就停住），调用方传 canUpgradeBeyond3()。
- * 每项字段：index（在 towers 数组里的下标，就是建造顺序）/ type / name / color / lv / maxLv /
- *   dmg / rate（**已计入光环 buff**，保留两位小数）/ range / col / row /
- *   oc（是否超频：true 时 dmg / rate / range / 光环增幅等已经是超频后的值）/
- *   spec（已选专精 picks，形如 {10:'arrow10a'}；没选过是 null）/ specText（specSummary 的单行文案，空串 = 没选）/
- *   upgradeCost（下一级价格，满级 0）/ sellRefund（floor(spend × sellRatio)）/
- *   canUpgrade（未满级、高等级已解锁、金币够）/ maxed（已到 MAX_TOWER_LEVEL）/ locked（Lv.3 但未解锁）。
- * 光环塔自身没有 dmg / rate 字段（它只给别人加成），这里回落成 0，展示层改显增幅。
- * 数据异常（未知塔类型）的项直接跳过，不让一条坏数据毁掉整个列表。
- */
-function describeTowers(towers, opts) {
-  const list = Array.isArray(towers) ? towers : [];
-  const gold = opts && Number.isFinite(opts.gold) ? opts.gold : 0;
-  const sellRatio = opts && Number.isFinite(opts.sellRatio) ? opts.sellRatio : BALANCE.sellRatio;
-  const highUnlocked = !!(opts && opts.highUnlocked);
-  const rows = [];
-  for (let i = 0; i < list.length; i++) {
-    const t = list[i];
-    const def = t ? ALL_TOWER_TYPES[t.type] : null;
-    if (!def) continue;
-    const lv = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(t.lv) || 1)));   // 夹到 1..上限，越界也不出 NaN
-    const oc = t.oc === true;
-    const st = towerStatSpec(t.type, lv, oc, t.spec);   // 超频 → 专精：清单显示的已经是这座塔的真实数值
-    const maxed = lv >= MAX_TOWER_LEVEL;
-    const locked = !maxed && lv >= 3 && !highUnlocked;   // Lv.3 往上要等解锁：按钮灰显 + title 说明
-    const upgradeCost = maxed ? 0 : st.upgradeCost;
-    rows.push({
-      index: i,
-      type: t.type,
-      name: def.name,
-      color: def.color,
-      lv,
-      maxLv: MAX_TOWER_LEVEL,
-      oc,
-      spec: t.spec && typeof t.spec === 'object' ? t.spec : null,   // 已选专精（{10:'arrow10a'}）；没选过是 null
-      specText: specSummary(t.type, t.spec),                        // 清单那一行的小字；什么都没选时是 ''
-      dmg: round2(st.dmg * (1 + (Number(t.dmgBuff) || 0))),
-      rate: round2(st.rate * (1 + (Number(t.rateBuff) || 0))),
-      range: st.range,
-      col: Math.floor(Number(t.col) || 0),
-      row: Math.floor(Number(t.row) || 0),
-      upgradeCost,
-      sellRefund: Math.floor((Number(t.spend) || 0) * sellRatio),
-      canUpgrade: !maxed && !locked && gold >= upgradeCost,
-      maxed,
-      locked,
-    });
-  }
-  return rows;
-}
 
-/**
- * 「快速升级」的目标（纯函数：不读 state、不碰 DOM、不读时钟）：按 towers 的数组顺序（= 建造顺序）
- * 取**第一个**未满级的塔 —— 不是最便宜的、也不是等级最低的，就是第一个；没有目标返回 null。
- * 返回 { index, tower, type, name, lv, nextLv, cost, canAfford }。
- * 价格一律取 towerStat(type, lv).upgradeCost = 升到 lv+1 的价格（Lv.4+ 按 ×1.35 递增）。
- * highUnlocked 缺省 false：Lv.4+ 没解锁时把 Lv.3 当到顶，跳过它继续找下一座。
- * 坏数据（null / 未知塔类型 / 等级不在 1..MAX_TOWER_LEVEL）跳过继续找下一座，不抛异常。
- */
-function nextUpgradeTarget(towers, gold, highUnlocked) {
-  const list = Array.isArray(towers) ? towers : [];
-  const g = Number.isFinite(gold) ? gold : 0;
-  const unlocked = !!highUnlocked;
-  let best = null;
-  let bestLv = Infinity;
-  for (let i = 0; i < list.length; i++) {
-    const t = list[i];
-    const def = t ? ALL_TOWER_TYPES[t.type] : null;
-    const lv = def ? Math.floor(Number(t.lv) || 0) : 0;
-    if (lv < 1 || lv >= MAX_TOWER_LEVEL) continue;   // 满级 / 等级异常：跳过
-    if (lv >= 3 && !unlocked) continue;               // Lv.4+ 未解锁：Lv.3 也算到顶
-    const cost = towerStat(t.type, lv).upgradeCost;
-    if (!(cost > 0)) continue;
-    // 优先升「等级最低」的那座，同级取先建的（严格小于 → 平手时保留更早的下标）。
-    // 原来只取「第一个未满级」，结果快速升级一直往同一座塔砸钱：它涨到 Lv.4、5、6…
-    // 而其余塔还停在 1 级 —— 按钮等于「只给一座塔升级」，与用户预期不符。
-    if (lv < bestLv) {
-      bestLv = lv;
-      best = { index: i, tower: t, type: t.type, name: def.name, lv, nextLv: lv + 1, cost, canAfford: g >= cost };
-    }
-  }
-  return best;
-}
 
-/* 批量升级的座数区间：输入框的 min/max 与纯函数的夹取共用这两个常量（不许两边各写一份） */
-const BATCH_UP_MIN = 1;
-const BATCH_UP_MAX = 100;
 
-/**
- * 「批量升级」计划（纯函数：不读 state、不碰 DOM、不读时钟）—— **先算计划，再一次性扣款**。
- *
- * 挑选规则与 nextUpgradeTarget 完全一致：挑**等级最低**的塔，同级取数组下标更小的（= 先建的）；
- * 跳过满级、跳过等级异常、跳过 Lv.4+ 未解锁时停在 Lv.3 的塔。
- * 「那么多座塔**各**升一级」→ 同一座塔在一次批量里最多出现一次（挑过的立刻移出候选），
- * 所以顺序就是「等级升序、同级按建造顺序」，而不是按数组原序（建造顺序）平铺。
- * 价格按 towerStat(type, lv).upgradeCost 累加；**金币不够付下一座就停**（部分可执行：能升几座算几座）。
- * count 夹到 1..BATCH_UP_MAX（<1 → 1，>100 → 100，非数字 → 1）；towers 非数组 → 空计划。
- * 返回 { targets: [{ index, tower, type, name, lv, nextLv, cost }], totalCost, canDo }。
- *
- * 为什么必须一次算完：边升边扣的话，中途钱不够会留下「A 升了、B 没升、钱扣了一半」的半截状态，
- * 玩家既看不懂也退不回来；先算成一份完整计划，扣款就只剩一次减法。
- */
-function planBatchUpgrade(towers, gold, count, highUnlocked) {
-  const list = Array.isArray(towers) ? towers : [];
-  const g = Number.isFinite(gold) ? gold : 0;
-  const unlocked = !!highUnlocked;
-  const want = Math.floor(Number(count));
-  const n = Number.isFinite(want) ? Math.min(BATCH_UP_MAX, Math.max(BATCH_UP_MIN, want)) : BATCH_UP_MIN;
-  // 候选 = 可升级的塔下标 + 一份等级镜像（挑走的记 Infinity，等于「已用」，只看不改真塔）
-  const ids = [];
-  const lvs = [];
-  for (let i = 0; i < list.length; i += 1) {
-    const t = list[i];
-    const def = t ? ALL_TOWER_TYPES[t.type] : null;
-    const lv = def ? Math.floor(Number(t.lv) || 0) : 0;
-    if (lv < 1 || lv >= MAX_TOWER_LEVEL) continue;   // 满级 / 等级异常：跳过
-    if (lv >= 3 && !unlocked) continue;              // Lv.4+ 未解锁：Lv.3 也算到顶
-    ids.push(i);
-    lvs.push(lv);
-  }
-  const targets = [];
-  let totalCost = 0;
-  while (targets.length < n) {
-    let pick = -1;
-    let pickLv = Infinity;
-    for (let j = 0; j < ids.length; j += 1) {
-      if (lvs[j] < pickLv) { pickLv = lvs[j]; pick = j; }   // 严格小于 → 平手保留更早建造的
-    }
-    if (pick < 0) break;                                    // 没有可升级的塔了
-    const t = list[ids[pick]];
-    const cost = towerStat(t.type, pickLv).upgradeCost;
-    if (!(cost > 0)) { lvs[pick] = Infinity; continue; }    // 价格异常：移出候选，不占名额
-    if (totalCost + cost > g) break;                        // 钱不够付下一座：停（部分可执行）
-    targets.push({
-      index: ids[pick], tower: t, type: t.type, name: ALL_TOWER_TYPES[t.type].name,
-      lv: pickLv, nextLv: pickLv + 1, cost,
-    });
-    totalCost += cost;
-    lvs[pick] = Infinity;                                   // 每座塔一次批量只升一级
-  }
-  return { targets, totalCost, canDo: targets.length > 0 };
-}
 
-/* ---------- 超频（同一座塔的强化态：50% 成功保留等级 / 失败降 5 级） ---------- */
-/** 超频价（纯函数）：Lv.1 = 240，每级 ×1.12 —— 高等级塔更贵，但超频保留等级，投在高塔上才划算 */
-function overclockCost(lv) {
-  const L = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(lv) || 1)));
-  // 等级无上限后 1.12^L 会溢出成 Infinity（按钮会永远显示"金币不足"），封顶到 STAT_CEIL
-  return Math.min(STAT_CEIL, Math.round(OC_COST_BASE * Math.pow(OC_COST_STEP, L - 1)));
-}
 
-/** 50% 判定（纯函数）：rand < 0.5 即成功 —— 判定抽成函数才好断言 0.49 / 0.5 这条边界 */
-function overclockRoll(rand) {
-  const r = Number.isFinite(rand) ? rand : 1;   // 非法随机数一律按失败处理，绝不白送一次强化
-  return r < OC_SUCCESS;
-}
-
-/** 超频失败后的等级（纯函数）：降 5 级、**最低 1 级** —— applyBatchOverclock 用的就是这一份式子 */
-function overclockFailLevel(lv) {
-  const L = Math.max(1, Math.floor(Number(lv) || 1));
-  return Math.max(1, L - OC_FAIL_DROP);
-}
-
-/**
- * 「一键超频」计划（纯函数：不读 state、不碰 DOM、不读时钟）—— 先算计划，再一次性扣款。
- *
- * 挑选规则与「批量升级」相反：挑**等级最高**的塔，同级取数组下标更小的（= 先建的）。
- * 原因很直接 —— 超频保留等级，投在 Lv.20 的塔上得到的是 Lv.20 的强化态，投在 Lv.1 上是
- * Lv.1 的强化态；失败还降 5 级，把低等级塔拿去赌毫无意义。
- * 跳过已超频（oc === true，提示「已超频」）、跳过未知塔类型与等级异常。
- * 价格按 overclockCost(lv) 累加；**金币不够付下一座就停**（部分可执行：能赌几座算几座）。
- * count 夹到 1..OC_COUNT_MAX（<1 → 1，>20 → 20，非数字 → 1）；towers 非数组 → 空计划。
- * 返回 { targets: [{ index, tower, type, name, lv, cost }], totalCost, canDo }。
- */
-function planBatchOverclock(towers, gold, count) {
-  const list = Array.isArray(towers) ? towers : [];
-  const g = Number.isFinite(gold) ? gold : 0;
-  const want = Math.floor(Number(count));
-  const n = Number.isFinite(want) ? Math.min(OC_COUNT_MAX, Math.max(OC_COUNT_MIN, want)) : OC_COUNT_MIN;
-  const ids = [];    // 候选下标
-  const lvs = [];    // 与 ids 平行的等级镜像（挑走的记 -1 = 已用，只看不改真塔）
-  for (let i = 0; i < list.length; i += 1) {
-    const t = list[i];
-    const def = t ? ALL_TOWER_TYPES[t.type] : null;
-    if (!def || t.oc === true) continue;             // 未知塔 / 已超频：跳过
-    const lv = Math.floor(Number(t.lv) || 0);
-    if (lv < 1 || lv > MAX_TOWER_LEVEL) continue;     // 等级异常：跳过
-    ids.push(i);
-    lvs.push(lv);
-  }
-  const targets = [];
-  let totalCost = 0;
-  while (targets.length < n) {
-    let pick = -1;
-    let pickLv = -1;
-    for (let j = 0; j < ids.length; j += 1) {
-      if (lvs[j] > pickLv) { pickLv = lvs[j]; pick = j; }   // 严格大于 → 平手保留更早建造的
-    }
-    if (pick < 0) break;                                    // 没有可超频的塔了
-    const t = list[ids[pick]];
-    const cost = overclockCost(pickLv);
-    if (!(cost > 0)) { lvs[pick] = -1; continue; }          // 价格异常：移出候选，不占名额
-    if (totalCost + cost > g) break;                        // 钱不够付下一座：停（部分可执行）
-    targets.push({
-      index: ids[pick], tower: t, type: t.type, name: ALL_TOWER_TYPES[t.type].name, lv: pickLv, cost,
-    });
-    totalCost += cost;
-    lvs[pick] = -1;                                         // 每座塔一次批量只赌一次
-  }
-  return { targets, totalCost, canDo: targets.length > 0 };
-}
 
 /**
  * 「超频结果」弹窗：动态 import 组件库（本模块顶层保持零副作用 —— Node 下 import 本文件不会碰
@@ -2173,38 +1547,6 @@ function announceSynergy(hit) {
   if (text) addFloater(VIEW.w / 2, VIEW.h - 30, text, palette.warning, 2.4);
 }
 
-/* ---------- 回收：先算计划（纯函数）再执行 ---------- */
-/**
- * 「回收」的选塔计划（纯函数：只读 towers，不碰 state / 金币 / DOM）。
- * 规则：**等级最低**的 count 座优先，同级取下标更小者（= 先建的先卖）；
- * 返还额 = salvageRefund(tower.spend, SALVAGE.refundRatio) —— refundRatio 当前是 1，即**全额返还**。
- * 注意它和出售不是一回事：sellTower 走 BALANCE.sellRatio（60%），回收是另一条语义，不能复用那个函数。
- * 返回 { targets: [{ index, tower, type, name, lv, refund }], totalRefund }：
- * 塔不足 count 时返回全部，空场返回空计划（totalRefund = 0）；排序只作用于下标镜像，不改任何塔字段。
- */
-function planSalvage(towers, count) {
-  const list = Array.isArray(towers) ? towers : [];
-  const want = Number.isFinite(count) ? count : SALVAGE.towers;
-  const n = Math.min(list.length, Math.max(0, Math.floor(want)));
-  const rows = [];
-  for (let i = 0; i < list.length; i += 1) {
-    const t = list[i];
-    if (!t) continue;
-    const def = ALL_TOWER_TYPES[t.type];
-    rows.push({ index: i, tower: t, type: t.type, name: def ? def.name : String(t.type), lv: Math.floor(Number(t.lv) || 1) });
-  }
-  rows.sort((a, b) => (a.lv - b.lv) || (a.index - b.index));   // 等级最低优先；同级先建者
-  const targets = [];
-  let totalRefund = 0;
-  for (let i = 0; i < rows.length && i < n; i += 1) {
-    const r = rows[i];
-    const spend = Number.isFinite(r.tower.spend) ? r.tower.spend : 0;
-    const refund = salvageRefund(spend, SALVAGE.refundRatio);
-    targets.push({ index: r.index, tower: r.tower, type: r.type, name: r.name, lv: r.lv, refund });
-    totalRefund += refund;
-  }
-  return { targets, totalRefund };
-}
 
 /**
  * 执行一份回收计划（plan 由 planSalvage 现算，这里不再挑塔、不再算钱）：逐座移除 → 金币一次到账 → 清选中。
@@ -3555,63 +2897,6 @@ function giveUpStalledRun() {
   syncHud();
 }
 
-/* ---------- 塔数值表（每个数字都现读塔表，绝不手抄第二份） ---------- */
-/**
- * 塔数值表的行 HTML（纯函数：只读 ALL_TOWER_TYPES，不碰 DOM）：4 基础塔 + 3 特殊塔 × 3 级，
- * 每种塔再补一行 Lv.4~MAX_TOWER_LEVEL 的汇总（一行讲完外推规则，绝不铺成 100 级 × 7 塔）。
- * 光环塔无 dmg / rate、毒塔 dmg 恒为 0，都显示「—」（毒塔输出写在特效列的「无视护甲 毒 X/s」）。
- * 拆出来是为了让自检能断言「并进特殊塔后这张表里没有 NaN / undefined」。
- */
-function highLevelNote(key) {
-  const d = ALL_TOWER_TYPES[key];
-  const parts = [];
-  if (d.auraRate) parts.push('攻速增幅 +2%/级', '伤害增幅 +2%/级（各上限 +100%）');   // 光环塔自身不攻击，没有伤害项
-  else {
-    parts.push(d.poison ? '毒伤 ×1.12/级（无视护甲）' : '伤害 ×1.12/级', '攻速 +1.5%/级（上限 ×2）');
-  }
-  parts.push('射程 +0.6/级（上限 +50）');
-  if (d.splash) parts.push('溅射 +4/级（上限 +40）');
-  if (d.slow) parts.push('减速 +1%/级（上限 80%，时长不变）');
-  if (d.push) parts.push('推回 +0.05 格/级（上限 +50%）');
-  if (d.chain) parts.push('跳数与每跳衰减不变');
-  return 'Lv.4–' + MAX_TOWER_LEVEL + '：' + parts.join('、') + '、升级价 ×' + HIGH_LV_COST_STEP + '/级；第 '
-    + HIGH_LV_UNLOCK_WAVE + ' 波后解锁（仅无尽模式）';
-}
-
-function towerStatRows() {
-  const head = ['塔', '等级', '造价', '伤害', '攻速', '射程', '特效'];
-  let rows = '';
-  for (const key in ALL_TOWER_TYPES) {
-    const d = ALL_TOWER_TYPES[key];
-    for (let lv = 1; lv <= 3; lv++) {
-      const i = lv - 1, spent = d.cost.slice(0, lv).reduce((s, c) => s + c, 0);
-      const note = '建造 ' + d.cost[0] + (lv > 1 ? ' + 升级 ' + d.cost.slice(1, lv).join(' + ') : '');
-      let fx = '—';
-      if (d.splash) fx = '溅射半径 ' + d.splash[i];
-      else if (d.slow) fx = '减速 ' + Math.round(d.slow[i] * 100) + '% · ' + (d.slowMs[i] / 1000).toFixed(1) + 's';
-      else if (d.auraRate) fx = '攻速 +' + Math.round(d.auraRate[i] * 100) + '% · 伤害 +' + Math.round(d.auraDmg[i] * 100) + '%';
-      else if (d.chain) fx = '链式：额外跳 ' + d.chain.count + ' 个，每跳 -' + Math.round(d.chain.falloff * 100) + '%';
-      else if (d.poison) fx = '无视护甲 毒 ' + d.poison.dps[i] + '/s · ' + (d.poison.durationMs / 1000) + 's';
-      else if (d.push) fx = '推回 ' + d.push.tiles[i] + ' 格' + (d.push.bossHalf ? '（BOSS 减半）' : '');
-      const dmgCell = d.poison ? '—' : (d.dmg ? d.dmg[i] : '—');
-      rows += '<tr>' + (lv === 1 ? '<td rowspan="4" style="color:' + d.color + '">' + d.name + '</td>' : '')
-        + '<td>Lv.' + lv + '</td><td title="' + note + '">' + spent + '</td><td>' + dmgCell + '</td>'
-        + '<td>' + (d.rate ? d.rate[i].toFixed(1) + '/s' : '—') + '</td><td>' + d.range[i] + '</td><td>' + fx + '</td></tr>';
-    }
-    // 第 4 行 = Lv.4~MAX 的汇总（与上面 3 行共用 rowspan="4" 的塔名格），不铺 100 行
-    rows += '<tr class="td-tstats-note"><td colspan="6">' + highLevelNote(key) + '</td></tr>';
-  }
-  // 表尾补一行「超频」说明：同一张表里讲完，不另起一张表（结构化的一行，读屏也能念到）。
-  // 刻意写成 <tr class="…"> 而不是裸 <tr>，这样「7 种塔 × 3 级 = 21 行 + 1 行表头」这条
-  // 既有断言的计数口径一个字都不用改。
-  rows += '<tr class="td-tstats-oc"><td colspan="7">超频塔（画布上的金色脉冲环）：伤害 ×1.6、攻速 ×1.25、'
-    + '射程 ×1.15；光环增幅 ×1.4、冰塔减速 +10%、毒 dot ×1.6、推回 ×1.25、特斯拉目标数 3 → 5。'
-    + '超频成功率 50%，失败降 ' + OC_FAIL_DROP + ' 级（最低 1 级），超频不改变升级价</td></tr>';
-  // 表尾再补一行「专精」说明：同样写成带 class 的 tr，既有的「21 行 + 1 行表头」计数口径不受影响
-  rows += '<tr class="td-tstats-spec"><td colspan="7">专精：Lv.10 / 25 / 50 各一次二选一，只改数值不改升级价'
-    + '（每档两个取向：一个偏伤害 / 绝对量，一个偏频率 / 范围 / 控制）</td></tr>';
-  return '<table><thead><tr><th>' + head.join('</th><th>') + '</th></tr></thead><tbody>' + rows + '</tbody></table>';
-}
 
 function buildTowerStats() {
   // 不静默 return：容器取不到说明 DOM 与 JS 的 id 对不上了，留一条 warn 便于一眼定位，
@@ -3725,16 +3010,6 @@ function applyImport(raw) {
  * 100 关 × 最多 28 波在切到闯关列表时一次算完（约 1600 次 buildLevelWave），结果缓存在 Map：
  * 运行期数值不变，只算一次就够，避免每次进列表都重跑一遍把 UI 卡一下。
  */
-const levelTotalCache = new Map();
-function levelTotalEnemies(L) {
-  const hit = levelTotalCache.get(L);
-  if (hit != null) return hit;
-  const cfg = generateLevel(L);
-  let sum = 0;
-  for (let n = 1; n <= cfg.waves; n++) for (const g of buildLevelWave(cfg, n).groups) sum += g.count;
-  levelTotalCache.set(L, sum);
-  return sum;
-}
 
 /**
  * 三态判定（每关一个按钮）：
