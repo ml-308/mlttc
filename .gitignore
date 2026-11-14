@@ -10,3 +10,6 @@ tools/nav-smoke-test/nav-under-test.mjs
 
 # wrangler 本地缓存（wrangler d1 execute 默认打本地 .wrangler/state）
 .wrangler/
+
+# 本地推广片项目（不是站点代码，含 node_modules/.npm-cache，勿提交）
+mlttc-promo/
