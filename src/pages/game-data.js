@@ -167,14 +167,21 @@ async function onClearClick() {
     return;
   }
 
-  // 确认弹窗里把「会删什么、不会动什么」都写清楚，避免误伤顾虑。
-  // 文案不依赖换行：弹窗对 \n 的处理不确定，用中文分隔符保证折叠成一行也读得通。
+  // 确认弹窗里把「会删什么、不会动什么」都写清楚。
+  // 只列**实际存在**的项：否则会出现「将清除贪吃蛇最高分」但其实没有这条数据，
+  // 让人以为清错了东西。文案不依赖换行（弹窗对 \n 的处理不确定）。
+  const what = [];
+  if (read(FIXED_KEYS.snake) !== null) what.push('贪吃蛇最高分');
+  if (mazeKeys.length) what.push(`走迷宫最佳成绩（${mazeKeys.length} 项）`);
+  if (read(FIXED_KEYS.tower) !== null) what.push('塔防进度与存档（含未完成的无尽局）');
+  if (read(FIXED_KEYS.towerLegacy) !== null) what.push('塔防旧版存档');
+
   const index = await showConfirm({
     eyebrow: '清除游戏数据',
     title: '确定要清除吗？',
     text:
-      `将清除 ${keys.length} 项游戏数据：贪吃蛇最高分；走迷宫最佳成绩（${mazeKeys.length} 项）；` +
-      '塔防进度与存档（含未完成的无尽局）。账号登录、时刻表数据、主题与同意记录不受影响。此操作不可撤销。',
+      `将清除 ${keys.length} 项游戏数据：${what.join('；')}。` +
+      '账号登录、时刻表数据、主题与同意记录不受影响。此操作不可撤销。',
     buttons: ['确定清除', '取消'],
     button_style: ['variant=danger', 'tp']
   });
