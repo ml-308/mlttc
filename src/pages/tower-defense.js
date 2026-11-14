@@ -1873,6 +1873,18 @@ function syncHud() {
 let qUpSig = '';   // 「快速升级」按钮上次写的签名（文案 + disabled + title），没变就不动 DOM
 
 /**
+ * 「快速升级」的目标查询——**唯一入口**。
+ *
+ * 这个按钮的状态（syncQuickUpgrade）和点击处理原来是各算一遍，参数还不一样：
+ * 状态那边传了 canUpgradeBeyond3()，点击那边漏传 → 第 50 波之后按钮明明是亮的，
+ * 点下去却查到 null 直接 return，表现为「快速升级按钮不可用」。
+ * 现在两处都走这里，参数只在一个地方给，不可能再分叉。
+ */
+function quickUpgradeTarget() {
+  return nextUpgradeTarget(state.towers, state.gold, canUpgradeBeyond3());
+}
+
+/**
  * 「快速升级」按钮三态：没有塔 / 全部满级 / 金币不足 → disabled（title 说明原因）；
  * 可升级 → 可用，title 写清「把 X 升到 Lv.N（价格）」。每帧由 syncHud 调，沿用 tListSig 的签名比较办法。
  */
@@ -1880,7 +1892,7 @@ function syncQuickUpgrade() {
   const btn = ui.btnQuickUp;
   if (!btn) return;
   const unlocked = canUpgradeBeyond3();
-  const target = nextUpgradeTarget(state.towers, state.gold, unlocked);
+  const target = quickUpgradeTarget();
   const text = target ? '快速升级（' + target.cost + '）' : '快速升级';
   const title = !target
     ? (state.towers.length === 0 ? '场上没有塔'
@@ -2383,10 +2395,10 @@ function bindEvents() {
   ui.btnRestart.addEventListener('click', restart);
   // 「快速升级」：把建造顺序上第一个未满级的塔升一级——扣钱/升级/累加 spend/落盘全在 upgradeTower 里
   if (ui.btnQuickUp) ui.btnQuickUp.addEventListener('click', () => {
-    const target = nextUpgradeTarget(state.towers, state.gold);   // disabled 已拦过，这里再兜一层
+    const target = quickUpgradeTarget();   // 与按钮状态同源：不能再各算一遍
     if (!target || !target.canAfford) return;
-    upgradeTower(target.tower);
-    syncHud();                                        // 金币 / 清单 / 按钮上的价格立即刷新
+    upgradeTower(target.tower);            // 被拒（满级 / 未解锁 / 钱不够）时它自己会提示
+    syncHud();                             // 金币 / 清单 / 按钮上的价格立即刷新
   });
   ui.btnAgain.addEventListener('click', restart);
 
