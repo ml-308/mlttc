@@ -21,6 +21,8 @@
 //   7. 难度曲线不倒挂：ratio(L) 单调不减（±5% 容差），并指出首个违规的 L
 //   8. 存档码 encodeSave / decodeSave 往返一致（含非 ASCII），非法输入一律 null 且不抛异常；
 //      关卡总怪量（关卡列表按钮上的数字）为正整数且缓存不改变结果
+//   9. 塔数据形状（数值表 / 场上塔清单共用同一份 TOWER_TYPES）
+//  10. 场上塔清单 describeTowers：空场 / 顺序 / 光环加成 / 满级 / 金币门槛 / 返还额
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -376,6 +378,83 @@ section('9. TOWER_TYPES 数据形状（数值表 / 塔信息卡片共用）');
     }
     assert('出售返还 = floor(总投入 × sellRatio)，恒为正整数且严格小于总投入',
         refundBad.length === 0, refundBad.slice(0, 3).join(' '));
+}
+
+// ─── 10. 场上塔清单 describeTowers（纯函数，Node 下直接调用） ─────────
+//
+// 信息区列的是「场上每一座塔」，每行的伤害/攻速必须与画面上看到的一致 —— 所以断言直接打在
+// 渲染用的那个纯函数上，而不是另抄一份期望值：函数改了，这里立刻红。
+
+section('10. 场上塔清单 describeTowers（纯函数，不碰 DOM）');
+{
+    const { describeTowers } = mod;
+    const SELL = BALANCE.sellRatio;
+    // 塔对象的形状与 placeTower 一致（只关心清单会读到的字段）
+    const tower = (type, lv, col, row, spend, dmgBuff = 0, rateBuff = 0) =>
+        ({ type, lv, col, row, x: 0, y: 0, cd: 0, spend, dmgBuff, rateBuff });
+
+    // 10.1 空场 → 空数组（且完全无输入也不抛）
+    const empty0 = describeTowers([], { gold: 500, sellRatio: SELL });
+    const empty1 = describeTowers(undefined, { gold: 0, sellRatio: SELL });
+    assert('空场返回空数组（undefined 也不抛异常）',
+        Array.isArray(empty0) && empty0.length === 0 && Array.isArray(empty1) && empty1.length === 0,
+        `len ${empty0.length} / ${empty1.length}`);
+
+    // 10.2 三座不同等级：index 等于数组下标，lv / col / row 原样透出
+    const field = [
+        tower('arrow', 1, 3, 5, 60),
+        tower('cannon', 2, 7, 4, 310),
+        tower('frost', 3, 9, 8, 530),
+    ];
+    const rows = describeTowers(field, { gold: 1000, sellRatio: SELL });
+    const orderBad = rows.length !== 3 || rows.some((r, i) => r.index !== i || r.type !== field[i].type
+        || r.name !== TOWER_TYPES[field[i].type].name || r.color !== TOWER_TYPES[field[i].type].color
+        || r.lv !== field[i].lv || r.col !== field[i].col || r.row !== field[i].row
+        || r.range !== TOWER_TYPES[field[i].type].range[field[i].lv - 1]);
+    assert('3 座塔 → 3 行，index 与数组顺序一致，lv/col/row/射程 正确', !orderBad,
+        JSON.stringify(rows.map((r) => [r.index, r.type, r.lv, r.col, r.row, r.range])));
+
+    // 10.3 光环加成计入 dmg / rate（容差 0.01，且必须是两位小数）
+    const buffed = describeTowers([tower('cannon', 1, 2, 2, 110, 0.15, 0.35)], { gold: 0, sellRatio: SELL })[0];
+    const expDmg = TOWER_TYPES.cannon.dmg[0] * 1.15;
+    const expRate = TOWER_TYPES.cannon.rate[0] * 1.35;
+    assert('dmg / rate 已计入 dmgBuff(+15%) / rateBuff(+35%)，保留两位小数',
+        Math.abs(buffed.dmg - expDmg) <= 0.01 && Math.abs(buffed.rate - expRate) <= 0.01
+        && Number(buffed.dmg.toFixed(2)) === buffed.dmg && Number(buffed.rate.toFixed(2)) === buffed.rate,
+        `${buffed.dmg} vs ${expDmg.toFixed(3)} / ${buffed.rate} vs ${expRate.toFixed(3)}`);
+
+    // 10.4 满级（Lv.3）：maxed、upgradeCost 归零、金币再多也不能升
+    const maxedRow = describeTowers([tower('arrow', 3, 1, 1, 400)], { gold: 99999, sellRatio: SELL })[0];
+    assert('满级塔（Lv.3）maxed=true、upgradeCost=0、canUpgrade=false',
+        maxedRow.maxed === true && maxedRow.upgradeCost === 0 && maxedRow.canUpgrade === false
+        && maxedRow.lv === 3 && maxedRow.maxLv === 3,
+        `maxed=${maxedRow.maxed} cost=${maxedRow.upgradeCost} can=${maxedRow.canUpgrade}`);
+
+    // 10.5 金币门槛：arrow Lv.1 升级价 120
+    const poor = describeTowers([tower('arrow', 1, 1, 1, 60)], { gold: 90, sellRatio: SELL })[0];
+    const exact = describeTowers([tower('arrow', 1, 1, 1, 60)], { gold: 120, sellRatio: SELL })[0];
+    assert('金币不足（90 < 120）canUpgrade=false，恰好够（120 >= 120）为 true',
+        poor.upgradeCost === 120 && poor.canUpgrade === false && exact.canUpgrade === true,
+        `gold90 → ${poor.canUpgrade} / gold120 → ${exact.canUpgrade}`);
+
+    // 10.6 返还额 = floor(spend × sellRatio)：正整数、严格小于投入（卖塔永远刷不出钱）
+    const refundBad = [];
+    for (const spend of [60, 110, 310, 400, 530, 999]) {
+        const r = describeTowers([tower('arrow', 1, 0, 0, spend)], { gold: 0, sellRatio: SELL })[0].sellRefund;
+        if (r !== Math.floor(spend * SELL) || !Number.isInteger(r) || r < 1 || r >= spend) {
+            refundBad.push(`${spend}→${r}`);
+        }
+    }
+    assert('sellRefund = floor(spend × sellRatio)，恒为正整数且严格小于投入',
+        refundBad.length === 0, refundBad.join(' '));
+
+    // 真实调用取样（报告里贴的就是这几行）
+    console.log('  describeTowers(3 座塔, gold=260)：');
+    for (const r of describeTowers(field, { gold: 260, sellRatio: SELL })) {
+        console.log(`    #${r.index} ${r.name} Lv.${r.lv}/${r.maxLv} dmg=${r.dmg} rate=${r.rate}`
+            + ` range=${r.range} (${r.col}, ${r.row}) 升级=${r.upgradeCost} 返还=${r.sellRefund}`
+            + ` canUpgrade=${r.canUpgrade} maxed=${r.maxed}`);
+    }
 }
 
 // ─── 汇总 ────────────────────────────────────────────────────

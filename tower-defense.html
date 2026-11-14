@@ -156,13 +156,10 @@
             background: var(--bg-card);
         }
 
-        /* 塔信息卡片：常驻在画布下方，选中塔后显示，升级 / 出售的唯一入口 */
+        /* 场上塔清单：排在「布置塔防」的塔栏**下方**，列出场上每一座塔（一行一座），行内直接升级 / 删除。
+           用 <details> 折叠（与上方塔数值表同一套视觉语言），HTML 里带 open 默认展开：
+           它已经在塔栏下方，展开不会挤压画布，而默认藏起来正是「信息看不到」的老问题。 */
         .td-tinfo {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 4px 12px;
-            padding: 9px 12px;
             border-radius: var(--radius-md, .5rem);
             background: var(--bg-card);
             border: 1px solid var(--primary);
@@ -172,31 +169,71 @@
             min-width: 0;
         }
 
-        /* hidden 由 JS 切换：显式关掉 flex，别让上面的 display 盖掉 hidden 属性 */
+        /* hidden 由 JS 切换（回关卡列表 / 切模式时整块收起），显式关掉，别被 display 盖掉 hidden */
         .td-tinfo[hidden] {
             display: none;
         }
 
-        .td-tinfo-head {
+        .td-tinfo>summary {
+            padding: 9px 12px;
+            cursor: pointer;
+            font-weight: 700;
+            color: var(--text-primary);
+            list-style-position: inside;
+        }
+
+        /* 展开时标题下加一条分隔线，和上方塔数值表保持一致 */
+        .td-tinfo[open]>summary {
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        #tdTowerList {
             display: flex;
-            align-items: baseline;
-            gap: 8px;
+            flex-direction: column;
+            gap: 3px;
+            padding: 6px 8px 8px;
             min-width: 0;
         }
 
-        .td-tinfo-head b {
-            font-size: .86rem;
+        /* 一行 = 名称 + 等级 + 伤害/攻速/射程 + 坐标 + 两个按钮。
+           flex-wrap + min-width:0 是「永不被内容撑出横向滚动」的关键：宽度不够就整块折行。 */
+        .td-ti-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 2px 10px;
+            padding: 5px 8px;
+            border-radius: var(--radius-sm, .5rem);
+            border: 1px solid transparent;
+            cursor: pointer;
+            min-width: 0;
+            transition: background .15s, border-color .15s;
+        }
+
+        .td-ti-row:hover {
+            background: var(--bg-hover);
+        }
+
+        /* 选中行：与画布上的射程圈是同一份状态（state.selectedTower），点哪边另一边都亮 */
+        .td-ti-row.is-active {
+            background: var(--primary-bg);
+            border-color: var(--primary);
+        }
+
+        .td-ti-name {
+            font-size: .82rem;
+            font-weight: 700;
             color: var(--text-primary);
         }
 
-        .td-tinfo-head span {
+        .td-ti-lv {
             font-size: .7rem;
             font-weight: 700;
-            color: var(--primary);
+            color: var(--text-secondary);
             font-variant-numeric: tabular-nums;
         }
 
-        .td-tinfo-stats {
+        .td-ti-stats {
             display: flex;
             flex-wrap: wrap;
             gap: 2px 10px;
@@ -204,18 +241,25 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .td-tinfo-stats span {
+        .td-ti-stats span {
             white-space: nowrap;
         }
 
-        .td-tinfo-acts {
+        .td-ti-pos {
+            color: var(--text-secondary);
+            opacity: .8;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .td-ti-acts {
             display: flex;
             gap: 6px;
             margin-left: auto;
         }
 
-        .td-tinfo-acts button {
-            padding: 6px 12px;
+        .td-ti-acts button {
+            padding: 5px 10px;
             font-size: .74rem;
             font-weight: 700;
             font-family: inherit;
@@ -228,19 +272,27 @@
             transition: background .15s, border-color .15s;
         }
 
-        .td-tinfo-acts button:hover:not(:disabled) {
+        .td-ti-acts button:hover:not(:disabled) {
             background: var(--primary-bg);
             border-color: var(--primary);
         }
 
-        .td-tinfo-acts button:disabled {
+        .td-ti-acts button:disabled {
             opacity: .45;
             cursor: not-allowed;
         }
 
-        #tdTinfoUpgrade {
+        .td-ti-acts button[data-act="upgrade"] {
             border-color: var(--primary);
             color: var(--primary);
+        }
+
+        /* 空场：一行灰字，而不是一个空盒子 */
+        .td-ti-empty {
+            padding: 5px 8px;
+            font-size: .74rem;
+            color: var(--text-secondary);
+            opacity: .7;
         }
 
         /* ---------- 结算浮层 ---------- */
@@ -769,23 +821,35 @@
                 flex-wrap: wrap;
             }
 
-            /* 塔信息卡片：卡片本身在文档流里（不是绝对定位），不可能被下方的塔栏压住；
-               这里只做「窄屏不横向溢出」——数值自动折行，两个按钮各占一半宽度 */
+            /* 场上塔清单：清单本身在文档流里（不是绝对定位），不可能被下方的提示压住；
+               窄屏只处理「不横向溢出」——一行的内容自动折行，两个按钮各占一半宽度并整行下移 */
             .td-tinfo {
-                padding: 8px 10px;
-                gap: 4px 10px;
+                font-size: .74rem;
             }
 
-            .td-tinfo-stats {
+            .td-tinfo>summary {
+                padding: 8px 10px;
+            }
+
+            #tdTowerList {
+                padding: 6px;
+            }
+
+            .td-ti-row {
+                padding: 6px 8px;
                 gap: 2px 8px;
             }
 
-            .td-tinfo-acts {
+            .td-ti-stats {
+                gap: 2px 8px;
+            }
+
+            .td-ti-acts {
                 width: 100%;
                 margin-left: 0;
             }
 
-            .td-tinfo-acts button {
+            .td-ti-acts button {
                 flex: 1 1 0;
                 min-width: 0;
             }
@@ -834,26 +898,42 @@
                 max-width: max(280px, calc((100vh - 210px) * 1.714));
             }
 
-            /* 横屏窄高时卡片再压薄一档，保证画布 + 卡片 + 塔栏三块都能落在首屏 */
+            /* 横屏窄高时清单再压薄一档，并给行数封顶（超出在内部滚动），
+               保证「画布 + 塔栏 + 清单」都能落在首屏 */
             .td-tinfo {
-                padding: 5px 8px;
-                gap: 2px 8px;
                 font-size: .7rem;
             }
 
-            .td-tinfo-head b {
-                font-size: .78rem;
+            .td-tinfo>summary {
+                padding: 5px 8px;
             }
 
-            .td-tinfo-acts {
+            #tdTowerList {
+                padding: 4px 6px 6px;
+                max-height: 78px;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .td-ti-row {
+                padding: 3px 6px;
+                gap: 1px 8px;
+            }
+
+            .td-ti-name {
+                font-size: .76rem;
+            }
+
+            .td-ti-acts {
                 width: 100%;
                 margin-left: 0;
             }
 
-            .td-tinfo-acts button {
+            .td-ti-acts button {
                 flex: 1 1 0;
                 min-width: 0;
-                padding: 4px 8px;
+                padding: 3px 8px;
+                font-size: .68rem;
             }
         }
 
@@ -873,7 +953,7 @@
          若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
          启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
          **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
-    <script src="/src/pages/tower-defense.js?v=1.6.5" type="module"></script>
+    <script src="/src/pages/tower-defense.js?v=1.6.6" type="module"></script>
 </head>
 
 <body class="td-page-body">
@@ -942,16 +1022,6 @@
             </div>
         </section>
 
-        <!-- 塔信息卡片：点画布上的塔后在下方常驻显示，升级 / 出售都在这里；未选中时 hidden 不占空间 -->
-        <div class="td-tinfo" id="tdTowerInfo" aria-live="polite" hidden>
-            <div class="td-tinfo-head"><b id="tdTinfoName">—</b><span id="tdTinfoLv">—</span></div>
-            <div class="td-tinfo-stats" id="tdTinfoStats"></div>
-            <div class="td-tinfo-acts">
-                <button id="tdTinfoUpgrade" type="button">升级</button>
-                <button id="tdTinfoSell" type="button">出售</button>
-            </div>
-        </div>
-
         <!-- 所有塔数值表：默认收起（不挤压画布），表格内容由 JS 从 TOWER_TYPES 现生成 -->
         <details class="td-tstats" id="tdTowerStats">
             <summary>所有塔数值表（造价 / 伤害 / 攻速 / 射程 / 特效）</summary>
@@ -990,8 +1060,17 @@
             </div>
         </section>
 
+        <!-- 场上塔清单：排在「布置塔防」的塔栏**下方**（不是夹在画布与塔栏之间）。
+             用 details 折叠、open 默认展开；summary 里的数量由 JS 实时更新，主体在折叠时跳过重绘，
+             重新展开时整表重画一次（自愈，与上面塔数值表的 toggle 做法一致）。
+             每行 = 塔名(带色) + Lv.N/3 + 伤害/攻速(计入光环) + 射程 + 坐标 + [升级(价格)] [删除(返还 N)]。 -->
+        <details class="td-tinfo" id="tdTowerInfo" aria-live="polite" open hidden>
+            <summary id="tdTowerInfoSummary">场上塔（0）</summary>
+            <div id="tdTowerList"></div>
+        </details>
+
         <p class="td-hint" id="tdHint">
-            点击空格子放塔 · 点击已有塔在下方卡片里升级或出售 · 敌人走到右侧终点扣 1 点生命
+            点击空格子放塔 · 下方清单列出场上每座塔，行内可直接升级或删除 · 点塔看射程圈 · 敌人走到右侧终点扣 1 点生命
         </p>
 
         <!-- 存档导出 / 导入：默认收起。存档码 = 'TD1-' + base64(JSON)，文件 = 同一份 progress JSON -->
