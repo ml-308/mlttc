@@ -3219,7 +3219,12 @@ let qUpSig = '';   // 「快速升级」按钮上次写的签名（文案 + disa
  * 点下去却查到 null 直接 return，表现为「快速升级按钮不可用」。
  * 现在两处都走这里，参数只在一个地方给，不可能再分叉。
  */
-const AUTO_UP_INTERVAL_MS = 700;   // 自动升级节奏（逻辑时间）：每 0.7 秒最多升一座
+// 自动升级节奏与吞吐：每 0.5 秒最多推进 100 级，花多少由**当前金币**决定（不看数量框）。
+// 单次 planBatchUpgrade 里每座塔只升一级，所以座数 < 100 时要多跑几轮才能凑到 100 级；
+// 轮数上限 AUTO_UP_MAX_PASSES 是为了给病态局面兜底（几千座塔时不至于一帧里跑上百轮）。
+const AUTO_UP_INTERVAL_MS = 500;
+const AUTO_UP_MAX_LEVELS = 100;
+const AUTO_UP_MAX_PASSES = 12;
 
 /**
  * 「自动升级」每一步的目标。与 quickUpgradeTarget 同源（等级最低优先、受高等级解锁闸约束），
@@ -3253,11 +3258,16 @@ function autoUpgradeTick() {
   const now = state.timeMs;
   if (now < state.autoUpNextAt) return;
   state.autoUpNextAt = now + AUTO_UP_INTERVAL_MS;
-  // 数量用「批量升级」那个框的值：自动升级 = 定时自动点一次批量升级
-  const plan = autoUpgradePlan(state.towers, state.gold, batchCount(), canUpgradeBeyond3(), specDialogOpen);
-  if (!plan.canDo) return;
-  applyBatchUpgrade(plan);   // 复用既有批量执行：一次扣款 / 逐座升级 / 落盘一次 / 触发专精弹窗
-  syncHud();
+  if (specDialogOpen) return;              // 专精必须手动选：弹窗期间整跳跳过
+  const high = canUpgradeBeyond3();
+  let done = 0;
+  for (let pass = 0; pass < AUTO_UP_MAX_PASSES && done < AUTO_UP_MAX_LEVELS; pass += 1) {
+    const plan = planBatchUpgrade(state.towers, state.gold, AUTO_UP_MAX_LEVELS - done, high);
+    if (!plan.canDo || plan.targets.length === 0) break;   // 钱不够 / 没有可升的塔
+    applyBatchUpgrade(plan);
+    done += plan.targets.length;
+  }
+  if (done > 0) syncHud();
 }
 
 function syncAutoUpButton() {
@@ -3266,7 +3276,7 @@ function syncAutoUpButton() {
   b.textContent = state.autoUpgrade ? '自动升级：开' : '自动升级：关';
   b.classList.toggle('is-on', state.autoUpgrade === true);
   b.title = state.autoUpgrade
-    ? '正在自动升级（等级最低优先）· 专精需要你手动选择 · 点击关闭'
+    ? '正在自动升级：每 0.5 秒最多推 100 级，花多少看当前金币 · 专精需要你手动选择 · 点击关闭'
     : '自动升级（专精需要你手动选择）';
 }
 
