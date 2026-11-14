@@ -1,9 +1,26 @@
 {
-  "latestVersion": "1.6.19",
-  "generatedAt": "2026-11-14T14:51:51.390Z",
-  "count": 34,
+  "latestVersion": "1.6.20",
+  "generatedAt": "2026-11-14T14:54:58.082Z",
+  "count": 35,
   "source": "CHANGELOG.md",
   "releases": [
+    {
+      "version": "1.6.20",
+      "date": "2026-11-15",
+      "sections": [
+        {
+          "title": "🐛 修复：自动升级打开了却没反应",
+          "items": []
+        },
+        {
+          "title": "🛠 内部",
+          "items": [
+            "`step()` 开头判断 `state.autoUpgrade` → 调 `autoUpgradeTick()`；`upgradeTower()` 里那行错误调用已删除。",
+            "自检 150 条保持全绿。"
+          ]
+        }
+      ]
+    },
     {
       "version": "1.6.19",
       "date": "2026-11-15",
@@ -997,6 +1014,11 @@
     }
   ],
   "entries": [
+    {
+      "hash": "0c73b1a",
+      "date": "2026-11-14",
+      "subject": "自动升级按金额计算，每 0.5 秒最多 100 级（v1.6.19）"
+    },
     {
       "hash": "56a570c",
       "date": "2026-11-14",

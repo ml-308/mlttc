@@ -1448,7 +1448,6 @@ function upgradeTower(tower) {
   addParticles(tower.x, tower.y, 8, def.color);
   noteEndlessRun();   // 升级后落盘
   maybeOfferSpecialization();   // 跨过 Lv.10 / 25 / 50 且该档还没选 → 弹二选一（取消则下次升级再问）
-  if (state.autoUpgrade) autoUpgradeTick();
   return true;
 }
 
@@ -2480,6 +2479,9 @@ function checkWaveStall() {
 /** 一个固定逻辑步：时间 → 波次 → 敌人 → 塔 → 子弹 → 特效 */
 function step(dt) {
   state.timeMs += dt * 1000;
+  // 自动升级必须由逻辑步驱动：它自己就是升级的触发者，不能挂在"升级完成之后"
+  // （曾经误放在 upgradeTower 里，导致开关打开也永远不生效）
+  if (state.autoUpgrade) autoUpgradeTick();
   updateWaves(dt);
   updateEnemies(dt);
   if (state.gameOver) return;
