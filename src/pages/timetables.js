@@ -13,13 +13,17 @@
  * 依赖：/lib/ui/popup.mjs、/lib/data/city-picker.mjs、/lib/ui/message.mjs、
  *       /lib/timetable.mjs
  */
-import { showPrompt } from '/lib/ui/popup.mjs';
+import { showPrompt, showConfirm } from '/lib/ui/popup.mjs';
 import { mountCityPicker, attachCityPicker } from '/lib/data/city-picker.mjs';
 import { checkCityInput, describeCityInput, normalizeCityInput, formatCityForStorage } from '/lib/ui/city-chooser.mjs';
 import { showMessage } from '/lib/ui/message.mjs';
 import { createGuard } from '/lib/ui/guard.mjs';
 import { createImportPanel } from '/lib/ui/timetable-import.mjs';
 import { Complete, timejudge, timeformat, ex_timejudege } from '/lib/timetable.mjs';
+import {
+    bindAutoSave, loadDraft, saveDraft, clearDraft,
+    isUnattended, setUnattended, describeDraftAge, formatClock
+} from '/src/pages/timetable-draft.js';
 /*
 class HcwArticle extends HTMLElement{
     constructor(){
@@ -186,6 +190,11 @@ const time2test=document.getElementById("time2test");
 const bctest=document.getElementById("bctest");
 const e_timetest=document.getElementById("exec-timetest");
 
+//草稿 UI（见 timetable.html 的 .draft-bar）
+const draftSaveBtn=document.getElementById("draft-save-btn");
+const draftStatusEl=document.getElementById("draft-status");
+const unattendedToggle=document.getElementById("draft-unattended");
+
 let judge={
     city:0,
     way:0,
@@ -198,6 +207,137 @@ let judge={
 }
 
 
+// ─── 草稿：收集 / 状态行 / 恢复 / 自动保存 ─────────
+// 存储、过期与敏感字段策略都在 /src/pages/timetable-draft.js 里，本页只管
+// 「取哪几个字段、怎么回填、状态行写什么」。新建页没有 ID，草稿键固定为 mlttc-tdraft:create。
+const draftPage='create';
+let autoSave=null;
+/** 恢复过的字段快照：本页 add-form 默认 hidden，点开时 addForm() 里的 show() 会清空输入框，
+ *  所以首次打开表单时要把这份内容补回去——否则「恢复了等于没恢复」 */
+let restoredSnapshot=null;
+
+/** 页面上哪些字段进草稿（键名即 HTML 里的 name / id，便于排查） */
+const DRAFT_INPUTS={
+    city:city_input,
+    way:way_input,
+    start:start_input,
+    end:end_input,
+    bc:bc_input,
+    time1:time1_input,
+    time2:time2_input,
+    execTime:e_time_input
+};
+
+/** 当前表单内容 → 草稿字段 */
+function draftFields(){
+    const fields={};
+    Object.keys(DRAFT_INPUTS).forEach((key)=>{
+        fields[key]=DRAFT_INPUTS[key].value;
+    });
+    return fields;
+}
+
+/** 状态行：传空串即清空（.draft-status:empty 会自动隐藏） */
+function setDraftStatus(text){
+    if(draftStatusEl) draftStatusEl.textContent=text||'';
+}
+
+/** 页面既有的整组校验：恢复后必须重跑，否则 judge 与输入框不一致（提交会被判「输入有误」；
+ *  时刻表文本尤其要紧——judge.time1 / time2 不对，提交时会被服务端当空值忽略） */
+function revalidateAll(){
+    cityinput();
+    wayinput();
+    startinput();
+    endinput();
+    time1input();
+    time2input();
+    bcinput();
+    e_timeinput();
+}
+
+/** 只挑「表单当前为空」的字段：用户已经敲进去的内容绝不能被草稿覆盖 */
+function pickRestorable(fields){
+    const out={};
+    Object.keys(DRAFT_INPUTS).forEach((key)=>{
+        const input=DRAFT_INPUTS[key];
+        const value=fields?fields[key]:undefined;
+        if(typeof value!=='string'||value==='') return;
+        if(input.value!=='') return;
+        out[key]=value;
+    });
+    return out;
+}
+
+/** 把草稿字段写回表单，再重跑既有校验；同时留下快照供首次打开表单时补填 */
+function applyDraftFields(fields){
+    Object.keys(fields).forEach((key)=>{
+        const input=DRAFT_INPUTS[key];
+        if(input) input.value=fields[key];
+    });
+    revalidateAll();
+    restoredSnapshot=fields;
+}
+
+/**
+ * 恢复草稿
+ *   无人值守模式开 → 静默恢复，只在状态行留一行字（不打断流程）；
+ *   关 → showConfirm 问一次；注意它返回的是**倒序**索引：['恢复草稿','丢弃草稿'] 中
+ *        点「恢复草稿」得 1，点「丢弃草稿」/ 点 × / 按 Esc 都得 0。
+ */
+async function restoreDraft(){
+    const draft=loadDraft(draftPage);
+    if(!draft) return;
+
+    const fields=pickRestorable(draft.fields);
+    if(Object.keys(fields).length===0){
+        // 草稿里的字段现在都已经有值，或草稿本身是空的 → 没有可恢复的内容，直接丢弃
+        clearDraft(draftPage);
+        return;
+    }
+
+    const age=describeDraftAge(draft.savedAt);
+    const restored=age==='刚刚'?'已恢复刚才填写的草稿':`已恢复 ${age}的草稿`;
+
+    if(isUnattended()){
+        applyDraftFields(fields);
+        setDraftStatus(restored);
+        return;
+    }
+
+    const choice=await showConfirm({
+        text:`发现未提交的草稿（${age}），要恢复吗？`,
+        buttons:['恢复草稿','丢弃草稿'],
+        button_style:['variant=success','']
+    });
+    if(choice===1){
+        applyDraftFields(fields);
+        setDraftStatus(restored);
+        return;
+    }
+    clearDraft(draftPage);
+    setDraftStatus('已丢弃草稿');
+}
+
+/** 绑定自动保存：input / change 去抖 800ms，pagehide 与切后台各立即刷一次 */
+function bindDraftAutoSave(){
+    if(autoSave||!addDiv) return;
+    autoSave=bindAutoSave(addDiv,{
+        page:draftPage,
+        collect:draftFields,
+        onSaved(){
+            setDraftStatus(`草稿已保存 · ${formatClock(Date.now())}`);
+        }
+    });
+}
+
+/** 「清空表单」按钮：连草稿一起删，免得刷新后又把旧内容恢复回来 */
+function clearDraftOnReset(){
+    clearDraft(draftPage);
+    setDraftStatus('');
+    restoredSnapshot=null;
+}
+
+
 //btn
 backa.addEventListener("click", back);
 add.addEventListener("click", addForm);
@@ -207,6 +347,31 @@ time1c.addEventListener("click", time1cl);
 time2c.addEventListener("click", time2cl);
 addconfirm.addEventListener("click", confirmAdd);
 clean.addEventListener("click", cleanall);
+// 「清空表单」按钮要连草稿一起清。只挂在按钮点击上，不能写进 cleanall()：
+// cleanall() 在上传成功后的流程里也会被程序调用，在那里删草稿等于「失败也删」
+clean.addEventListener("click", clearDraftOnReset);
+
+// 「保存草稿」：手动落盘，给不想等去抖（或不确定自动保存是否生效）的用户一个确定按钮
+if(draftSaveBtn){
+    draftSaveBtn.addEventListener("click", ()=>{
+        if(saveDraft(draftPage, undefined, draftFields())){
+            setDraftStatus(`草稿已保存 · ${formatClock(Date.now())}`);
+            showMessage('草稿已保存', false);
+        }else{
+            showMessage('草稿保存失败（浏览器可能禁用了本地存储）', true);
+        }
+    });
+}
+
+// 「无人值守模式」开关：状态存 localStorage，下次进来仍然有效
+if(unattendedToggle){
+    unattendedToggle.checked=isUnattended();
+    unattendedToggle.addEventListener("change", ()=>{
+        const on=unattendedToggle.checked;
+        setUnattended(on);
+        showMessage(on?'已开启无人值守模式：草稿将静默恢复':'已关闭无人值守模式', false);
+    });
+}
 
 //批量导入面板（解析 / 校验 / 分页预览 / 分批上传都在 /lib/ui/timetable-import.mjs 里）
 createImportPanel({ mount: document.getElementById("import-body") });
@@ -278,6 +443,12 @@ function addForm(){
     importDiv.classList.add("hidden");
     for(let i=0;i<inputs.length;i++){
         show(inputs[i]);
+    }
+    // show() 会把输入框清空。若刚才恢复过草稿，这里把恢复的内容补回去（只补这一次）
+    if(restoredSnapshot){
+        const snapshot=restoredSnapshot;
+        restoredSnapshot=null;
+        applyDraftFields(snapshot);
     }
     console.log('add事件触发');
     backa.addEventListener("click", back);
@@ -663,6 +834,9 @@ function write(choose,name){
 }
 
 async function writeD1(city, way, start, end, time1, time2, bc, etime, writetime, name) {
+    // 先把原始输入拷一份：调用方紧接着会 cleanall() 清空表单，若去抖窗口里还剩一次未落盘的
+    // 保存，草稿会被写成空的。失败时用这份快照把草稿还原成用户刚填的样子。
+    const rawSnapshot = draftFields();
     // 构造数据，不再包含 id，由后端生成
     const data = {
         "city": city,
@@ -686,21 +860,37 @@ async function writeD1(city, way, start, end, time1, time2, bc, etime, writetime
             body: JSON.stringify(data)
         });
 
-        const result = await response.json();
+        const result = await response.json().catch(() => null);
 
-        if (!response.ok) {
+        // 只有「HTTP 成功 且 业务 success」才算上传成功；拿不到 body 也按失败处理，
+        // 宁可留着草稿，也不要在结果不明时把它删掉
+        if (!response.ok || !result || result.success === false) {
             // 409：重复 或 400：参数错误 等
-            const msg = result.message || result.error || '提交失败';
+            const msg = (result && (result.message || result.error)) || '提交失败';
             showMessage(msg, true);
+            // 失败路径：草稿一个字都不动（并把原始输入写回，防止被上面那次空落盘盖掉），
+            // 删除动作一律在这个 return 之后才可能发生
+            saveDraft(draftPage, undefined, rawSnapshot);
             return;
         }
 
         console.log('添加成功，ID:', result.id);
         showMessage('添加成功', false);
+        // 上传成功：草稿已经完成使命。先解绑再删 —— 顺序不能反，
+        // 否则随后触发的 pagehide / 切后台会把刚删掉的草稿又写回去。
+        if (autoSave) {
+            autoSave.dispose();
+            autoSave = null;
+        }
+        clearDraft(draftPage);
+        setDraftStatus('');
+        restoredSnapshot = null;
         // 可以在这里刷新列表等
     } catch (err) {
         console.error(err);
         showMessage('网络错误', true);
+        // 网络异常同样不是成功：草稿保留，并把原始输入写回
+        saveDraft(draftPage, undefined, rawSnapshot);
     }
 }
 
@@ -1108,6 +1298,14 @@ function restoreSearchState() {
 
 // 页面加载时自动恢复
 restoreSearchState();
+
+// ─── 草稿：绑定自动保存 + 尝试恢复 ─────────────
+// 放在初始化末尾：此时 add-form 已在 DOM 里、城市选择器也挂好了，用户一动手就有人接盘。
+// 绑在容器上而不是逐字段绑，所以恢复写 input.value（不触发 input 事件）不会被当成用户改动。
+bindDraftAutoSave();
+setTimeout(() => {
+    restoreDraft().catch((e) => console.warn('[timetables] 恢复草稿失败，已忽略', e));
+}, 150);
 
 /*
 // ─── 删除功能 ─────────────────────────────────────

@@ -6,6 +6,18 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<title>修改时刻表</title>
 	<link rel="stylesheet" href="style/timetable.css">
+	<style>
+		/* 草稿条：无人值守开关 + 草稿状态行。颜色/字号全走页面既有 CSS 变量，不新建样式文件 */
+		.draft-bar {
+			display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+			margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);
+		}
+		.draft-switch { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+		.draft-switch input { margin: 0; cursor: pointer; }
+		.draft-status { color: var(--text-muted); }
+		/* 没有草稿时状态行是空的：:empty 直接收起，不留一行空白 */
+		.draft-status:empty { display: none; }
+	</style>
 	<script src="src/pages/main.js" type="module"></script>
 	<script src="/lib/ui/init.mjs" type="module"></script>
 	<script src="/src/auth-header.js" type="module"></script>
@@ -93,6 +105,15 @@
 			<div class="btn-group">
 				<hcw-button primary flat style="min-width: 6rem;" id="submitEditBtn">提交修改</hcw-button>
 				<hcw-button style="min-width: 5rem;" id="resetEditBtn">清空表单</hcw-button>
+				<hcw-button flat style="min-width: 6rem;" id="draft-save-btn">保存草稿</hcw-button>
+			</div>
+			<!-- 草稿条：保存草稿按钮在上一行；这里是无人值守模式开关 + 草稿状态行 -->
+			<div class="draft-bar">
+				<label class="draft-switch" for="draft-unattended">
+					<input type="checkbox" id="draft-unattended">
+					<span>无人值守模式</span>
+				</label>
+				<span id="draft-status" class="draft-status" role="status" aria-live="polite"></span>
 			</div>
 			<div id="edit-result" class="result-card hidden"></div>
 		</div>
