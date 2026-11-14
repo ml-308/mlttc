@@ -915,9 +915,15 @@ section('17. 超频（towerStat 第三参 / overclockCost / overclockRoll / plan
 
     // 17.5 超频价：Lv.1 = 240，且 1..MAX 严格递增
     const costs = [];
-    for (let lv = 1; lv <= MAX_TOWER_LEVEL; lv += 1) costs.push(overclockCost(lv));
-    assert('overclockCost(1) = 240，且在 Lv.1..MAX 上严格递增（每级 ×1.12）',
-        overclockCost(1) === 240 && costs.every((c, i) => i === 0 || c > costs[i - 1]),
+    // 等级上限已是 100 万级（实质无限制），不再全量遍历；取 1..300 这段真实可达区间验严格递增，
+    // 另单独验极高等级必须仍是有限值。
+    // 采样 1..200：再往上 1.12^k 会超过 STAT_CEIL(1e15) 被主动封顶，价格进入平台期
+    // （严格递增在那之后必然不成立，但那时早已远超任何收入，属预期行为）
+    const OC_SAMPLE_MAX = 200;
+    for (let lv = 1; lv <= OC_SAMPLE_MAX; lv += 1) costs.push(overclockCost(lv));
+    assert('overclockCost(1) = 240，且在 Lv.1..200（封顶之前）严格递增，封顶后仍为有限值',
+        overclockCost(1) === 240 && costs.every((c, i) => i === 0 || c > costs[i - 1])
+        && Number.isFinite(overclockCost(MAX_TOWER_LEVEL)),
         'Lv.1=' + costs[0] + ' Lv.2=' + costs[1] + ' Lv.100=' + costs[99]);
 
     // 17.6 50% 边界：rand < 0.5 成功（0.49 成功 / 0.5 失败）

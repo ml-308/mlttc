@@ -74,7 +74,12 @@ const ALL_TOWER_TYPES = { ...TOWER_TYPES, ...SPECIAL_TOWER_TYPES };
  * Lv.4~MAX_TOWER_LEVEL 一律由 towerStat() 以 Lv.3 为基点现算，不往数组里塞 100 个数字。
  * 解锁条件：**只无尽模式、且过了第 HIGH_LV_UNLOCK_WAVE 波**（闯关最多 28 波，天然用不到）。
  */
-const MAX_TOWER_LEVEL = 100;          // 塔的最高等级
+// 塔的最高等级：实质无限制。
+// 为什么不直接写 Infinity：伤害是 1.12^k 的指数、升级价是 1.12^L 的指数，
+// 真给 Infinity 会让比较失真并算出 NaN 污染显示与存档。取 100 万级：
+// 正常玩最多到几百级，等效"无限制"，同时所有运算仍在有限域内。
+const MAX_TOWER_LEVEL = 1000000;
+const STAT_CEIL = 1e15;   // 伤害 / 毒 dot / 升级价 / 超频价的有限上限
 const HIGH_LV_UNLOCK_WAVE = 50;       // 无尽模式第 50 波后才允许升级到 Lv.4+
 /**
  * 同屏塔数硬上限。每座塔每帧都要绘制塔身 / 等级 / 光环脉冲 / 超频金环并参与索敌，而 90 波之后
@@ -592,7 +597,7 @@ export {
   mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
   towerStatRows,   // 塔数值表的行 HTML（纯函数：自检断言「并进特殊塔后不出现 NaN / undefined」）
   towerStat,       // 某塔某等级的实际数值（Lv.1~3 读数组、Lv.4+ 现算外推：战斗 / 清单 / 快速升级同源）
-  MAX_TOWER_LEVEL, HIGH_LV_UNLOCK_WAVE,   // 等级上限 + 高等级解锁波次（自检按常量取，不写死 3）
+  MAX_TOWER_LEVEL, STAT_CEIL, HIGH_LV_UNLOCK_WAVE,   // 等级上限 + 高等级解锁波次（自检按常量取，不写死 3）
   HIGH_LV_COST_STEP, HIGH_LV_DMG_STEP,    // 高等级的两条斜率（自检断言 1.12 生效、Lv.50 升级价在 1 万~20 万）
   nextWavePreview, towersDps,   // 下一波预告（纯函数：不碰 DOM，自检直接断言 myDps / reqDps / comp）
   // 三个纯逻辑模块经主文件转发一份（自检与调试台不必再各自解析路径；模块本身不改一行）
@@ -1256,12 +1261,15 @@ function towerStat(type, lv, oc) {
     pushTiles: num(d.push && d.push.tiles ? d.push.tiles[i] : 0),
     chainCount: d.chain && Number.isFinite(d.chain.count) ? d.chain.count : 0,
     upgradeCost: L >= MAX_TOWER_LEVEL ? 0
-      : (L < 3 ? num(d.cost[L]) : Math.round(d.cost[2] * Math.pow(HIGH_LV_COST_STEP, L - 2))),
+      : (L < 3 ? num(d.cost[L])
+        : Math.min(STAT_CEIL, Math.round(d.cost[2] * Math.pow(HIGH_LV_COST_STEP, L - 2)))),
   };
   if (k > 0) {                             // Lv.1~3 原样返回；Lv.4+ 按 k 外推
-    const g = Math.pow(HIGH_LV_DMG_STEP, k);
-    st.dmg = st.dmg * g;
-    st.poisonDps = st.poisonDps * g;                                        // 毒的 dot 跟着涨
+    // 等级无上限后 1.12^k 在 k≈6000 会溢出成 Infinity，伤害变 Infinity 会连带把血量、
+    // 赏金、显示算成 NaN。所有指数项统一封顶到有限值。
+    const g = Math.min(STAT_CEIL, Math.pow(HIGH_LV_DMG_STEP, k));
+    st.dmg = Math.min(STAT_CEIL, st.dmg * g);
+    st.poisonDps = Math.min(STAT_CEIL, st.poisonDps * g);                                        // 毒的 dot 跟着涨
     st.rate = st.rate * (1 + Math.min(1, HIGH_LV_RATE_STEP * k));           // 攻速封顶 = Lv.3 的 2 倍
     st.range = st.range + Math.min(50, HIGH_LV_RANGE_STEP * k);             // 射程最多 +50
     if (d.splash) st.splash = st.splash + Math.min(40, 4 * k);              // 溅射最多 +40
@@ -1632,7 +1640,8 @@ function planBatchUpgrade(towers, gold, count, highUnlocked) {
 /** 超频价（纯函数）：Lv.1 = 240，每级 ×1.12 —— 高等级塔更贵，但超频保留等级，投在高塔上才划算 */
 function overclockCost(lv) {
   const L = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(lv) || 1)));
-  return Math.round(OC_COST_BASE * Math.pow(OC_COST_STEP, L - 1));
+  // 等级无上限后 1.12^L 会溢出成 Infinity（按钮会永远显示"金币不足"），封顶到 STAT_CEIL
+  return Math.min(STAT_CEIL, Math.round(OC_COST_BASE * Math.pow(OC_COST_STEP, L - 1)));
 }
 
 /** 50% 判定（纯函数）：rand < 0.5 即成功 —— 判定抽成函数才好断言 0.49 / 0.5 这条边界 */
@@ -2886,7 +2895,7 @@ function towerRowHtml(r, active) {
     + ' title="点击选中这座塔">'
     + '<span class="td-ti-name" style="color:' + r.color + '">' + r.name + '</span>'
     + (oc ? '<span class="td-ti-oc" title="已超频：伤害 ×1.6、攻速 ×1.25、射程 ×1.15（特殊塔另有加成）">超频</span>' : '')
-    + '<span class="td-ti-lv">Lv.' + r.lv + '/' + r.maxLv + '</span>'
+    + '<span class="td-ti-lv">Lv.' + r.lv + '</span>'
     // 已选专精：一个都没选时 r.specText 是空串，整段不出现（不留一个空壳）
     + (r.specText
       ? '<span class="td-ti-spec" title="专精：Lv.10 / 25 / 50 各一次二选一，只改数值不改升级价">' + r.specText + '</span>'
