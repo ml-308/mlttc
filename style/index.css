@@ -169,18 +169,13 @@ hcw-hero h1 {
     margin-bottom: .5rem;
 }
 
-/* 桌面端固定列数：4 张功能卡必须均匀分布，不再出现 3+1 的孤立单卡行。
-   1024–1279 内容区放不下 4 列（4×16rem+3×间距 已超过可用宽度），改用 2×2，
-   同样不会产生孤行；≥1280 起回到单行 4 列。 */
+/* 桌面端固定 2 列：功能墙按「一行两张」分组排布 ——
+   第一行是时刻表相关功能（查询 / 我的时刻表），第二行是其它入口（游戏与工具 / 关于我们）。
+   既然每行固定两张，用 2 列让卡片撑满整行；若仍用 4 列，每行会空出右侧两列，看起来像没排满。
+   窄屏（<1024）走上面的 auto-fill，≤600 自然退成单列。 */
 @media (min-width: 1024px) {
     .feature-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (min-width: 1280px) {
-    .feature-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
 
