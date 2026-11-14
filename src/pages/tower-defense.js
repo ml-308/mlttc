@@ -3,8 +3,11 @@
  * ---------------------------------------------------------------------------
  * 用途：给 tower-defense.html 提供全部游戏逻辑（地图/波次/塔/敌人/战斗/渲染/输入/HUD）；
  *   不 import 任何站点模块，Node 下 import 只会拿到纯函数，不碰 DOM。
- * 模式：只有「无尽」——波次由 generateEndlessWave(n) 现算，没有逐波写死的数量表，
- *   每 10 波一个 BOSS 波；闯关模式 / 关卡选择 / tools.html 入口留给第二步。
+ * 模式：「无尽」波次由 generateEndlessWave(n) 现算，每 10 波一个 BOSS 波；「闯关」100 关由
+ *   generateLevel(L) 派生，关卡内每一波仍复用 generateEndlessWave 再按关卡系数放大 —— 两种
+ *   模式都没有逐波写死的数量表（tools/td-wave-test/run.mjs 会正则扫描源码把关）。
+ * 存档：localStorage 单键 mlttc-td-progress（unlocked / levelBest / endlessBest）；读写全部
+ *   try/catch，隐私模式或坏 JSON 一律回落默认值，绝不让存档问题把游戏卡死。
  * 数据结构：
  *   state      唯一可变状态（波次 / 生命 / 金币 / 击杀 / 实体数组）
  *   enemies[]  { type, hp, maxHp, speed, armor, bounty, dist, slowUntil, slowFactor, x, y }
@@ -48,8 +51,35 @@ const BALANCE = {
 
 const STEP = 1 / 60;                  // 固定逻辑步长
 const MAX_STEPS_PER_FRAME = 5;        // 单帧最多补偿 5 步
-const BEST_KEY = 'mlttc-td-best';     // 最高波数存档键
+const BEST_KEY = 'mlttc-td-best';     // 第一步的旧存档键：只做一次性迁移，迁移后立即删除
+const PROGRESS_KEY = 'mlttc-td-progress'; // 唯一存档键（unlocked / levelBest / endlessBest）
+const LEVEL_MAX = 100;                // 闯关模式总关数
 const DEFAULT_SEED = 'mlttc-td-demo'; // 自检脚本用的固定种子
+const LEVEL_DIFF_STEP = 0.05;         // 关卡难度斜率：diff = 1 + 斜率 ×(L-1)，L100 → 5.95
+/**
+ * 闯关模式经济参数（详见 buildLevelWave 的经济说明）。
+ * 赏金不再按「只数」累积，而是每波一个固定赏金池，池子按基础赏金权重摊到每只怪头上。
+ *  · LEVEL_POT      第 1 关第 1 波的赏金池（金）。由「可买 DPS ≈ 所需 DPS」反解，再留余量
+ *                   （曲线峰值 ratio ≈ 0.78，红线 0.85 见 tools/td-wave-test 第 6 节）。
+ *  · LEVEL_POT_EXP  池子随 diff 的指数：血量/数量一起涨，金币必须涨得更快才跟得上。
+ *  · LEVEL_POT_FALL 池子随波次号的衰减指数：后段靠已建好的火力，不靠新钱（否则波数越
+ *                   多、钱越多，高关卡反而比低关卡轻松 —— 这就是原来难度倒挂的根因之一）。
+ */
+const LEVEL_POT = 664;
+const LEVEL_POT_EXP = 2.5;
+const LEVEL_POT_FALL = 1.5;
+
+/**
+ * 前 12 关手工调参（以「倍率」形式压平公式值，1 = 不额外调整）。
+ * 为什么要有它：diff 从第 1 关就按 5% 起跳，光靠公式前几关的 hp/数量对新手仍然偏硬，
+ * 这里把 1~12 关的血量与数量各乘一个 <1 的系数做缓坡；13 关起不再查表，完全走公式。
+ */
+const LEVEL_TWEAKS = {
+  1: { hp: 0.72, count: 0.70 }, 2: { hp: 0.76, count: 0.74 }, 3: { hp: 0.80, count: 0.78 },
+  4: { hp: 0.83, count: 0.81 }, 5: { hp: 0.86, count: 0.84 }, 6: { hp: 0.89, count: 0.87 },
+  7: { hp: 0.91, count: 0.89 }, 8: { hp: 0.93, count: 0.91 }, 9: { hp: 0.95, count: 0.93 },
+  10: { hp: 0.96, count: 0.95 }, 11: { hp: 0.98, count: 0.97 }, 12: { hp: 0.99, count: 0.98 },
+};
 /* ===================== 2. 无尽波次生成器 ===================== */
 /** 字符串 → uint32（FNV-1a 变体）：让波次可复现，调试与第二步自检都靠它 */
 function hashSeed(str) {
@@ -153,16 +183,81 @@ export function debugWaveCurve(waves) {
   });
 }
 
+/* ===================== 2b. 闯关模式：关卡派生 + 关卡波次 ===================== */
+/**
+ * 第 L 关的完整配置（L 夹到 [1,100]，非法输入按第 1 关处理）：
+ *  waves    = 4 + floor(L*0.24)          L1→4、L50→16、L100→28（波数固定 ⇒ 有明确结局）
+ *  lives    = max(3, 20 - floor(L/6))    20 一路压到 4
+ *  gold     = 160 + 10L                 起步资金随关卡给，后期补得起塔
+ *  diff     = 1 + 0.05(L-1)             hp 与 count 的统一系数（斜率见 LEVEL_DIFF_STEP）
+ *  mapIndex = (L-1) % 6                  6 张路点模板轮换（换图会作废旧塔，见 resetGame）
+ */
+function generateLevel(L) {
+  const level = Math.max(1, Math.min(LEVEL_MAX, Math.floor(Number(L) || 0) || 1));
+  return {
+    level,
+    waves: 4 + Math.floor(level * 0.24),
+    lives: Math.max(3, 20 - Math.floor(level / 6)),
+    gold: 160 + 10 * level,
+    diff: 1 + LEVEL_DIFF_STEP * (level - 1),
+    mapIndex: (level - 1) % 6,
+  };
+}
+
+/**
+ * 第 L 关第 n 波的出场配置：先向 generateEndlessWave 要一份「标准波」，再把 hp 与 count
+ * 乘上 diff（前 12 关再叠 LEVEL_TWEAKS）——所以闯关模式同样没有写死的出怪表，BOSS 波
+ * 判定也仍然来自无尽生成器（n % 10 === 0）。
+ * 两条工程约束只防失控，不改数值曲线：
+ *  · 数量软上限：放大后超过 BALANCE.maxEnemiesPerWave 就等比压缩数量系数（血量照常放大，
+ *    压力仍落在血量上），否则高关单波上千只，帧率与单波时长会一起崩。
+ *  · 出场间隔压缩：按系数开方缩短 spawnGap，让放大后的波次出场时长与无尽模式同量级。
+ * 经济（这一段决定难度曲线是否倒挂，改之前先看 tools/td-wave-test 的可通性断言）：
+ *  · 旧做法是把基波赏金直接搬过来，等于「赏金 × 只数」累积 —— 数量随 diff 涨，赏金跟着涨，
+ *    于是越到高关越富；而「所需 DPS」是 单波总血量 / 出怪时长，与只数无关，被 maxEnemiesPerWave
+ *    压住。两者一起导致中段关卡（L20~L60）预算追不上压力、后期又反过来比低关轻松。
+ *  · 现在改成「每波一个赏金池」pot，池子按基础赏金权重摊到每只怪身上：与只数解耦，且
+ *    池子 = LEVEL_POT × diff^2.5 ÷ n^1.5 —— 随关卡难度涨、随波次号衰减。
+ */
+function buildLevelWave(lv, n) {
+  const base = generateEndlessWave(n, 'level:' + lv.level);
+  const tweak = LEVEL_TWEAKS[lv.level] || null;
+  const hpScale = lv.diff * ((tweak && tweak.hp) || 1);
+  let cntScale = lv.diff * ((tweak && tweak.count) || 1);
+  const baseTotal = Math.max(1, base.total);
+  if (baseTotal * cntScale > BALANCE.maxEnemiesPerWave) cntScale = BALANCE.maxEnemiesPerWave / baseTotal;
+  const groups = base.groups.map((g) => ({
+    ...g,
+    count: Math.max(1, Math.ceil(g.count * cntScale)),      // 向上取整：别让某组被压成 0
+    hp: Math.max(1, Math.round(g.hp * hpScale)),
+  }));
+  // 赏金池：按各组「基础赏金 × 只数」的权重摊成单只赏金（income 因此恒等于 pot，与只数无关）
+  const pot = (LEVEL_POT * Math.pow(lv.diff, LEVEL_POT_EXP)) / Math.pow(n, LEVEL_POT_FALL)
+    * ((tweak && tweak.bounty) || 1);
+  const weight = groups.reduce((s, g) => s + g.bounty * g.count, 0) || 1;
+  for (const g of groups) g.bounty = Math.max(1, Math.round((pot * g.bounty) / weight));
+  const total = groups.reduce((s, g) => s + (g.type === 'boss' ? 0 : g.count), 0);
+  return {
+    ...base, groups, total,
+    spawnGap: Math.max(120, Math.min(base.spawnGap, base.spawnGap / Math.sqrt(cntScale))),
+  };
+}
+
 /* ===================== 3. 地图与路径 ===================== */
 /**
- * 路点模板：每张是折线拐点数组（单位＝格）。第一个点 x = -1 表示从左侧画布外进入，
- * 最后一个 x = cols 表示从右侧外离开。本步实现前 3 张，无尽模式固定用第 1 张（换图会
- * 作废已建的塔，属关卡概念，留给第二步）；第 4~6 张按同一格式追加即可。
+ * 路点模板（6 张）：每张是折线拐点数组（单位＝格）。三条硬约束（新增图形也必须满足）：
+ *  · 第一个点 x = -1 → 从画布左侧外进入；最后一个点 x = cols(24) → 从右侧外离开；
+ *  · 相邻两点必须共 x 或共 y（斜线会让 buildPathTiles 与像素路径不一致）；
+ *  · 拐点不重合、非相邻线段不交叉（每条路径不重复占同一格）。
+ * 无尽模式固定用第 1 张；闯关模式按 (L-1) % 6 轮换。
  */
 const MAP_TEMPLATES = [
   [[-1, 2], [6, 2], [6, 9], [18, 9], [18, 4], [24, 4]],                              // 1 长廊
   [[-1, 11], [4, 11], [4, 4], [10, 4], [10, 11], [16, 11], [16, 6], [24, 6]],        // 2 蛇形
   [[-1, 7], [8, 7], [8, 2], [16, 2], [16, 10], [22, 10], [22, 6], [24, 6]],          // 3 阶梯
+  [[-1, 1], [5, 1], [5, 12], [12, 12], [12, 2], [19, 2], [19, 11], [24, 11]],        // 4 双拐（上下大幅折返）
+  [[-1, 1], [20, 1], [20, 5], [4, 5], [4, 9], [16, 9], [16, 12], [24, 12]],          // 5 回环（向内收拢再甩出）
+  [[-1, 2], [8, 2], [8, 6], [2, 6], [2, 10], [14, 10], [14, 4], [21, 4], [21, 12], [24, 12]], // 6 长蛇（九弯）
 ];
 
 /** 格坐标路点 → 像素路点 + 累计长度线段表（敌人只记 dist，索敌不用排序） */
@@ -221,10 +316,11 @@ function towerAt(st, col, row) {
   return null;
 }
 
-/* 对外导出：给第二步的自检脚本与调试台用（纯函数，无副作用） */
+/* 对外导出：给自检脚本与调试台用（纯函数，无副作用） */
 export {
-  GRID, VIEW, ENEMY_TYPES, TOWER_TYPES, BALANCE, MAP_TEMPLATES,
-  hashSeed, mulberry32, generateEndlessWave, buildPath, buildPathTiles,
+  GRID, VIEW, ENEMY_TYPES, TOWER_TYPES, BALANCE, MAP_TEMPLATES, LEVEL_TWEAKS, LEVEL_MAX, PROGRESS_KEY,
+  LEVEL_DIFF_STEP, LEVEL_POT, LEVEL_POT_EXP, LEVEL_POT_FALL,
+  hashSeed, mulberry32, generateEndlessWave, generateLevel, buildLevelWave, buildPath, buildPathTiles,
 };
 
 /* ===================== 4. 运行时状态 ===================== */
@@ -235,6 +331,7 @@ export {
 const state = {
   seed: DEFAULT_SEED, wave: 0, lives: BALANCE.startLives, gold: BALANCE.startGold,
   kills: 0, best: 0,
+  mode: 'endless', level: null, inRun: true, result: '', // 模式 endless/level、关卡配置、是否在对局中、结算结果
   waveActive: false, nextWaveIn: 0,      // 当前波是否在打 / 下一波倒计时（ms）
   spawnQueue: [], spawnIdx: 0,           // 本波出场队列（元素是 group 引用）+ 消费下标
   spawnGap: 1000, spawnTimer: 0, waveStats: null,
@@ -244,6 +341,58 @@ const state = {
   mapIdx: 0, path: null, pathTiles: null,
 };
 const bulletPool = [];   // 子弹对象池：复用对象，避免每发都新建
+
+/* ===================== 4b. 存档（localStorage，隐私模式必须能苟活） ===================== */
+/**
+ * 唯一存档键 mlttc-td-progress，结构：
+ *   { unlocked: 1, levelBest: { "3": 12 }, endlessBest: 0 }
+ *   unlocked  已解锁到第几关（默认 1）；levelBest  每关最好波数；endlessBest  无尽最高波数。
+ * 读取全程 try/catch：隐私模式取不到、JSON 坏了、字段类型不对，一律回落默认值 —— 宁可丢
+ * 记录也不能让游戏起不来。写入同理，失败只丢记录不影响本局。
+ */
+let progress = { unlocked: 1, levelBest: {}, endlessBest: 0 };
+
+function defaultProgress() { return { unlocked: 1, levelBest: {}, endlessBest: 0 }; }
+
+/** 读档：逐字段校验（不用整体 JSON.parse 一把梭，坏字段只丢那一项） */
+function loadProgress() {
+  const p = defaultProgress();
+  try {
+    const raw = localStorage.getItem(PROGRESS_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        const u = Math.floor(Number(obj.unlocked));
+        if (Number.isFinite(u)) p.unlocked = Math.min(LEVEL_MAX, Math.max(1, u));
+        const e = Math.floor(Number(obj.endlessBest));
+        if (Number.isFinite(e) && e > 0) p.endlessBest = e;
+        const lb = obj.levelBest;
+        if (lb && typeof lb === 'object') {
+          for (const k in lb) {
+            if (!Object.prototype.hasOwnProperty.call(lb, k)) continue;
+            const key = Math.floor(Number(k)), v = Math.floor(Number(lb[k]));
+            if (key >= 1 && key <= LEVEL_MAX && Number.isFinite(v) && v > 0) p.levelBest[key] = v;
+          }
+        }
+      }
+    }
+    // 旧键兼容：第一步只存了「无尽最高波数」的裸数字，这里一次性并入新结构并删掉旧键，
+    // 避免同一种进度散在两个键上互相打架。
+    const legacyRaw = localStorage.getItem(BEST_KEY);
+    if (legacyRaw != null) {
+      const legacy = Math.floor(Number(legacyRaw));
+      if (Number.isFinite(legacy) && legacy > p.endlessBest) p.endlessBest = legacy;
+      localStorage.removeItem(BEST_KEY);
+    }
+  } catch (err) {
+    return defaultProgress();   // 读档失败 = 按新玩家开局，异常绝不外泄到 boot
+  }
+  return p;
+}
+
+function saveProgress() {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress)); } catch (err) { /* 隐私模式：只丢记录 */ }
+}
 
 /** 敌人配色与半径（canvas 2D 用不了 CSS 变量，按类型固定） */
 const ENEMY_COLORS = { basic: '#8f8f8f', swift: '#4CC9F0', armor: '#E8A33D', shield: '#B693FD', boss: '#D93025' };
@@ -257,20 +406,29 @@ const palette = {
 };
 
 /* ===================== 5. 局内流程 ===================== */
-/** 开局 / 重开：清空一切，回到「准备第 1 波」 */
+/**
+ * 开局 / 重开：清空一切，回到「准备第 1 波」。
+ * 闯关模式按关卡配置给生命 / 资金 / 地图；换图时已建的塔与场上敌人一起清空 —— 关卡地图
+ * 不同、塔位不通用，作废旧塔是预期行为，不是 bug。
+ */
 function resetGame() {
+  const lv = state.mode === 'level' ? state.level : null;
   state.seed = 'run-' + (Date.now() % 1000000);
-  state.wave = 0; state.lives = BALANCE.startLives; state.gold = BALANCE.startGold;
+  state.wave = 0;
+  state.lives = lv ? lv.lives : BALANCE.startLives;
+  state.gold = lv ? lv.gold : BALANCE.startGold;
   state.kills = 0; state.waveActive = false; state.nextWaveIn = 1800;
   state.spawnQueue = []; state.spawnIdx = 0; state.spawnTimer = 0; state.waveStats = null;
-  state.paused = false; state.speed = 1; state.gameOver = false; state.timeMs = 0;
+  state.paused = false; state.speed = 1; state.gameOver = false; state.result = ''; state.timeMs = 0;
   state.selectedType = null; state.selectedTower = null;
   state.hover.col = -1; state.hover.row = -1;
   // 实体数组长度清零（旧对象交给 GC：一次性开销，不在循环里发生）
   state.enemies.length = 0; state.towers.length = 0; state.bullets.length = 0;
   state.particles.length = 0; state.floaters.length = 0;
+  state.mapIdx = lv ? lv.mapIndex : 0;   // 无尽模式固定第 1 张图
   state.path = buildPath(MAP_TEMPLATES[state.mapIdx]);
   state.pathTiles = buildPathTiles(MAP_TEMPLATES[state.mapIdx]);
+  state.best = lv ? (progress.levelBest[lv.level] || 0) : progress.endlessBest;
 }
 
 /**
@@ -295,10 +453,12 @@ function expandSpawnQueue(wave) {
   return queue;
 }
 
-/** 开始第 n 波 */
+/** 开始第 n 波：无尽模式现算标准波，闯关模式在标准波上乘关卡系数 */
 function startWave() {
   state.wave += 1;
-  const wave = generateEndlessWave(state.wave, state.seed);
+  const wave = state.mode === 'level'
+    ? buildLevelWave(state.level, state.wave)
+    : generateEndlessWave(state.wave, state.seed);
   state.waveStats = wave;
   state.spawnQueue = expandSpawnQueue(wave);
   state.spawnIdx = 0;
@@ -308,19 +468,44 @@ function startWave() {
   noteBest(state.wave);
 }
 
-/** 记录并持久化最高波数（每进一波就存，玩家直接关标签页也不丢记录） */
+/**
+ * 记录最好成绩并立即落盘（每进一波就存，玩家直接关标签页也不丢进度）：
+ * 无尽模式记 endlessBest（最高波数），闯关模式记 levelBest[L]（本关最好波数）。
+ */
 function noteBest(wave) {
-  if (wave <= state.best) return;
+  if (state.mode === 'level') {
+    const L = state.level.level;
+    if (wave <= (progress.levelBest[L] || 0)) return;
+    progress.levelBest[L] = wave;
+  } else {
+    if (wave <= progress.endlessBest) return;
+    progress.endlessBest = wave;
+  }
   state.best = wave;
-  try { localStorage.setItem(BEST_KEY, String(wave)); } catch (err) { /* 隐私模式：只影响记录 */ }
+  saveProgress();
 }
 
-/** 生命归零：存档 + 亮结算浮层 */
+/** 生命归零：存档 + 亮「失败」浮层（闯关模式失败不解锁下一关） */
 function gameOver() {
   if (state.gameOver) return;
   state.gameOver = true;
   state.paused = false;
+  state.result = 'lose';
   noteBest(state.wave);
+  showOverlay();
+}
+
+/** 闯关模式打完最后一波：记满波数 + 解锁下一关 + 亮「通关」浮层（无尽模式没有这条路） */
+function levelClear() {
+  if (state.gameOver) return;
+  state.gameOver = true;
+  state.paused = false;
+  state.result = 'win';
+  const L = state.level.level;
+  progress.levelBest[L] = Math.max(progress.levelBest[L] || 0, state.level.waves);
+  progress.unlocked = Math.max(progress.unlocked, Math.min(LEVEL_MAX, L + 1));
+  state.best = progress.levelBest[L];
+  saveProgress();
   showOverlay();
 }
 
@@ -600,9 +785,10 @@ function updateWaves(dt) {
       state.spawnTimer += state.spawnGap;
     }
   }
-  // 收尾：队列放空且场上清干净 → 进入喘息时间
+  // 收尾：队列放空且场上清干净 → 闯关模式打完最后一波即通关；无尽模式进入喘息时间
   if (state.spawnIdx >= state.spawnQueue.length && state.enemies.length === 0) {
     state.waveActive = false;
+    if (state.mode === 'level' && state.wave >= state.level.waves) { levelClear(); return; }
     state.nextWaveIn = BALANCE.waveGapMs;
   }
 }
@@ -897,7 +1083,9 @@ const hudCache = { wave: -1, lives: -1, gold: -1, kills: -1, alive: -1, best: -1
 
 function syncHud() {
   if (!ui.wave) return;
-  if (hudCache.wave !== state.wave) { ui.wave.textContent = state.wave; hudCache.wave = state.wave; }
+  // 闯关模式波次显示「当前/总数」，让玩家知道还剩几波（有明确结局的前提）
+  const waveText = state.mode === 'level' && state.level ? state.wave + '/' + state.level.waves : String(state.wave);
+  if (hudCache.wave !== waveText) { ui.wave.textContent = waveText; hudCache.wave = waveText; }
   if (hudCache.lives !== state.lives) { ui.lives.textContent = state.lives; hudCache.lives = state.lives; }
   if (hudCache.gold !== state.gold) { ui.gold.textContent = state.gold; hudCache.gold = state.gold; syncTowerButtons(); }
   if (hudCache.kills !== state.kills) { ui.kills.textContent = state.kills; hudCache.kills = state.kills; }
@@ -917,14 +1105,114 @@ function syncTowerButtons() {
   }
 }
 
+/**
+ * 结算浮层：失败（生命归零）与通关（打完固定波数）共用同一个盒子，只换文案与按钮。
+ * 「下一关」只在闯关通关且还有下一关时出现；「关卡列表」只在闯关模式出现。
+ */
 function showOverlay() {
-  ui.overWave.textContent = state.wave;
-  ui.overBest.textContent = '最高波数：' + state.best;
+  const lv = state.level;
+  const isLevel = state.mode === 'level' && !!lv;
+  const win = state.result === 'win';
+  ui.overTitle.textContent = win ? '通关！' : (isLevel ? '关卡失败' : '防线被攻破了');
+  ui.overWave.textContent = state.wave + (isLevel ? '/' + lv.waves : '');
+  ui.overSub.textContent = win ? '本关 ' + lv.waves + ' 波全部清空' : (isLevel ? '本关到达波次' : '到达波次');
+  ui.overBest.textContent = isLevel
+    ? '本关最好：' + (progress.levelBest[lv.level] || 0) + '/' + lv.waves + ' 波'
+    : '最高波数：' + progress.endlessBest;
+  ui.btnAgain.textContent = isLevel ? '重打本关' : '再来一局';
+  ui.btnNext.hidden = !(win && isLevel && lv.level < LEVEL_MAX);
+  ui.btnList.hidden = !isLevel;
   ui.overlay.classList.add('show');
 }
 
 function hideOverlay() {
   if (ui.overlay) ui.overlay.classList.remove('show');
+}
+
+/* ---------- 关卡选择（100 关网格） ---------- */
+/**
+ * 三态判定（每关一个按钮）：
+ *  已通关   L < progress.unlocked（通关才会 +1）或本关最好波数已满 ⇒ 绿
+ *  可挑战   L <= progress.unlocked 且未通关 ⇒ 高亮（实际通常只有一关）
+ *  未解锁   L > progress.unlocked ⇒ 灰 + 真 disabled，点不动
+ * 副标题显示本关最好成绩（如「3/16」），没打过显示「·」。
+ */
+function buildLevelGrid() {
+  if (!ui.levelGrid) return;
+  const frag = document.createDocumentFragment();
+  for (let L = 1; L <= LEVEL_MAX; L++) {
+    const cfg = generateLevel(L);
+    const best = progress.levelBest[L] || 0;
+    const cleared = L < progress.unlocked || best >= cfg.waves;
+    const locked = L > progress.unlocked;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'td-lv' + (cleared ? ' is-clear' : locked ? ' is-lock' : ' is-open');
+    btn.disabled = locked;
+    btn.dataset.level = String(L);
+    btn.innerHTML = '<b>' + L + '</b><small>' + (best > 0 ? best + '/' + cfg.waves : '·') + '</small>';
+    btn.title = '第 ' + L + ' 关 · ' + cfg.waves + ' 波 · ' + (locked ? '未解锁' : cleared ? '已通关' : '可挑战');
+    frag.appendChild(btn);
+  }
+  ui.levelGrid.textContent = '';
+  ui.levelGrid.appendChild(frag);
+  if (ui.levelsProg) {
+    ui.levelsProg.textContent = '已通关 ' + Math.min(LEVEL_MAX, progress.unlocked - 1) + ' / ' + LEVEL_MAX + ' 关';
+  }
+}
+
+/** 视图切换：对局中显示状态栏/画布/塔栏，闯关列表显示网格；顺带同步模式按钮与角标 */
+function syncView() {
+  const playing = state.inRun;
+  const menu = state.mode === 'level' && !state.inRun;
+  const show = (el, on) => { if (el) el.hidden = !on; };
+  show(ui.hud, playing); show(ui.stage, playing); show(ui.bar, playing); show(ui.hint, playing);
+  show(ui.levels, menu);
+  if (ui.btnBack) ui.btnBack.hidden = state.mode !== 'level';
+  if (ui.btnModeEndless) ui.btnModeEndless.classList.toggle('is-on', state.mode === 'endless');
+  if (ui.btnModeLevel) ui.btnModeLevel.classList.toggle('is-on', state.mode === 'level');
+  if (ui.modeBadge) {
+    ui.modeBadge.textContent = state.mode === 'level'
+      ? (state.inRun && state.level ? '第 ' + state.level.level + ' 关 · ' + state.level.waves + ' 波' : '闯关模式')
+      : '无尽模式';
+  }
+  if (menu) buildLevelGrid();
+  if (playing) setupCanvas();   // 从 hidden 恢复时元素才有宽度，必须重算 backing store
+}
+
+/** 开始某一关（换图作废旧塔与场上敌人由 resetGame 统一处理） */
+function startLevel(L) {
+  const cfg = generateLevel(L);
+  if (cfg.level > progress.unlocked) return;   // 兜底：未解锁的关不许进
+  state.mode = 'level'; state.level = cfg; state.inRun = true;
+  hideOverlay(); hideTowerPanel();
+  resetGame();
+  ui.btnPause.textContent = '暂停'; ui.btnPause.classList.remove('is-on');
+  ui.btnSpeed.textContent = '1x'; ui.btnSpeed.classList.remove('is-on');
+  lastTs = 0; acc = 0;
+  syncView(); syncTowerButtons(); syncHud();
+}
+
+/** 切模式：中途切换不判失败，直接丢弃当前对局（最好波数在每波开始时已经落盘） */
+function setMode(mode) {
+  state.mode = mode === 'level' ? 'level' : 'endless';
+  state.level = state.mode === 'level' ? generateLevel(progress.unlocked) : null;
+  state.inRun = state.mode === 'endless';    // 无尽直接开局；闯关先进关卡列表
+  state.paused = false; state.gameOver = false; state.result = ''; state.waveActive = false;
+  hideOverlay(); hideTowerPanel();
+  if (state.inRun) resetGame();
+  lastTs = 0; acc = 0;
+  syncView(); syncTowerButtons(); syncHud();
+}
+
+/** 中途退出回关卡列表：不判失败，也不写任何失败记录 */
+function backToList() {
+  state.inRun = false; state.paused = false; state.gameOver = false; state.result = '';
+  state.waveActive = false; state.selectedTower = null; state.selectedType = null;
+  state.enemies.length = 0; state.bullets.length = 0;
+  state.particles.length = 0; state.floaters.length = 0;
+  hideOverlay(); hideTowerPanel();
+  syncView(); syncTowerButtons();
 }
 
 /* ===================== 13. 主循环：固定步长 + 补帧上限 ===================== */
@@ -937,8 +1225,8 @@ function frame(ts) {
   let dt = (ts - lastTs) / 1000;
   lastTs = ts;
   if (dt > 0.25) dt = 0.25;               // 长卡顿先给真实间隔封顶
-  if (state.paused || state.hidden || state.gameOver) {
-    acc = 0;
+  if (!state.inRun || state.paused || state.hidden || state.gameOver) {
+    acc = 0;                                // 不在对局中（关卡列表）时彻底不推进逻辑
   } else {
     acc += dt * state.speed;              // 倍速只加快累积，不改渲染帧率
     let steps = 0;
@@ -950,8 +1238,7 @@ function frame(ts) {
     }
     if (steps >= MAX_STEPS_PER_FRAME) acc = 0;   // 追不上就丢弃欠账，绝不滚成雪球
   }
-  render();
-  syncHud();
+  if (state.inRun) { render(); syncHud(); }
 }
 
 /* ===================== 14. 尺寸 / 事件 / 启动 ===================== */
@@ -964,15 +1251,6 @@ function setupCanvas() {
   ui.canvas.width = Math.round(cssW * dpr);
   ui.canvas.height = Math.round(cssH * dpr);
   draw.ctx.setTransform(ui.canvas.width / VIEW.w, 0, 0, ui.canvas.height / VIEW.h, 0, 0);
-}
-
-function readBest() {
-  try {
-    const v = parseInt(localStorage.getItem(BEST_KEY) || '0', 10);
-    return Number.isFinite(v) && v > 0 ? v : 0;
-  } catch (err) {
-    return 0;
-  }
 }
 
 function togglePause() {
@@ -1028,6 +1306,23 @@ function bindEvents() {
   ui.btnRestart.addEventListener('click', restart);
   ui.btnAgain.addEventListener('click', restart);
 
+  // 通关浮层：下一关 / 回关卡列表（列表点完会重建网格，解锁状态立刻可见）
+  ui.btnNext.addEventListener('click', () => {
+    const next = state.level ? state.level.level + 1 : 0;
+    if (next >= 1 && next <= LEVEL_MAX) startLevel(next);
+  });
+  ui.btnList.addEventListener('click', backToList);
+  ui.btnBack.addEventListener('click', backToList);   // 对局中的「关卡列表」：退出不判失败
+
+  // 模式切换 + 关卡网格（网格用事件委托：100 个按钮不挂 100 个监听）
+  ui.btnModeEndless.addEventListener('click', () => setMode('endless'));
+  ui.btnModeLevel.addEventListener('click', () => setMode('level'));
+  ui.levelGrid.addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest ? ev.target.closest('.td-lv') : null;
+    if (!btn || btn.disabled) return;   // 未解锁：按钮本身 disabled，这里再兜一层
+    startLevel(Number(btn.dataset.level));
+  });
+
   // 键盘：空格暂停、1~4 选塔、Esc 收面板（桌面调试友好）
   document.addEventListener('keydown', (ev) => {
     if (ev.key === ' ') { ev.preventDefault(); togglePause(); }
@@ -1071,26 +1366,39 @@ function boot() {
   ui.panelDmg = byId('tdPanelDmg'); ui.panelRate = byId('tdPanelRate'); ui.panelRange = byId('tdPanelRange');
   ui.btnUpgrade = byId('tdBtnUpgrade'); ui.btnSell = byId('tdBtnSell');
   ui.overlay = byId('tdOverlay'); ui.overWave = byId('tdOverWave'); ui.overBest = byId('tdOverBest');
-  ui.btnAgain = byId('tdBtnAgain'); ui.btnPause = byId('tdPause');
-  ui.btnSpeed = byId('tdSpeed'); ui.btnRestart = byId('tdRestart');
+  ui.overTitle = byId('tdOverTitle'); ui.overSub = byId('tdOverSub');
+  ui.btnAgain = byId('tdBtnAgain'); ui.btnNext = byId('tdBtnNext'); ui.btnList = byId('tdBtnList');
+  ui.btnPause = byId('tdPause');
+  ui.btnSpeed = byId('tdSpeed'); ui.btnRestart = byId('tdRestart'); ui.btnBack = byId('tdBack');
+  ui.hud = byId('tdHud'); ui.bar = byId('tdBar'); ui.hint = byId('tdHint');
+  ui.levels = byId('tdLevels'); ui.levelGrid = byId('tdLevelGrid'); ui.levelsProg = byId('tdLevelsProg');
+  ui.btnModeEndless = byId('tdModeEndless'); ui.btnModeLevel = byId('tdModeLevel');
+  ui.modeBadge = byId('tdMode');
   ui.towerBtns = Array.prototype.slice.call(document.querySelectorAll('.td-tower-btn'));
 
-  state.best = readBest();
+  progress = loadProgress();             // 读档失败内部已回落默认值，boot 不会因此中断
+  state.mode = 'endless'; state.level = null; state.inRun = true;
   readPalette();
   resetGame();
   setupCanvas();
   bindEvents();
+  syncView();
   syncTowerButtons();
   syncHud();
 
   // 控制台调试入口（手工核对波次曲线、快速加钱）
   window.tdGame = {
     snapshot: () => ({
+      mode: state.mode, level: state.level ? state.level.level : 0,
       wave: state.wave, lives: state.lives, gold: state.gold, kills: state.kills, best: state.best,
-      enemies: state.enemies.length, towers: state.towers.length,
+      enemies: state.enemies.length, towers: state.towers.length, mapIdx: state.mapIdx,
       waveActive: state.waveActive, gameOver: state.gameOver, speed: state.speed,
     }),
     wave: (n) => generateEndlessWave(n, state.seed),
+    level: (n) => generateLevel(n),
+    levelWave: (l, n) => buildLevelWave(generateLevel(l), n),
+    progress: () => JSON.parse(JSON.stringify(progress)),
+    startLevel, backToList, setMode,
     addGold: (n) => { state.gold += n; },
     skipWait: () => { state.nextWaveIn = 0; },
     restart,

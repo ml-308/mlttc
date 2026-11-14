@@ -394,10 +394,155 @@
             line-height: 1.6;
         }
 
+        /* ---------- 模式切换 ---------- */
+        .td-modes {
+            display: flex;
+            gap: 3px;
+            padding: 3px;
+            border-radius: var(--radius-full, 500px);
+            background: var(--bg-hover);
+            border: 1px solid var(--border-light);
+        }
+
+        .td-mode-btn {
+            padding: 5px 12px;
+            font-size: .76rem;
+            font-weight: 700;
+            font-family: inherit;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            border-radius: var(--radius-full, 500px);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background .15s, color .15s;
+        }
+
+        .td-mode-btn.is-on {
+            background: var(--bg-card);
+            color: var(--primary);
+            box-shadow: 0 0 0 1px var(--border-light);
+        }
+
+        /* 视图切换靠 hidden：必须能压住 .td-hud/.td-bar 自己的 display，否则切不干净 */
+        .td-hud[hidden],
+        .td-stage[hidden],
+        .td-bar[hidden],
+        .td-levels[hidden],
+        .td-controls button[hidden],
+        .td-hint[hidden] {
+            display: none !important;
+        }
+
+        /* ---------- 关卡选择（10×10 网格） ---------- */
+        .td-levels {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .td-levels-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: .78rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+        }
+
+        .td-level-grid {
+            display: grid;
+            grid-template-columns: repeat(10, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .td-lv {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1px;
+            padding: 6px 2px;
+            min-width: 0;
+            min-height: 40px;
+            border-radius: var(--radius-sm, .5rem);
+            border: 1px solid var(--border-light);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-family: inherit;
+            line-height: 1.1;
+            cursor: pointer;
+            transition: transform .1s, border-color .15s, background .15s;
+        }
+
+        .td-lv b {
+            font-size: .78rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .td-lv small {
+            font-size: .56rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .td-lv:not(.is-lock):hover {
+            border-color: var(--primary);
+            background: var(--bg-hover);
+        }
+
+        .td-lv:active:not(.is-lock) {
+            transform: scale(.95);
+        }
+
+        /* 三态：已通关（绿）/ 可挑战（高亮描边）/ 未解锁（灰、虚线、不可点） */
+        .td-lv.is-clear {
+            border-color: var(--primary);
+            background: var(--primary-bg);
+        }
+
+        .td-lv.is-clear b {
+            color: var(--primary);
+        }
+
+        .td-lv.is-open {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-bg);
+        }
+
+        .td-lv.is-lock {
+            opacity: .38;
+            cursor: not-allowed;
+            border-style: dashed;
+        }
+
+        /* ---------- 结算浮层的按钮组 ---------- */
+        .td-overlay .td-overacts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .td-overlay button.td-secondary {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
         /* ---------- 窄屏 ---------- */
         @media (max-width: 720px) {
             .td-wrap {
                 padding: 12px 10px 24px;
+                overflow-x: hidden;
+            }
+
+            .td-head {
+                flex-wrap: wrap;
+                gap: 8px;
             }
 
             .td-title {
@@ -405,20 +550,102 @@
             }
 
             .td-hud {
-                grid-template-columns: repeat(3, 1fr);
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .td-stat {
+                min-width: 0;
+            }
+
+            .td-stat span {
+                white-space: nowrap;
             }
 
             .td-stat b {
                 font-size: .92rem;
             }
 
+            /* 塔按钮 2×2：grid 固定两列 + minmax(0,1fr)，窄屏不会横向溢出 */
             .td-towers {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .td-tower-btn {
+                min-width: 0;
+                font-size: .72rem;
             }
 
             .td-controls {
                 width: 100%;
                 justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            /* 塔面板改成底部弹出条：不再压住画布主体（!important 盖掉 JS 写的内联 left/top） */
+            .td-panel {
+                left: 8px !important;
+                right: 8px;
+                top: auto !important;
+                bottom: 8px;
+                max-width: none;
+                min-width: 0;
+            }
+
+            .td-panel ul {
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 4px 12px;
+            }
+
+            .td-level-grid {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 5px;
+            }
+        }
+
+        /* 平板：塔面板限最大宽度，别盖住半个画布 */
+        @media (min-width: 721px) and (max-width: 900px) {
+            .td-panel {
+                max-width: 210px;
+            }
+        }
+
+        /* 横屏窄高（手机横放）：状态栏压成单行不换行，画布按剩余高度收缩 */
+        @media (orientation: landscape) and (max-height: 520px) {
+            .td-wrap {
+                padding: 8px 10px 16px;
+                gap: 8px;
+            }
+
+            .td-title {
+                font-size: 1.05rem;
+            }
+
+            .td-hud {
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                gap: 4px;
+            }
+
+            .td-stat {
+                padding: 3px 2px;
+            }
+
+            .td-stat span {
+                font-size: .56rem;
+                white-space: nowrap;
+            }
+
+            .td-stat b {
+                font-size: .8rem;
+            }
+
+            .td-hint {
+                display: none;
+            }
+
+            /* 画布宽高比 768:448 ≈ 1.714，按剩余高度反推最大宽度，避免把塔栏挤出屏幕 */
+            .td-stage {
+                max-width: max(280px, calc((100vh - 210px) * 1.714));
             }
         }
 
@@ -449,17 +676,30 @@
     <main class="td-wrap">
         <header class="td-head">
             <h1 class="td-title"><span aria-hidden="true">🏰</span>塔防</h1>
+            <div class="td-modes" aria-label="模式切换">
+                <button class="td-mode-btn is-on" id="tdModeEndless">无尽模式</button>
+                <button class="td-mode-btn" id="tdModeLevel">闯关模式</button>
+            </div>
             <span class="td-mode" id="tdMode">无尽模式</span>
         </header>
 
         <!-- 状态栏 -->
-        <section class="td-hud" aria-label="战况">
+        <section class="td-hud" id="tdHud" aria-label="战况">
             <div class="td-stat"><span>波次</span><b id="tdWave">0</b></div>
             <div class="td-stat td-lives"><span>生命</span><b id="tdLives">20</b></div>
             <div class="td-stat td-gold"><span>金币</span><b id="tdGold">150</b></div>
             <div class="td-stat"><span>击杀</span><b id="tdKills">0</b></div>
             <div class="td-stat"><span>剩余敌人</span><b id="tdAlive">0</b></div>
             <div class="td-stat"><span>最高波数</span><b id="tdBest">0</b></div>
+        </section>
+
+        <!-- 关卡选择：仅「闯关模式」且不在对局中时显示，100 个按钮由 JS 生成 -->
+        <section class="td-levels" id="tdLevels" aria-label="关卡选择" hidden>
+            <div class="td-levels-head">
+                <span>闯关模式 · 100 关</span>
+                <span id="tdLevelsProg">已通关 0 / 100 关</span>
+            </div>
+            <div class="td-level-grid" id="tdLevelGrid"></div>
         </section>
 
         <!-- 画布 + 塔面板 + 结算浮层 -->
@@ -481,17 +721,21 @@
 
             <div class="td-overlay" id="tdOverlay">
                 <div>
-                    <h2>防线被攻破了</h2>
+                    <h2 id="tdOverTitle">防线被攻破了</h2>
                     <div class="td-big" id="tdOverWave">0</div>
-                    <p>到达波次</p>
+                    <p id="tdOverSub">到达波次</p>
                     <p id="tdOverBest">最高波数：0</p>
-                    <button id="tdBtnAgain">再来一局</button>
+                    <div class="td-overacts">
+                        <button id="tdBtnAgain">再来一局</button>
+                        <button class="td-secondary" id="tdBtnNext" hidden>下一关</button>
+                        <button class="td-secondary" id="tdBtnList" hidden>关卡列表</button>
+                    </div>
                 </div>
             </div>
         </section>
 
         <!-- 塔按钮 + 控制 -->
-        <section class="td-bar">
+        <section class="td-bar" id="tdBar">
             <div class="td-towers" id="tdTowers">
                 <button class="td-tower-btn" data-tower="arrow" title="单体高频，性价比之王">
                     <span class="td-tchip" style="background:#1DB954"></span>
@@ -518,10 +762,11 @@
                 <button id="tdPause">暂停</button>
                 <button id="tdSpeed">1x</button>
                 <button id="tdRestart">重开</button>
+                <button id="tdBack" hidden>关卡列表</button>
             </div>
         </section>
 
-        <p class="td-hint">
+        <p class="td-hint" id="tdHint">
             点击空格子放塔 · 点击已有塔升级或出售 · 敌人走到右侧终点扣 1 点生命
         </p>
     </main>
