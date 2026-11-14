@@ -467,7 +467,7 @@ async function updateUIAfterLogin() {
   if (user) {
     const loginBtn = document.getElementById('globalLoginBtn');
 
-    document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=3600; SameSite=Lax`;
+    document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=2592000; SameSite=Lax`;
     // 登录成功：隐藏页头「登录」按钮；个人主页入口在左侧抽屉导航中
     if (loginBtn) loginBtn.style.display = 'none';
     // 抽屉底部「退出登录」的显示状态随登录态变化

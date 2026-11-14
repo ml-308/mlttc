@@ -103,7 +103,7 @@ async function loadProfile() {
       typeEl.dataset.role = role.key;
     }
     // 更新 cookie 中的昵称（无论是否有值，都写入以便 header 判断登录状态）
-    document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=3600; SameSite=Lax`;
+    document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=2592000; SameSite=Lax`;
     if (user.NAME) document.getElementById('nameInput').placeholder = user.NAME;
     if (user.city) document.getElementById('cityInput').placeholder = user.city;
   } catch (e) {
@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nameInput.placeholder = name;
         nameInput.value = '';
         msgout(nameInput, nameMsg, '', 2);
-        document.cookie = `user_name=${encodeURIComponent(name)}; Path=/; Max-Age=3600; SameSite=Lax`;
+        document.cookie = `user_name=${encodeURIComponent(name)}; Path=/; Max-Age=2592000; SameSite=Lax`;
       }
       if (city) {
         document.getElementById('profileCity').textContent = city;

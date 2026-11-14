@@ -13,7 +13,7 @@
 // 依赖：env.mlttcd（USER 表）、env.JWT_SECRET、env.TURNSTILE_SECRET（可选）
 // 密码校验：PBKDF2-SHA256 / 100000 次迭代 / 256bit，与 register-D1.js 的
 //           hashPassword 配对（存储格式 "saltHex:hashHex"）
-import { signToken, setAuthCookie } from '../auth';
+import { signToken, setAuthCookie, setUserNameCookie } from '../auth';
 import { enforceRateLimit, LIMITS } from '../ratelimit';
 import { verifyTurnstile } from '../turnstile';
 
@@ -126,6 +126,9 @@ export async function onRequestPost({ request, env }) {
       headers: { 'Content-Type': 'application/json' }
     });
     setAuthCookie(response, token, { persistent: rememberCookie });
+    // 页头靠 user_name 显示登录态；以前只有前端密码登录成功时才写它，
+    // 服务端这条路补齐后，「注册自动登录」「GitHub 登录」也能立刻显示已登录
+    setUserNameCookie(response, user.NAME, { persistent: rememberCookie });
     return response;
   } catch (error) {
     return new Response(JSON.stringify({ success: false, message: '服务器错误' }), {

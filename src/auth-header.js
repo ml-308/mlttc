@@ -229,12 +229,49 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
 // 个人主页的入口在左侧抽屉导航中（见 /src/nav.js 的「其它 · 个人主页」），
 // 页头不再有可点击的「欢迎，昵称」文本。
 
+/**
+ * 用服务端状态校正页头（user_name Cookie 只是「显示用的旁路信息」）
+ *
+ * 为什么需要这一步：user_name 只用于让页头立刻知道「该显示登录还是已登录」，
+ * 而它可能缺失或过期（例如用「注册自动登录」「GitHub 登录」进来的老版本没写它，
+ * 或它被浏览器清掉/过期了），此时页头会错显「登录」按钮，哪怕会话仍然有效。
+ * 这里问一次 /api/profile 拿权威结论，顺带把 user_name 补回一个与会话等长的有效期。
+ *
+ * 失败（401 / 网络异常 / 限流）时保持现状，不把用户从「已登录」误踢成「未登录」——
+ * 唯一的例外是明确的 401：那说明会话真的没了，清掉残留的 user_name 更符合直觉。
+ */
+async function syncAuthWithServer() {
+  const loginBtn = document.getElementById('globalLoginBtn');
+  try {
+    const res = await fetch('/api/profile', { credentials: 'include' });
+    if (res.status === 401) {
+      // 会话确实失效：清掉显示用的 cookie，避免「显示已登录但操作全 401」
+      document.cookie = 'user_name=; Path=/; Max-Age=0; SameSite=Lax';
+      if (loginBtn) loginBtn.style.display = 'inline-block';
+      return;
+    }
+    if (!res.ok) return; // 429 / 5xx 等：保持当前显示，不要误踢
+
+    const data = await res.json();
+    const user = data.user || data;
+    // 补回/刷新显示用 cookie（30 天，与持久 auth_token 对齐；会话型 auth_token 失效后
+    // 下一次加载会走到上面的 401 分支把它清掉）
+    document.cookie = `user_name=${encodeURIComponent(user.NAME || '')}; Path=/; Max-Age=2592000; SameSite=Lax`;
+    if (loginBtn) loginBtn.style.display = 'none';
+    window.dispatchEvent(new CustomEvent('mlttc:auth-changed'));
+  } catch {
+    /* 网络异常：保持现状 */
+  }
+}
+
 // 页面加载完成后执行
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initAccentColor();
   bindThemeToggle();
   updateHeaderAuth();
+  // 先用 Cookie 立刻画出正确状态（避免闪烁），再用服务端结论校正
+  syncAuthWithServer();
   // 通知导航模块：页头已就绪（nav.js 在此之后精简页头 / 刷新登录态相关 UI）
   window.dispatchEvent(new CustomEvent('mlttc:header-ready'));
 });

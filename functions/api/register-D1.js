@@ -23,7 +23,7 @@
 
 import { enforceRateLimit, LIMITS } from '../ratelimit';
 import { verifyTurnstile } from '../turnstile';
-import { signToken, setAuthCookie } from '../auth';
+import { signToken, setAuthCookie, setUserNameCookie } from '../auth';
 
 // 生成12位安全随机数字字符串
 function generate12DigitString() {
@@ -217,6 +217,9 @@ export async function onRequestPost({ request, env }) {
           expiresIn
         );
         setAuthCookie(response, token, { persistent: rememberCookie });
+        // 注册流程不收集昵称，先写空串：页头据此判定「已登录」（显示为未设置昵称），
+        // 否则注册完成跳到首页后仍然显示「登录」按钮
+        setUserNameCookie(response, '', { persistent: rememberCookie });
       } catch (err) {
         console.warn('[register] 签发登录 Cookie 失败，本次仅返回注册成功:', err);
       }

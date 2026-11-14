@@ -136,6 +136,29 @@ export function setAuthCookie(response, token, { persistent = true } = {}) {
   );
 }
 
+/**
+ * 写入 user_name Cookie（**非 HttpOnly**：页头与抽屉要读它来决定「登录 / 已登录」的显示）
+ *
+ * 为什么必须由服务端写：登录有两条通路（注册后自动登录、GitHub 授权登录）根本不经过
+ * 前端「密码登录成功」的回调，而以前只有那条通路写 user_name —— 于是用这两种方式登录后，
+ * 页头仍然显示「登录」按钮。
+ *
+ * 有效期与 auth_token 对齐（持久 30 天 / 会话）。它只是显示用的旁路信息，
+ * 真正的凭据是 HttpOnly 的 auth_token：即使它被伪造，也只是让页头显示错，
+ * 拿不到任何权限（所有身份相关操作都由服务端校验 auth_token）。
+ *
+ * @param {Response} response 要追加头部的响应
+ * @param {string} name 昵称，可为空串（此时页头显示「未设置昵称」，但仍算已登录）
+ * @param {{persistent?: boolean}} [opts] 与 setAuthCookie 的 persistent 保持一致
+ */
+export function setUserNameCookie(response, name, { persistent = true } = {}) {
+  const value = encodeURIComponent(name == null ? '' : String(name));
+  const attrs = ['Path=/', 'SameSite=Lax'];
+  if (persistent) attrs.push('Max-Age=2592000');
+  // 用 append 而不是 set：setAuthCookie 已经用 set 占用了第一个 Set-Cookie
+  response.headers.append('Set-Cookie', `user_name=${value}; ${attrs.join('; ')}`);
+}
+
 // 清除认证 Cookie
 export function clearAuthCookie(response) {
   response.headers.set(

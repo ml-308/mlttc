@@ -25,7 +25,7 @@
 //           该账号只能走 GitHub 登录，站内密码登录不可用（随机串只有本次请求知道）。
 //
 // 纯 GET 接口，不读 Cookie。
-import { signToken, setAuthCookie } from '../auth';
+import { signToken, setAuthCookie, setUserNameCookie } from '../auth';
 import { enforceRateLimit, LIMITS } from '../ratelimit';
 import { verifyState, resolveRedirectUri, redirect302 } from './auth-github';
 
@@ -194,12 +194,15 @@ export async function onRequestGet({ request, env }) {
 
     // 6) 查库：有同邮箱就复用，没有就建号（不需要 github_id 列，按邮箱匹配）
     let userId;
+    // 老用户的昵称（写进 user_name Cookie 供页头显示）；新用户还没昵称，留空串
+    let existingName = '';
     const existing = await env.mlttcd.prepare(
-      'SELECT id FROM USER WHERE email = ?'
+      'SELECT id, NAME FROM USER WHERE email = ?'
     ).bind(email).first();
 
     if (existing) {
       userId = existing.id;
+      existingName = existing.NAME || '';
     } else {
       // 用户 ID 为 12 位随机数字，循环重试直到不撞库（同 register-D1.js）
       let id;
@@ -242,6 +245,9 @@ export async function onRequestGet({ request, env }) {
     const landing = from === 'register' ? '/register.html?auth=github' : '/index.html?auth=github';
     const response = redirect302(landing);
     setAuthCookie(response, token, { persistent: remember });
+    // 页头读 user_name 决定显示「登录」还是已登录；GitHub 通路必须自己写，
+    // 否则授权回来仍然显示「登录」按钮
+    setUserNameCookie(response, existingName, { persistent: remember });
     return response;
   } catch (err) {
     // 任何意外都不要把用户扔在 GitHub 的回调页上：回注册页并带原因
