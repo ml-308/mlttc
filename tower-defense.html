@@ -135,6 +135,76 @@
             color: var(--warning);
         }
 
+        /* ---------- 下一波预告条（HUD 下方、画布上方） ----------
+           内容全部来自纯函数 nextWavePreview（只数 / 兵种构成 / 需要 DPS / 你的 DPS），
+           按 ratio 三档着色：<0.7 绿（打得动）/ 0.7~1.0 黄（刚好）/ >1.0 红（顶不住）。 */
+        .td-next {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 10px;
+            padding: 7px 10px;
+            border-radius: var(--radius-sm, .5rem);
+            background: var(--bg-hover);
+            border: 1px solid var(--border-light);
+            font-size: .74rem;
+            line-height: 1.45;
+            color: var(--text-secondary);
+            min-width: 0;
+        }
+
+        /* 兵种构成一长串也要自动折行：容器宽度由 .td-wrap 决定，绝不能横向撑破 */
+        .td-next-text {
+            min-width: 0;
+            overflow-wrap: anywhere;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 词缀徽章：只有 5 的倍数波才显示（其余波由 JS 置 hidden） */
+        .td-next-affix {
+            min-width: 0;
+            overflow-wrap: anywhere;
+            font-weight: 700;
+            padding: 1px 8px;
+            border-radius: var(--radius-full, 500px);
+            color: var(--primary);
+            background: var(--primary-bg);
+            border: 1px solid var(--primary);
+        }
+
+        .td-next.is-easy .td-next-text {
+            color: var(--primary);
+        }
+
+        .td-next.is-even .td-next-text {
+            color: var(--warning);
+        }
+
+        .td-next.is-hard {
+            border-color: var(--danger);
+        }
+
+        .td-next.is-hard .td-next-text {
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        /* 已选专精（清单行内的小徽章）：与「超频」徽章同一档视觉，用主色区分。
+           一个都没选时 JS 整段不输出，所以这里不必操心空壳样式。 */
+        .td-ti-spec {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: .64rem;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: var(--radius-full, 500px);
+            color: var(--primary);
+            background: var(--primary-bg);
+            border: 1px solid var(--primary);
+        }
+
         /* ---------- 画布舞台 ---------- */
         .td-stage {
             position: relative;
@@ -761,6 +831,8 @@
 
         /* 视图切换靠 hidden：必须能压住 .td-hud/.td-bar/.td-resume 自己的 display，否则切不干净 */
         .td-hud[hidden],
+        .td-next[hidden],
+        .td-next-affix[hidden],
         .td-stage[hidden],
         .td-resume[hidden],
         .td-bar[hidden],
@@ -904,6 +976,23 @@
 
             .td-stat b {
                 font-size: .92rem;
+            }
+
+            /* 预告条：小屏再收一档字号，词缀徽章允许折行，构成再长也不横向溢出 */
+            .td-next {
+                font-size: .7rem;
+                padding: 6px 8px;
+                gap: 3px 8px;
+            }
+
+            .td-next-affix {
+                white-space: normal;
+            }
+
+            /* 专精徽章在窄屏不省略到看不清：允许折行，占满一行宽度 */
+            .td-ti-spec {
+                white-space: normal;
+                overflow: visible;
             }
 
             /* 塔按钮 2×2：grid 固定两列 + minmax(0,1fr)，窄屏不会横向溢出 */
@@ -1217,6 +1306,14 @@
             <div class="td-stat"><span>击杀</span><b id="tdKills">0</b></div>
             <div class="td-stat"><span>剩余敌人</span><b id="tdAlive">0</b></div>
             <div class="td-stat"><span>最高波数</span><b id="tdBest">0</b></div>
+        </section>
+
+        <!-- 下一波预告条：只数 / 兵种构成 / 所需 DPS / 你的 DPS，按 ratio 着色（绿黄红）。
+             文案由 syncNextWavePreview 用纯函数 nextWavePreview 现算，签名比较避免每帧写 DOM；
+             5 的倍数波额外显示词缀徽章（无尽模式才有词缀）。 -->
+        <section class="td-next" id="tdNext" aria-label="下一波预告" hidden>
+            <span class="td-next-text" id="tdNextText">下一波：—</span>
+            <span class="td-next-affix" id="tdNextAffix" hidden></span>
         </section>
 
         <!-- 无尽「继续上次」条：有 7 天内的整局进度时由 JS 显示（默认 hidden） -->

@@ -1182,6 +1182,155 @@ section('19. 技能施放接线：SKILL_CASTERS 覆盖全部 12 个技能 + 回�
 }
 
 
+// ─── 20. 词缀 / 连携 / 专精 / 下一波预告：四个模块接进主文件后的接线 ──
+
+//  20. 这一节只断言「接线」与「跨文件一致性」，模块自身的单元断言在 td-affix-test / td-synergy-test /
+//      td-spec-test 里。为什么还要写一遍：模块内自检全绿，接线错了照样静默失效（applyAffix 忘了用返回值、
+//      专精 pick 写错塔、连携时刻用了 Date.now()）—— 这三类错误在浏览器里都表现为「什么都没发生」。
+section('20. 词缀 / 连携 / 专精 / 下一波预告：模块接线与跨文件一致性');
+{
+    const { ENEMY_TYPES, towerStat, towerStatSpec, nextWavePreview, encodeSave, decodeSave } = mod;
+    const affixMod = await import(toModuleUrl(path.join(root, 'src', 'pages', 'td-affixes.js')));
+    const specMod = await import(toModuleUrl(path.join(root, 'src', 'pages', 'td-specialization.js')));
+    const synMod = await import(toModuleUrl(path.join(root, 'src', 'pages', 'td-synergy.js')));
+    const { affixForWave, applyAffix, affixLabel } = affixMod;
+    const { matchSynergy } = synMod;
+    void specMod;
+
+    // 20.1 词缀模块里的「敌人基础值副本」必须与主文件 ENEMY_TYPES 逐项一致。
+    //      副本本身不导出（模块要保持零 import、零依赖），所以这里直接读源码里那段 BASE 字面量。
+    const affixSrc = readFileSync(path.join(root, 'src', 'pages', 'td-affixes.js'), 'utf8');
+    const baseAt = affixSrc.indexOf('const BASE = {');
+    const baseSrc = baseAt < 0 ? '' : affixSrc.slice(baseAt, affixSrc.indexOf('};', baseAt) + 2);
+    const baseRe = /(\w+):\s*\{\s*hp:\s*([\d.]+),\s*speed:\s*([\d.]+),\s*bounty:\s*([\d.]+)\s*\}/g;
+    const copies = Array.from(baseSrc.matchAll(baseRe),
+        (m) => ({ type: m[1], hp: Number(m[2]), speed: Number(m[3]), bounty: Number(m[4]) }));
+    const mismatch = copies.filter((c) => {
+        const e = ENEMY_TYPES[c.type];
+        return !e || e.hp !== c.hp || e.speed !== c.speed || e.bounty !== c.bounty;
+    });
+    assert('词缀模块的基础值副本与 ENEMY_TYPES 逐项一致（basic/swift/armor/shield/boss 的 hp/speed/bounty）',
+        copies.length === 5 && mismatch.length === 0,
+        JSON.stringify({ 副本: copies, 不一致: mismatch }));
+    for (const c of copies) {
+        const e = ENEMY_TYPES[c.type] || {};
+        console.log('    ' + String(c.type).padEnd(7) + '副本 ' + c.hp + '/' + c.speed + '/' + c.bounty
+            + '  ·  ENEMY_TYPES ' + e.hp + '/' + e.speed + '/' + e.bounty);
+    }
+
+    // 20.2 词缀被真正用上：第 5 波配置 ≠ 同波无词缀配置
+    const plain5 = generateEndlessWave(5, SEED);
+    const affix5 = affixForWave(5, SEED);
+    const with5 = applyAffix(plain5, affix5);
+    const fieldChanged = with5.total !== plain5.total || with5.spawnGap !== plain5.spawnGap
+        || with5.groups.some((g, i) => !plain5.groups[i]
+            || g.hp !== plain5.groups[i].hp || g.speed !== plain5.groups[i].speed
+            || g.count !== plain5.groups[i].count || g.bounty !== plain5.groups[i].bounty);
+    assert('第 5 波有词缀，且 applyAffix 返回**新对象**（波配置与 groups 都不是同一份，入参一字未改）',
+        !!affix5 && typeof affixLabel(affix5) === 'string' && affixLabel(affix5).length > 0
+        && with5 !== plain5 && with5.groups !== plain5.groups,
+        'affix5=' + JSON.stringify(affix5 && affix5.id));
+    assert('第 5 波配置 ≠ 同波无词缀配置（这条防「忘了用返回值 → 词缀静默失效」）',
+        fieldChanged,
+        JSON.stringify({ total: [plain5.total, with5.total], gap: [plain5.spawnGap, with5.spawnGap] }));
+    assert('主文件把 applyAffix 的返回值赋回波配置，并把词缀记进 state.waveAffix',
+        /wave\s*=\s*applyAffix\(wave,\s*affix\)/.test(source) && /state\.waveAffix\s*=\s*affix/.test(source),
+        '源码里找不到「wave = applyAffix(wave, affix)」或「state.waveAffix = affix」');
+    // flags.noSlow 必须真的拦住两条减速通道（冰塔命中的 slowUntil / 寒流技能）
+    assert('减速结算处（冰塔 impact + 寒流技能）都判了禁魔：if (!waveNoSlow()) 与 if (waveNoSlow()) 各一处',
+        /if \(!waveNoSlow\(\)\)/.test(source) && /if \(waveNoSlow\(\)\)/.test(source),
+        'waveNoSlow() 调用点：' + (source.match(/waveNoSlow\(\)/g) || []).length + ' 处');
+
+    // 20.3 nextWavePreview 是纯函数：不碰 DOM、不读时钟，0 座塔也不炸
+    let emptyPrev = null, emptyThrew = null;
+    try { emptyPrev = nextWavePreview({ wave: 3, seed: SEED, mode: 'endless', level: null, towers: [] }); }
+    catch (err) { emptyThrew = err; }
+    assert('nextWavePreview：0 座塔 → myDps === 0、ratio 为 Infinity（不是 NaN / 0），且不抛异常',
+        emptyThrew === null && !!emptyPrev && emptyPrev.myDps === 0 && emptyPrev.ratio === Infinity,
+        emptyThrew ? '抛出异常：' + emptyThrew : JSON.stringify(emptyPrev));
+    const oneTower = nextWavePreview({
+        wave: 3, seed: SEED, mode: 'endless', level: null,
+        towers: [{ type: 'arrow', lv: 1, rateBuff: 0, dmgBuff: 0 }],
+    });
+    assert('nextWavePreview：1 座 Lv.1 箭塔 → myDps ≈ 8 × 1.6 = 12.8（容差 0.5）',
+        Math.abs(oneTower.myDps - 12.8) <= 0.5, '实际 myDps = ' + oneTower.myDps);
+
+    // 20.4 预告的三个基本量
+    assert('nextWavePreview：total > 0、reqDps > 0、comp 是非空字符串（带兵种名与 ×数量）',
+        oneTower.total > 0 && oneTower.reqDps > 0 && Math.abs(oneTower.ratio - (oneTower.reqDps / oneTower.myDps)) < 1e-9
+        && typeof oneTower.comp === 'string' && oneTower.comp.length > 0 && oneTower.comp.indexOf('×') >= 0,
+        JSON.stringify({ total: oneTower.total, reqDps: oneTower.reqDps, comp: oneTower.comp, ratio: oneTower.ratio }));
+    const prevOf5 = nextWavePreview({ wave: 4, seed: SEED, mode: 'endless', level: null, towers: [] });   // 下一波 = 5
+    const prevOf6 = nextWavePreview({ wave: 5, seed: SEED, mode: 'endless', level: null, towers: [] });   // 下一波 = 6
+    assert('预告条的词缀文案只在 5 的倍数波出现（第 5 波有、第 6 波没有）',
+        prevOf5.wave === 5 && prevOf5.affixLabel.length > 0 && prevOf6.affixLabel === '',
+        JSON.stringify({ w5: prevOf5.affixLabel, w6: prevOf6.affixLabel }));
+    console.log('  第 5 波预告：total=' + prevOf5.total + ' comp=' + prevOf5.comp
+        + ' reqDps≈' + Math.round(prevOf5.reqDps) + ' myDps=' + prevOf5.myDps + ' · ' + prevOf5.affixLabel);
+
+    // 20.5 专精存档往返 + 旧存档兼容 + 非法 pick 逐档丢弃
+    const mkProgress = (run) => ({ unlocked: 1, levelBest: {}, endlessBest: 0, endlessRun: run });
+    const runBase = { wave: 60, gold: 5000, lives: 12, kills: 900, seed: 'run-spec', savedAt: 1700000000000 };
+    const specTrip = decodeSave(encodeSave(mkProgress(Object.assign({}, runBase,
+        { towers: [{ type: 'arrow', col: 2, row: 3, lvl: 10, spec: { 10: 'arrow10a' } }] }))));
+    assert('专精存档往返：towers[].spec = {10:"arrow10a"} 经 encodeSave → decodeSave 仍是同一 pick',
+        !!specTrip && !!specTrip.endlessRun && !!specTrip.endlessRun.towers[0].spec
+        && specTrip.endlessRun.towers[0].spec[10] === 'arrow10a',
+        JSON.stringify(specTrip && specTrip.endlessRun && specTrip.endlessRun.towers));
+    const oldTrip = decodeSave(encodeSave(mkProgress(Object.assign({}, runBase,
+        { towers: [{ type: 'arrow', col: 2, row: 3, lvl: 10 }] }))));
+    assert('旧存档（塔上没有 spec）解码不为 null，且 spec 读出来是空的（缺字段绝不能让整份存档作废）',
+        !!oldTrip && !!oldTrip.endlessRun && oldTrip.endlessRun.towers.length === 1
+        && Object.keys(oldTrip.endlessRun.towers[0].spec || {}).length === 0,
+        JSON.stringify(oldTrip && oldTrip.endlessRun && oldTrip.endlessRun.towers));
+    const badSpec = decodeSave(encodeSave(mkProgress(Object.assign({}, runBase, {
+        towers: [{ type: 'arrow', col: 2, row: 3, lvl: 25, spec: { 10: 'frost25a', 25: 'nope', 50: 42 } }],
+    }))));
+    assert('非法 / 跨塔的 pick（frost25a 塞进箭塔、25:"nope"、50:42）逐档丢弃，但那份存档仍然有效',
+        !!badSpec && !!badSpec.endlessRun && badSpec.endlessRun.towers.length === 1
+        && Object.keys(badSpec.endlessRun.towers[0].spec || {}).length === 0,
+        JSON.stringify(badSpec && badSpec.endlessRun && badSpec.endlessRun.towers));
+
+    // 20.6 专精与 towerStat 串起来：数字必须真的变大，chainCount 必须由 towerStat 原样提供
+    const lv10 = towerStat('arrow', 10);
+    const spec10 = towerStatSpec('arrow', 10, false, { 10: 'arrow10a' });
+    assert('箭塔 Lv.10 选 arrow10a（伤害 +25%）后 dmg = 未选时 × 1.25（容差 0.01）',
+        Math.abs(spec10.dmg - lv10.dmg * 1.25) <= 0.01 && spec10.dmg > lv10.dmg,
+        '未选 ' + lv10.dmg.toFixed(2) + ' → 选后 ' + spec10.dmg.toFixed(2));
+    assert('chainCount 由 towerStat 原样提供：非链式塔为 0、特斯拉为 3，tesla25a 只 +1（0 + 1 会变成「1 个目标」）',
+        towerStat('arrow', 10).chainCount === 0 && towerStat('tesla', 10).chainCount === 3
+        && towerStatSpec('tesla', 25, false, { 25: 'tesla25a' }).chainCount === 4,
+        JSON.stringify({
+            arrow: towerStat('arrow', 10).chainCount,
+            tesla: towerStat('tesla', 10).chainCount,
+            tesla25a: towerStatSpec('tesla', 25, false, { 25: 'tesla25a' }).chainCount,
+        }));
+
+    // 20.7 连携：窗口边界与模块一致；时钟只有 state.timeMs 一套
+    //      vortex→meteor 的窗口是 4000ms 且取**闭区间**：1000 起算，5000 命中、5001 不命中。
+    const hitIn = matchSynergy('vortex', 1000, 'meteor', 5000);
+    const hitOut = matchSynergy('vortex', 1000, 'meteor', 5001);
+    assert('连携窗口与模块一致：vortex→meteor 在 +4000ms 命中（闭区间边界），4001ms 之后不命中',
+        !!hitIn && hitIn.kind === 'dmg' && hitIn.second === 'meteor' && hitIn.windowMs === 4000 && hitOut === null,
+        JSON.stringify({ in: hitIn && hitIn.kind, out: hitOut }));
+    assert('主文件的连携时刻只用 state.timeMs（写回处不碰 Date.now），且判定用的是旧 lastSkill*',
+        /state\.lastSkillAtMs\s*=\s*state\.timeMs/.test(source)
+        && !/lastSkillAtMs\s*=\s*Date\.now\(\)/.test(source)
+        && /matchSynergy\(state\.lastSkillId,\s*state\.lastSkillAtMs,\s*\w+,\s*state\.timeMs\)/.test(source),
+        '源码里的连携时钟不是 state.timeMs');
+
+    // 20.8 升级价斜率：1.35 → 1.12 之后 Lv.50 不再是「摸不到」的价格
+    const cost50 = towerStat('arrow', 50).upgradeCost;
+    assert('升级价斜率 1.12 生效：towerStat("arrow",50).upgradeCost 落在 1 万~20 万之间（不是 4 亿）',
+        mod.HIGH_LV_COST_STEP === 1.12 && mod.HIGH_LV_DMG_STEP === 1.12
+        && cost50 >= 10000 && cost50 <= 200000,
+        'HIGH_LV_COST_STEP=' + mod.HIGH_LV_COST_STEP + ' cost50=' + cost50);
+    console.log('  Lv.50 单次升级价：' + cost50 + '（旧斜率 1.35 下是 '
+        + Math.round(220 * Math.pow(1.35, 48)) + '）· 箭塔 dmg Lv.10 ' + lv10.dmg.toFixed(1)
+        + ' → Lv.50 ' + towerStat('arrow', 50).dmg.toFixed(1));
+}
+
+
 // ─── 汇总 ────────────────────────────────────────────────────
 
 const total = passed + failures.length;
