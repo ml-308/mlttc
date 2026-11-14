@@ -447,11 +447,12 @@ section('10. 场上塔清单 describeTowers（纯函数，不碰 DOM）');
         && Number(buffed.dmg.toFixed(2)) === buffed.dmg && Number(buffed.rate.toFixed(2)) === buffed.rate,
         `${buffed.dmg} vs ${expDmg.toFixed(3)} / ${buffed.rate} vs ${expRate.toFixed(3)}`);
 
-    // 10.4 满级（Lv.3）：maxed、upgradeCost 归零、金币再多也不能升
-    const maxedRow = describeTowers([tower('arrow', 3, 1, 1, 400)], { gold: 99999, sellRatio: SELL })[0];
-    assert('满级塔（Lv.3）maxed=true、upgradeCost=0、canUpgrade=false',
+    // 10.4 满级（Lv.MAX_TOWER_LEVEL）：maxed、upgradeCost 归零、金币再多也不能升
+    const MAX_LV = mod.MAX_TOWER_LEVEL;
+    const maxedRow = describeTowers([tower('arrow', MAX_LV, 1, 1, 400)], { gold: 99999, sellRatio: SELL })[0];
+    assert('满级塔（Lv.MAX_TOWER_LEVEL）maxed=true、upgradeCost=0、canUpgrade=false',
         maxedRow.maxed === true && maxedRow.upgradeCost === 0 && maxedRow.canUpgrade === false
-        && maxedRow.lv === 3 && maxedRow.maxLv === 3,
+        && maxedRow.lv === MAX_LV && maxedRow.maxLv === MAX_LV,
         `maxed=${maxedRow.maxed} cost=${maxedRow.upgradeCost} can=${maxedRow.canUpgrade}`);
 
     // 10.5 金币门槛：arrow Lv.1 升级价 120
@@ -590,10 +591,11 @@ section('13. 特殊塔并入 ALL_TOWER_TYPES 后：清单与数值表仍正常')
         badShape.length === 0, badShape.join(' '));
 
     // 场上塔清单：特殊塔走的是同一个 describeTowers，等级 / 射程 / 升级价 / 返还额都必须对
+    const MAX_LV = mod.MAX_TOWER_LEVEL;   // 满级 = MAX_TOWER_LEVEL（不再是写死的 3）
     const lv2 = ALL_TOWER_TYPES.tesla, lv3 = ALL_TOWER_TYPES.poison;
     const rows = describeTowers([
         { type: 'tesla', lv: 2, col: 1, row: 2, x: 0, y: 0, cd: 0, spend: 900, dmgBuff: 0.15, rateBuff: 0.35 },
-        { type: 'poison', lv: 3, col: 3, row: 4, x: 0, y: 0, cd: 0, spend: 1960, dmgBuff: 0, rateBuff: 0 },
+        { type: 'poison', lv: MAX_LV, col: 3, row: 4, x: 0, y: 0, cd: 0, spend: 1960, dmgBuff: 0, rateBuff: 0 },
     ], { gold: 1000, sellRatio: BALANCE.sellRatio });
     const wantTeslaDmg = Math.round(lv2.dmg[1] * 1.15 * 100) / 100;
     assert('describeTowers 收录特殊塔：name/range/升级价/返还额/伤害(含光环) 全部正确',

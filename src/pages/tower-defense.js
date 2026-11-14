@@ -29,7 +29,7 @@ import {
 } from './td-skills.js';
 import {
   SPECIAL_TOWER_TYPES, SPECIAL_TOWER_IDS, isSpecialTower, specialTowersUnlockedAt,
-  towerUnlockWave, chainDamage, pickChainTargets, poisonDps, poisonTick, pushDistance, applyPush,
+  towerUnlockWave, chainDamage, pickChainTargets, poisonTick, pushDistance, applyPush,
 } from './td-special-towers.js';
 
 /* ===================== 1. 常量区（调数值只改这里） ===================== */
@@ -59,6 +59,18 @@ const TOWER_TYPES = {
  * 断言的形状基准，且特殊塔另带 unlockWave / chain / poison / push，混进来会让两件事互相污染。
  */
 const ALL_TOWER_TYPES = { ...TOWER_TYPES, ...SPECIAL_TOWER_TYPES };
+
+/**
+ * 高等级（Lv.4+）的外推参数：塔表里的数组仍然只存 Lv.1~3（自检按「三档齐全」断言），
+ * Lv.4~MAX_TOWER_LEVEL 一律由 towerStat() 以 Lv.3 为基点现算，不往数组里塞 100 个数字。
+ * 解锁条件：**只无尽模式、且过了第 HIGH_LV_UNLOCK_WAVE 波**（闯关最多 28 波，天然用不到）。
+ */
+const MAX_TOWER_LEVEL = 100;          // 塔的最高等级
+const HIGH_LV_UNLOCK_WAVE = 50;       // 无尽模式第 50 波后才允许升级到 Lv.4+
+const HIGH_LV_DMG_STEP = 1.12;        // 每级伤害 ×1.12
+const HIGH_LV_RATE_STEP = 0.015;      // 每级攻速 +1.5%（相对 Lv.3），累计上限 +100%
+const HIGH_LV_RANGE_STEP = 0.6;       // 每级射程 +0.6，累计上限 +50
+const HIGH_LV_COST_STEP = 1.35;       // 升级价每级 ×1.35（以 Lv.3 的升级价为基点）
 
 /** 全局平衡参数 */
 const BALANCE = {  startGold: 150, startLives: 20,
@@ -400,6 +412,8 @@ export {
   nextUpgradeTarget,   // 「快速升级」按钮的目标选择（纯函数：按建造顺序取第一个未满级的塔）
   mergeProgress,   // 导入合并（自检断言「导入的无尽进度必须胜出」，防止退回「谁新留谁」）
   towerStatRows,   // 塔数值表的行 HTML（纯函数：自检断言「并进特殊塔后不出现 NaN / undefined」）
+  towerStat,       // 某塔某等级的实际数值（Lv.1~3 读数组、Lv.4+ 现算外推：战斗 / 清单 / 快速升级同源）
+  MAX_TOWER_LEVEL, HIGH_LV_UNLOCK_WAVE,   // 等级上限 + 高等级解锁波次（自检按常量取，不写死 3）
   LATE_HP_FROM, LATE_HP_STEP, SPEED_LEVELS, HP_CEIL,   // 高波次叠乘阈值/斜率 + 倍速档位（自检直接断言）
 };
 
@@ -459,7 +473,7 @@ function sanitizeRun(raw) {
   if (Array.isArray(raw.towers)) for (const t of raw.towers) {
     if (!t || typeof t !== 'object' || !ALL_TOWER_TYPES[t.type]) continue;
     const col = num(t.col), row = num(t.row), lvl = num(t.lvl);
-    if (!Number.isFinite(col) || !Number.isFinite(row) || !(lvl >= 1 && lvl <= 3)) continue;
+    if (!Number.isFinite(col) || !Number.isFinite(row) || !(lvl >= 1 && lvl <= MAX_TOWER_LEVEL)) continue;
     towers.push({ type: t.type, col, row, lvl });
   }
   return { wave, gold, lives, kills, seed, towers, savedAt };
@@ -800,6 +814,59 @@ function poisonDamage(enemy, dmg) {
 
 /* ===================== 7. 塔与战斗 ===================== */
 /**
+ * 某座塔某个等级的实际数值（纯函数：只读塔表，不碰 state / DOM）—— 战斗、清单、快速升级共用这一份。
+ * 塔表里的 cost / dmg / rate / range / auraRate / auraDmg / splash / slow / slowMs / poison.dps /
+ * push.tiles **只存 Lv.1~3**，Lv.4~MAX_TOWER_LEVEL 全部按 k = lv - 3 从 Lv.3 外推，并各自封顶
+ * （攻速 ×2 / 溅射 +40 / 减速 80% / 光环 +100% / 推回 +50%），所以高等级不会指数爆炸。
+ * 返回字段（都是有限数值，缺的补 0，调用方不必再判空）：
+ *   dmg / rate / range / auraRate / auraDmg / splash / slow / slowMs / poisonDps / pushTiles（单位：格）/
+ *   upgradeCost = **升到下一级**的价格（与既有语义一致：Lv.1→cost[1]、Lv.2→cost[2]、
+ *   Lv.3→cost[2]×1.35、Lv.L→cost[2]×1.35^(L-2)；满级 0）。
+ */
+function towerStat(type, lv) {
+  const d = ALL_TOWER_TYPES[type];
+  if (!d) return null;
+  const L = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(lv) || 1)));
+  const i = Math.min(2, L - 1);            // Lv.1~3：直接读数组（既有数值一个字都不改）
+  const k = Math.max(0, L - 3);            // 超出 Lv.3 的级数
+  const num = (v) => (Number.isFinite(v) ? v : 0);
+  const st = {
+    dmg: num(d.dmg ? d.dmg[i] : 0),
+    rate: num(d.rate ? d.rate[i] : 0),
+    range: num(d.range ? d.range[i] : 0),
+    auraRate: num(d.auraRate ? d.auraRate[i] : 0),
+    auraDmg: num(d.auraDmg ? d.auraDmg[i] : 0),
+    splash: num(d.splash ? d.splash[i] : 0),
+    slow: num(d.slow ? d.slow[i] : 0),
+    slowMs: num(d.slowMs ? d.slowMs[i] : 0),
+    poisonDps: num(d.poison && d.poison.dps ? d.poison.dps[i] : 0),
+    pushTiles: num(d.push && d.push.tiles ? d.push.tiles[i] : 0),
+    upgradeCost: L >= MAX_TOWER_LEVEL ? 0
+      : (L < 3 ? num(d.cost[L]) : Math.round(d.cost[2] * Math.pow(HIGH_LV_COST_STEP, L - 2))),
+  };
+  if (k === 0) return st;                  // Lv.1~3：原样返回
+  const g = Math.pow(HIGH_LV_DMG_STEP, k);
+  st.dmg = st.dmg * g;
+  st.poisonDps = st.poisonDps * g;                                        // 毒的 dot 跟着涨
+  st.rate = st.rate * (1 + Math.min(1, HIGH_LV_RATE_STEP * k));           // 攻速封顶 = Lv.3 的 2 倍
+  st.range = st.range + Math.min(50, HIGH_LV_RANGE_STEP * k);             // 射程最多 +50
+  if (d.splash) st.splash = st.splash + Math.min(40, 4 * k);              // 溅射最多 +40
+  if (d.slow) st.slow = Math.min(0.8, st.slow + 0.01 * k);                // 减速上限 80%，慢速时长不变
+  if (d.auraRate) st.auraRate = Math.min(1, st.auraRate + 0.02 * k);      // 光环增幅各自上限 +100%
+  if (d.auraDmg) st.auraDmg = Math.min(1, st.auraDmg + 0.02 * k);
+  if (d.push) st.pushTiles = Math.min(st.pushTiles * 1.5, st.pushTiles + 0.05 * k);   // 推回最多 +50%
+  return st;
+}
+
+/**
+ * Lv.4+ 的解锁闸：只无尽模式、且 wave >= HIGH_LV_UNLOCK_WAVE。
+ * 模式判断不能省 —— 只按波次看的话，将来闯关模式波数一改就漏闸。
+ */
+function canUpgradeBeyond3() {
+  return state.mode === 'endless' && state.wave >= HIGH_LV_UNLOCK_WAVE;
+}
+
+/**
  * 建塔：校验金币 / 可建 / 空位，成功后扣钱并记录总投入（出售按它返还）。
  * 特殊塔多一道解锁闸：只无尽模式、且 wave >= unlockWave 才建得起来（塔栏已经灰显，这里再兜一层，
  * 因为调试台 / 键盘也能直接调 placeTower）。
@@ -824,14 +891,26 @@ function placeTower(type, col, row) {
   return true;
 }
 
-/** 升级：两级封顶（1→2→3），cost[lv] 就是升到下一级的价格 */
+/**
+ * 升级：Lv.1 → Lv.MAX_TOWER_LEVEL。Lv.4 起要过解锁闸（无尽 + 第 HIGH_LV_UNLOCK_WAVE 波后），
+ * 没解锁时**拒绝升级并给可见提示**（画布飘字 + 存档提示条），不静默失败。
+ * 价格一律取 towerStat(type, lv).upgradeCost（= 升到下一级的价格），所以高等级自动按 ×1.35 递增。
+ */
 function upgradeTower(tower) {
-  if (!tower || tower.lv >= 3) return false;
+  if (!tower) return false;
   const def = ALL_TOWER_TYPES[tower.type];
-  const cost = def.cost[tower.lv];
-  if (state.gold < cost) return false;
+  if (!def) return false;
+  const lv = Math.max(1, Math.floor(Number(tower.lv) || 1));
+  if (lv >= MAX_TOWER_LEVEL) return false;          // 满级：不再可升
+  if (lv >= 3 && !canUpgradeBeyond3()) {            // Lv.4+ 未解锁
+    addFloater(tower.x, tower.y - 16, '第 ' + HIGH_LV_UNLOCK_WAVE + ' 波后解锁更高等级', palette.danger, 1.2);
+    saveMsg('Lv.4 及以上只在无尽模式第 ' + HIGH_LV_UNLOCK_WAVE + ' 波后解锁', true);
+    return false;
+  }
+  const cost = towerStat(tower.type, lv).upgradeCost;
+  if (!(cost > 0) || state.gold < cost) return false;
   state.gold -= cost;
-  tower.lv += 1;
+  tower.lv = lv + 1;
   tower.spend += cost;
   addParticles(tower.x, tower.y, 8, def.color);
   noteEndlessRun();   // 升级后落盘
@@ -858,11 +937,12 @@ function round2(v) {
 /**
  * 场上塔清单的数据化描述（纯函数，不碰 DOM / 不读 state）：信息区列表与自检脚本共用同一份口径，
  * 所以「列表上写的伤害」与「自检断言的值」不可能各算一套。
- *   opts = { gold, sellRatio } —— gold 决定 canUpgrade；sellRatio 缺省取 BALANCE.sellRatio。
+ *   opts = { gold, sellRatio, highUnlocked } —— gold 决定 canUpgrade；sellRatio 缺省取 BALANCE.sellRatio；
+ *   highUnlocked 缺省 false（= Lv.4+ 还没解锁，Lv.3 就停住），调用方传 canUpgradeBeyond3()。
  * 每项字段：index（在 towers 数组里的下标，就是建造顺序）/ type / name / color / lv / maxLv /
  *   dmg / rate（**已计入光环 buff**，保留两位小数）/ range / col / row /
  *   upgradeCost（下一级价格，满级 0）/ sellRefund（floor(spend × sellRatio)）/
- *   canUpgrade（未满级且金币够）/ maxed。
+ *   canUpgrade（未满级、高等级已解锁、金币够）/ maxed（已到 MAX_TOWER_LEVEL）/ locked（Lv.3 但未解锁）。
  * 光环塔自身没有 dmg / rate 字段（它只给别人加成），这里回落成 0，展示层改显增幅。
  * 数据异常（未知塔类型）的项直接跳过，不让一条坏数据毁掉整个列表。
  */
@@ -870,31 +950,34 @@ function describeTowers(towers, opts) {
   const list = Array.isArray(towers) ? towers : [];
   const gold = opts && Number.isFinite(opts.gold) ? opts.gold : 0;
   const sellRatio = opts && Number.isFinite(opts.sellRatio) ? opts.sellRatio : BALANCE.sellRatio;
+  const highUnlocked = !!(opts && opts.highUnlocked);
   const rows = [];
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
     const def = t ? ALL_TOWER_TYPES[t.type] : null;
     if (!def) continue;
-    const lv = Math.min(3, Math.max(1, Math.floor(Number(t.lv) || 1)));   // 夹到 1..3，越界也不出 NaN
-    const idx = lv - 1;
-    const maxed = lv >= 3;
-    const upgradeCost = maxed ? 0 : def.cost[lv];
+    const lv = Math.min(MAX_TOWER_LEVEL, Math.max(1, Math.floor(Number(t.lv) || 1)));   // 夹到 1..上限，越界也不出 NaN
+    const st = towerStat(t.type, lv);
+    const maxed = lv >= MAX_TOWER_LEVEL;
+    const locked = !maxed && lv >= 3 && !highUnlocked;   // Lv.3 往上要等解锁：按钮灰显 + title 说明
+    const upgradeCost = maxed ? 0 : st.upgradeCost;
     rows.push({
       index: i,
       type: t.type,
       name: def.name,
       color: def.color,
       lv,
-      maxLv: 3,
-      dmg: round2((def.dmg ? def.dmg[idx] : 0) * (1 + (Number(t.dmgBuff) || 0))),
-      rate: round2((def.rate ? def.rate[idx] : 0) * (1 + (Number(t.rateBuff) || 0))),
-      range: def.range[idx],
+      maxLv: MAX_TOWER_LEVEL,
+      dmg: round2(st.dmg * (1 + (Number(t.dmgBuff) || 0))),
+      rate: round2(st.rate * (1 + (Number(t.rateBuff) || 0))),
+      range: st.range,
       col: Math.floor(Number(t.col) || 0),
       row: Math.floor(Number(t.row) || 0),
       upgradeCost,
       sellRefund: Math.floor((Number(t.spend) || 0) * sellRatio),
-      canUpgrade: !maxed && gold >= upgradeCost,
+      canUpgrade: !maxed && !locked && gold >= upgradeCost,
       maxed,
+      locked,
     });
   }
   return rows;
@@ -904,18 +987,21 @@ function describeTowers(towers, opts) {
  * 「快速升级」的目标（纯函数：不读 state、不碰 DOM、不读时钟）：按 towers 的数组顺序（= 建造顺序）
  * 取**第一个**未满级的塔 —— 不是最便宜的、也不是等级最低的，就是第一个；没有目标返回 null。
  * 返回 { index, tower, type, name, lv, nextLv, cost, canAfford }。
- * cost[0] 是建造价、lv 是 1 基等级，所以「升到 lv+1」的价格就是 cost[lv]。
- * 坏数据（null / 未知塔类型 / 等级不在 1..2）跳过继续找下一座，不抛异常。
+ * 价格一律取 towerStat(type, lv).upgradeCost = 升到 lv+1 的价格（Lv.4+ 按 ×1.35 递增）。
+ * highUnlocked 缺省 false：Lv.4+ 没解锁时把 Lv.3 当到顶，跳过它继续找下一座。
+ * 坏数据（null / 未知塔类型 / 等级不在 1..MAX_TOWER_LEVEL）跳过继续找下一座，不抛异常。
  */
-function nextUpgradeTarget(towers, gold) {
+function nextUpgradeTarget(towers, gold, highUnlocked) {
   const list = Array.isArray(towers) ? towers : [];
   const g = Number.isFinite(gold) ? gold : 0;
+  const unlocked = !!highUnlocked;
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
     const def = t ? ALL_TOWER_TYPES[t.type] : null;
     const lv = def ? Math.floor(Number(t.lv) || 0) : 0;
-    if (lv < 1 || lv >= 3) continue;          // 满级 / 等级异常：跳过，继续找下一座
-    const cost = def.cost[lv];
+    if (lv < 1 || lv >= MAX_TOWER_LEVEL) continue;   // 满级 / 等级异常：跳过，继续找下一座
+    if (lv >= 3 && !unlocked) continue;               // Lv.4+ 未解锁：Lv.3 也算到顶
+    const cost = towerStat(t.type, lv).upgradeCost;
     if (!(cost > 0)) continue;
     return { index: i, tower: t, type: t.type, name: def.name, lv, nextLv: lv + 1, cost, canAfford: g >= cost };
   }
@@ -950,8 +1036,8 @@ function updateTowers(dt) {
   for (let i = 0; i < towers.length; i++) {
     const a = towers[i];
     if (a.type !== 'aura') continue;
-    const adef = ALL_TOWER_TYPES.aura;
-    const range = adef.range[a.lv - 1], rate = adef.auraRate[a.lv - 1], dmg = adef.auraDmg[a.lv - 1];
+    const astat = towerStat('aura', a.lv);
+    const range = astat.range, rate = astat.auraRate, dmg = astat.auraDmg;
     const r2 = range * range;
     for (let j = 0; j < towers.length; j++) {
       const t = towers[j];
@@ -970,18 +1056,17 @@ function updateTowers(dt) {
   for (let i = 0; i < towers.length; i++) {
     const t = towers[i];
     if (t.type === 'aura') continue;               // 光环塔本身不攻击
-    const def = ALL_TOWER_TYPES[t.type];
     t.cd -= dt * (1 + t.rateBuff) * rateMul;
     if (t.cd > 0) continue;
-    const target = findTarget(t, def.range[t.lv - 1]);
-    if (!target) { t.cd = 0; continue; }           // 没目标不打空枪，进射程立刻开火
-    t.cd += 1 / def.rate[t.lv - 1];                // 累加不清零，倍速下节奏更稳
-    const lv = t.lv - 1;
-    const dmg = def.dmg[lv] * (1 + t.dmgBuff) * dmgMul;
+    const st = towerStat(t.type, t.lv);   // 伤害 / 射程 / 攻速 / 溅射 / 减速全部现算（Lv.4+ 走外推）
+    const target = findTarget(t, st.range);
+    if (!target) { t.cd = 0; continue; }   // 没目标不打空枪，进射程立刻开火
+    t.cd += 1 / st.rate;                   // 累加不清零，倍速下节奏更稳
+    const dmg = st.dmg * (1 + t.dmgBuff) * dmgMul;
     // 特殊塔也走同一颗子弹：链式 / 中毒 / 推回的差别在 impact 里按 b.type 分派，子弹池与追身飞行对 7 种塔一致
-    if (t.type === 'cannon') spawnBullet(t, target, dmg, def.splash[lv], 0, 0);                 // 溅射
-    else if (t.type === 'frost') spawnBullet(t, target, dmg, 0, def.slow[lv], def.slowMs[lv]);  // 单体+减速
-    else spawnBullet(t, target, dmg, 0, 0, 0);                                                 // 单体 / 链式 / dot / 推回
+    if (t.type === 'cannon') spawnBullet(t, target, dmg, st.splash, 0, 0);                // 溅射
+    else if (t.type === 'frost') spawnBullet(t, target, dmg, 0, st.slow, st.slowMs);      // 单体+减速
+    else spawnBullet(t, target, dmg, 0, 0, 0);                                            // 单体 / 链式 / dot / 推回
   }
 }
 
@@ -992,7 +1077,7 @@ function spawnBullet(tower, target, dmg, splash, slow, slowMs) {
   b.dmg = dmg; b.splash = splash; b.slow = slow; b.slowMs = slowMs;
   b.speed = splash > 0 ? 320 : 640;
   b.type = tower.type;   // 命中特效按塔种分派（对象池复用，所以每发出一颗都必须重写）
-  b.lv = tower.lv;       // 毒的 dot dps 按等级取 18/28/40
+  b.lv = tower.lv;       // 毒的 dot dps 按等级取 towerStat('poison', lv).poisonDps（Lv.4+ 跟着涨）
   b.color = ALL_TOWER_TYPES[tower.type].color;
   state.bullets.push(b);
 }
@@ -1020,6 +1105,17 @@ function updateBullets(dt) {
   }
 }
 
+/**
+ * 力场推回的像素距离：Lv.1~3 仍走 td-special-towers 的 pushDistance（口径不变），
+ * Lv.4+ 用 towerStat 外推的格数 + 同一条公式（格 × 32 × BOSS 减半）。
+ */
+function forcePushPx(lv, isBoss) {
+  if (lv <= 3) return pushDistance('force', lv, isBoss);
+  const p = ALL_TOWER_TYPES.force.push;
+  const half = isBoss && p && p.bossHalf ? 0.5 : 1;
+  return towerStat('force', lv).pushTiles * GRID.tile * half;
+}
+
 /** 命中结算：炮塔按溅射半径命中范围内所有敌人；冰塔附加「最近一次」减速；特殊塔按 b.type 分派 */
 function impact(b) {
   if (b.splash > 0) {
@@ -1038,7 +1134,7 @@ function impact(b) {
   if (!target || target.dead) return;
   if (b.type === 'poison') {
     // 毒塔本体 dmg 恒为 0：命中只挂 / 刷新 dot（覆盖剩余时间、不叠加），伤害在 updateEnemies 里逐帧结算
-    const dps = poisonDps('poison', b.lv);
+    const dps = towerStat('poison', b.lv).poisonDps;
     if (dps > 0) { target.poisonMs = ALL_TOWER_TYPES.poison.poison.durationMs; target.poisonDps = dps; }
     addParticles(b.x, b.y, 3, b.color);
     return;
@@ -1047,7 +1143,7 @@ function impact(b) {
   if (b.type === 'tesla') chainShock(b, target);   // 链式闪电：命中后额外跳 3 个目标
   if (b.type === 'force' && !target.dead) {
     // 力场：沿路径推回（dist 减小、不小于 0；BOSS 减半由 pushDistance 处理），坐标立刻回写免得看着像穿墙
-    target.dist = applyPush(target.dist, pushDistance('force', b.lv, target.type === 'boss'));
+    target.dist = applyPush(target.dist, forcePushPx(b.lv, target.type === 'boss'));
     const pt = pointAt(state.path, target.dist);
     target.x = pt.x; target.y = pt.y;
   }
@@ -1067,7 +1163,7 @@ function impact(b) {
 function chainShock(b, first) {
   const def = ALL_TOWER_TYPES.tesla;
   const alive = state.enemies.filter((e) => !e.dead);
-  const hops = pickChainTargets(alive, { x: b.x, y: b.y }, def.chain.count, def.range[b.lv - 1], [first.id]);
+  const hops = pickChainTargets(alive, { x: b.x, y: b.y }, def.chain.count, towerStat('tesla', b.lv).range, [first.id]);
   for (let i = 0; i < hops.length; i++) {
     if (hops[i].dead) continue;
     damageEnemy(hops[i], chainDamage(b.dmg, i + 2, def.chain.falloff));
@@ -1357,15 +1453,21 @@ function drawTowers(ctx) {
     if (on) {   // 选中：射程圈
       ctx.strokeStyle = def.color; ctx.globalAlpha = 0.35; ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 6]);
-      ctx.beginPath(); ctx.arc(t.x, t.y, def.range[t.lv - 1], 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(t.x, t.y, towerStat(t.type, t.lv).range, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha = 1;
     }
     ctx.fillStyle = palette.card;
     ctx.beginPath(); ctx.arc(t.x, t.y, 13, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = def.color; ctx.lineWidth = on ? 3.5 : 2.5; ctx.stroke();
     drawTowerGlyph(ctx, t, def.color);
-    ctx.fillStyle = def.color;   // 等级：塔底一排小圆点
-    for (let k = 0; k < t.lv; k++) { ctx.beginPath(); ctx.arc(t.x + 9 - k * 6, t.y + 11, 2, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = def.color;   // 等级：Lv.1~3 画塔底小圆点；Lv.4+ 画不下一百个点，直接写等级数字
+    if (t.lv <= 3) {
+      for (let k = 0; k < t.lv; k++) { ctx.beginPath(); ctx.arc(t.x + 9 - k * 6, t.y + 11, 2, 0, Math.PI * 2); ctx.fill(); }
+    } else {
+      ctx.font = '700 9px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Lv' + t.lv, t.x, t.y + 18);
+    }
   }
 }
 
@@ -1577,27 +1679,28 @@ function towerListSignature(rows, activeIdx) {
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     s += '|' + r.index + ',' + r.lv + ',' + r.dmg + ',' + r.rate + ',' + r.range + ','
-      + r.col + ',' + r.row + ',' + r.upgradeCost + ',' + r.sellRefund + ',' + r.canUpgrade;
+      + r.col + ',' + r.row + ',' + r.upgradeCost + ',' + r.sellRefund + ',' + r.canUpgrade + ',' + r.maxed + r.locked;
   }
   return s;
 }
 
 /** 一行塔的 HTML：名称（塔色）+ 等级 + 伤害/攻速/射程 + 位置 + 升级/删除两个按钮 */
 function towerRowHtml(r, active) {
-  const def = ALL_TOWER_TYPES[r.type];
-  const i = r.lv - 1;
+  const st = towerStat(r.type, r.lv);   // 与战斗同源：光环增幅 / 毒伤 / 射程都现算
   // 光环塔自身不攻击：显示它给别人的增幅（与塔数值表一致；describeTowers 里它的伤害/攻速是 0）
   // 毒塔 dmg 恒为 0，唯一输出是无视护甲的 dot，直接写每秒毒伤比「伤害 0.00」有用
   const stats = r.type === 'aura'
-    ? ['攻速增幅 +' + Math.round(def.auraRate[i] * 100) + '%', '伤害增幅 +' + Math.round(def.auraDmg[i] * 100) + '%']
+    ? ['攻速增幅 +' + Math.round(st.auraRate * 100) + '%', '伤害增幅 +' + Math.round(st.auraDmg * 100) + '%']
     : r.type === 'poison'
-      ? ['毒伤 ' + poisonDps('poison', r.lv) + '/s（无视护甲）', '攻速 ' + r.rate.toFixed(2) + '/s']
+      ? ['毒伤 ' + round2(st.poisonDps) + '/s（无视护甲）', '攻速 ' + r.rate.toFixed(2) + '/s']
       : ['伤害 ' + r.dmg.toFixed(2), '攻速 ' + r.rate.toFixed(2) + '/s'];
-  stats.push('射程 ' + r.range);
-  const upText = r.maxed ? '已满级' : '升级（' + r.upgradeCost + '）';
-  const upTitle = r.maxed ? '已满级'
-    : (r.canUpgrade ? '花 ' + r.upgradeCost + ' 金币升到 Lv.' + (r.lv + 1)
-      : '金币不足：还差 ' + (r.upgradeCost - state.gold));
+  stats.push('射程 ' + Math.round(r.range));
+  const upText = r.maxed ? '已满级' : (r.locked ? '未解锁' : '升级（' + r.upgradeCost + '）');
+  const upTitle = r.maxed ? '已满级（Lv.' + MAX_TOWER_LEVEL + '）'
+    : r.locked
+      ? '第 ' + HIGH_LV_UNLOCK_WAVE + ' 波后解锁 Lv.4 及以上（升到 Lv.' + (r.lv + 1) + ' 需 ' + r.upgradeCost + ' 金币）'
+      : (r.canUpgrade ? '花 ' + r.upgradeCost + ' 金币升到 Lv.' + (r.lv + 1)
+        : '金币不足：还差 ' + (r.upgradeCost - state.gold));
   return '<div class="td-ti-row' + (active ? ' is-active' : '') + '" data-tower-index="' + r.index + '"'
     + ' title="点击选中这座塔">'
     + '<span class="td-ti-name" style="color:' + r.color + '">' + r.name + '</span>'
@@ -1623,7 +1726,9 @@ function towerRowHtml(r, active) {
 function renderTowerList() {
   const box = ui.towerList;
   if (!box) return;
-  const rows = describeTowers(state.towers, { gold: state.gold, sellRatio: BALANCE.sellRatio });
+  const rows = describeTowers(state.towers, {
+    gold: state.gold, sellRatio: BALANCE.sellRatio, highUnlocked: canUpgradeBeyond3(),
+  });
   // 标题上的数量：折叠时也实时更新（用户不看主体也知道场上有几座）
   if (ui.towerSummary && tListCount !== rows.length) {
     tListCount = rows.length;
@@ -1774,10 +1879,12 @@ let qUpSig = '';   // 「快速升级」按钮上次写的签名（文案 + disa
 function syncQuickUpgrade() {
   const btn = ui.btnQuickUp;
   if (!btn) return;
-  const target = nextUpgradeTarget(state.towers, state.gold);
+  const unlocked = canUpgradeBeyond3();
+  const target = nextUpgradeTarget(state.towers, state.gold, unlocked);
   const text = target ? '快速升级（' + target.cost + '）' : '快速升级';
   const title = !target
-    ? (state.towers.length === 0 ? '场上没有塔' : '所有塔已满级')
+    ? (state.towers.length === 0 ? '场上没有塔'
+      : (unlocked ? '所有塔已满级' : '场上塔都到 Lv.3 了：第 ' + HIGH_LV_UNLOCK_WAVE + ' 波后解锁更高等级'))
     : (target.canAfford
       ? '把 ' + target.name + ' 升到 Lv.' + target.nextLv + '（' + target.cost + ' 金币）'
       : '金币不足：还差 ' + (target.cost - state.gold));
@@ -1850,10 +1957,27 @@ function hideOverlay() {
 
 /* ---------- 塔数值表（每个数字都现读塔表，绝不手抄第二份） ---------- */
 /**
- * 塔数值表的行 HTML（纯函数：只读 ALL_TOWER_TYPES，不碰 DOM）：4 基础塔 + 3 特殊塔 × 3 级。
+ * 塔数值表的行 HTML（纯函数：只读 ALL_TOWER_TYPES，不碰 DOM）：4 基础塔 + 3 特殊塔 × 3 级，
+ * 每种塔再补一行 Lv.4~MAX_TOWER_LEVEL 的汇总（一行讲完外推规则，绝不铺成 100 级 × 7 塔）。
  * 光环塔无 dmg / rate、毒塔 dmg 恒为 0，都显示「—」（毒塔输出写在特效列的「无视护甲 毒 X/s」）。
  * 拆出来是为了让自检能断言「并进特殊塔后这张表里没有 NaN / undefined」。
  */
+function highLevelNote(key) {
+  const d = ALL_TOWER_TYPES[key];
+  const parts = [];
+  if (d.auraRate) parts.push('攻速增幅 +2%/级', '伤害增幅 +2%/级（各上限 +100%）');   // 光环塔自身不攻击，没有伤害项
+  else {
+    parts.push(d.poison ? '毒伤 ×1.12/级（无视护甲）' : '伤害 ×1.12/级', '攻速 +1.5%/级（上限 ×2）');
+  }
+  parts.push('射程 +0.6/级（上限 +50）');
+  if (d.splash) parts.push('溅射 +4/级（上限 +40）');
+  if (d.slow) parts.push('减速 +1%/级（上限 80%，时长不变）');
+  if (d.push) parts.push('推回 +0.05 格/级（上限 +50%）');
+  if (d.chain) parts.push('跳数与每跳衰减不变');
+  return 'Lv.4–' + MAX_TOWER_LEVEL + '：' + parts.join('、') + '、升级价 ×1.35/级；第 '
+    + HIGH_LV_UNLOCK_WAVE + ' 波后解锁（仅无尽模式）';
+}
+
 function towerStatRows() {
   const head = ['塔', '等级', '造价', '伤害', '攻速', '射程', '特效'];
   let rows = '';
@@ -1870,10 +1994,12 @@ function towerStatRows() {
       else if (d.poison) fx = '无视护甲 毒 ' + d.poison.dps[i] + '/s · ' + (d.poison.durationMs / 1000) + 's';
       else if (d.push) fx = '推回 ' + d.push.tiles[i] + ' 格' + (d.push.bossHalf ? '（BOSS 减半）' : '');
       const dmgCell = d.poison ? '—' : (d.dmg ? d.dmg[i] : '—');
-      rows += '<tr>' + (lv === 1 ? '<td rowspan="3" style="color:' + d.color + '">' + d.name + '</td>' : '')
+      rows += '<tr>' + (lv === 1 ? '<td rowspan="4" style="color:' + d.color + '">' + d.name + '</td>' : '')
         + '<td>Lv.' + lv + '</td><td title="' + note + '">' + spent + '</td><td>' + dmgCell + '</td>'
         + '<td>' + (d.rate ? d.rate[i].toFixed(1) + '/s' : '—') + '</td><td>' + d.range[i] + '</td><td>' + fx + '</td></tr>';
     }
+    // 第 4 行 = Lv.4~MAX 的汇总（与上面 3 行共用 rowspan="4" 的塔名格），不铺 100 行
+    rows += '<tr class="td-tstats-note"><td colspan="6">' + highLevelNote(key) + '</td></tr>';
   }
   return '<table><thead><tr><th>' + head.join('</th><th>') + '</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }

@@ -16,7 +16,7 @@
 // 出参：{ success: true, version: '1.3.1', notes: '' }
 
 /** 兜底版本号：取不到静态标记时返回，需与 src/version.js 保持一致 */
-const FALLBACK_VERSION = '1.6.11';
+const FALLBACK_VERSION = '1.6.12';
 
 /** 静态标记路径（仓库里的 lib/data/changelog.json） */
 const MARKER_PATH = '/lib/data/changelog.json';
