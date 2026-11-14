@@ -22,7 +22,7 @@
 //    GET 已不再限流（读路径不消耗 KV 写额度，理由见 onRequestGet 里第 1 条注释）
 
 import { enforceRateLimit, LIMITS } from '../ratelimit';
-import { statsOnInsert, statsOnDelete } from '../stats-helper';
+import { recomputeStats } from '../stats-helper';
 import { json } from '../_lib/response';
 import { cleanParam } from '../_lib/params';
 
@@ -160,6 +160,10 @@ export async function onRequestPost({ request, env }) {
                 console.warn('自动销单失败（TIMETABLE_REPORT 可能尚未创建或缺列）:', reportErr);
             }
 
+            // 修改也可能换城市（CITY 在可更新字段里），所以统计要跟着重算；
+            // 不 await：统计失败不该让已经成功的修改报错（fail-open）。
+            recomputeStats(env).catch((e) => console.warn('统计维护失败:', e));
+
             return json({
                 success: true,
                 id: id,
@@ -249,7 +253,7 @@ export async function onRequestPost({ request, env }) {
         ).run();
 
         // 维护首页统计（线路 +1、城市并入），失败不影响主流程
-        statsOnInsert(env, city.trim()).catch((e) => console.warn('统计维护失败:', e));
+        recomputeStats(env).catch((e) => console.warn('统计维护失败:', e));
 
         return json({
             success: true,
@@ -507,7 +511,7 @@ export async function onRequestDelete({ request, env }) {
         }
 
         // 维护首页统计（线路 -1、城市回收），失败不影响主流程
-        statsOnDelete(env, existing.CITY).catch((e) => console.warn('统计维护失败:', e));
+        recomputeStats(env).catch((e) => console.warn('统计维护失败:', e));
 
         return json({
             success: true,

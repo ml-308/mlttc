@@ -27,6 +27,7 @@ import { enforceRateLimit, LIMITS } from '../ratelimit.js';
 // 而 Node 的 ESM 解析要求显式扩展名 —— 所以这里的引用必须带 .js，
 // 与其它 functions 文件的无后缀写法不同，不要为了「统一风格」把它去掉。
 import { json, jsonError } from '../_lib/response.js';
+import { recomputeStats } from '../stats-helper.js';
 
 // ─── 常量 ─────────────────────────────────────────────────────
 
@@ -383,6 +384,10 @@ export async function onRequestPost({ request, env }) {
         const message = '数据库写入失败';
         return jsonError(message, 500);
     }
+
+    // 批量导入以前完全不维护首页统计，导入再多数字也不动 —— 这里补一次重算。
+    // 不 await：统计失败不该让已经写库的导入报错（fail-open，下次写入会自动纠正）。
+    recomputeStats(env).catch((e) => console.warn('统计重算失败:', e));
 
     return json({
         success: true,

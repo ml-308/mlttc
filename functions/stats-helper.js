@@ -1,139 +1,69 @@
 // functions/stats-helper.js
-// 首页「数据速览」统计的增量维护（供 timetable-D1.js 的增删调用）
-//
-// 位置说明：与 auth.js / ratelimit.js 一样放 functions/ 根目录，
-//           只作为被 import 的工具模块，不映射成 URL。
-//
-// 计数模型：
-//   SITE_STATS 表（K 主键）——
-//     'lines'   → 线路数（字符串数字）
-//     'cities'  → 城市名 JSON 数组（去重集合）
-//     'updated' → 最后更新时间戳
-//
-// 增量规则：
-//   - 新增线路：lines+1；若该城市不在集合中，加入。
-//   - 删除线路：lines-1；若删除后该城市不再有其它线路，从集合移除。
-//
-// 容错：任何一步失败都不抛出（fail-open），统计允许暂时不精确；
-//       下次调用 /api/stats 时，若统计表缺失会自动惰性初始化自愈。
-
-async function getStat(env, key) {
-  try {
-    const row = await env.mlttcd.prepare(
-      'SELECT V FROM SITE_STATS WHERE K = ?'
-    ).bind(key).first();
-    return row ? row.V : null;
-  } catch {
-    return null;
-  }
-}
+/**
+ * 首页「数据速览」统计的维护
+ *
+ * ─── 口径（唯一定义，别再处各算一套）────────────────────────— 
+ *   lines   = 「不同线路数」= COUNT(DISTINCT (CITY, WAY))
+ *   cities  = 「覆盖城市数」= 城市名去重后的 JSON 数组（/api/stats 取它的长度）
+ *   updated = 最后一次重算时间（ISO）
+ *
+ * ─── 为什么从「加减」改成「重算」──────────────────────────────
+ * 旧实现（已删除的 statsOnInsert / statsOnDelete）有两套互相打架的口径：
+ *   · 增量路径（本文件 statsOnInsert / statsOnDelete）按「记录数」±1
+ *   · 全量初始化（本文件 ensureFromScratch / api/stats.js 的 initStats）
+ *     按 COUNT(DISTINCT CITY, WAY)
+ * 同一条线路存在多条记录时（不同起终点 / 不同执行时间各自一行），两个口径会差出
+ * 好几条，于是这个数字随「上次走的是哪条路径」漂移，永远对不上真实线路数。
+ * 另外批量导入（api/timetable-import-D1.js）根本没调用本文件，导入再多也不更新。
+ *
+ * 现在统一为一条 SQL 重算：幂等、不漂移，也不需要调用方知道当前值是多少。
+ *
+ * ─── 成本 ────────────────────────────────────────────────────
+ * 2 条只读查询（DISTINCT 计数 + 城市名列表）+ 3 次写入。表规模千级，DISTINCT
+ * 扫描可忽略；所有调用点都在「数据已经写完」之后，不阻塞响应，失败一律 fail-open
+ * （保持旧值，下次再算）。
+ */
 
 async function setStat(env, key, value) {
-  try {
-    await env.mlttcd.prepare(
-      `INSERT INTO SITE_STATS (K, V) VALUES (?, ?)
-       ON CONFLICT(K) DO UPDATE SET V = excluded.V`
-    ).bind(key, value).run();
-  } catch {
-    /* fail-open */
-  }
+  await env.mlttcd.prepare(
+    `INSERT INTO SITE_STATS (K, V) VALUES (?, ?)
+     ON CONFLICT(K) DO UPDATE SET V = excluded.V`
+  ).bind(key, value).run();
 }
 
-/** 读取 lines（缺失则返回 null，调用方需初始化） */
-async function readLines(env) {
-  const v = await getStat(env, 'lines');
-  if (v === null) return null;
-  const n = parseInt(v, 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** 读取 cities 集合（缺失返回 null） */
-async function readCities(env) {
-  const v = await getStat(env, 'cities');
-  if (v === null) return null;
-  try {
-    return new Set(JSON.parse(v || '[]'));
-  } catch {
-    return new Set();
-  }
-}
-
-async function touchUpdated(env) {
-  await setStat(env, 'updated', new Date().toISOString());
-}
+/** 城市名去重条件：忽略 NULL 与纯空白（避免把空串算成一个城市） */
+const CITY_NOT_BLANK = `TRIM(COALESCE(CITY, '')) <> ''`;
 
 /**
- * 新增一条线路后维护统计
- * @param {string} city 新增线路的城市（CITY 字段原值）
+ * 按库里现状重算并写回三项统计。
+ *
+ * @param {object} env Cloudflare 环境（需要 env.mlttcd）
+ * @returns {Promise<{lines:number, cities:number}|null>} 重算结果；失败返回 null 且不改旧值
  */
-export async function statsOnInsert(env, city) {
-  // 若统计尚未初始化，先全量初始化，避免从 0 误增
-  let lines = await readLines(env);
-  if (lines === null) {
-    await ensureFromScratch(env);
-    return;
-  }
-
-  let cities = await readCities(env);
-  if (cities === null) cities = new Set();
-
-  const c = (city || '').toString().trim();
-  if (c) cities.add(c);
-
-  await setStat(env, 'lines', String(lines + 1));
-  await setStat(env, 'cities', JSON.stringify([...cities]));
-  await touchUpdated(env);
-}
-
-/**
- * 删除一条线路后维护统计
- * @param {string} city 被删线路的城市（CITY 字段原值）
- */
-export async function statsOnDelete(env, city) {
-  let lines = await readLines(env);
-  if (lines === null) {
-    await ensureFromScratch(env);
-    return;
-  }
-
-  const newLines = Math.max(0, lines - 1);
-  await setStat(env, 'lines', String(newLines));
-
-  // 城市集合：若该城市已无其它线路，则移除（精确回收）
-  const c = (city || '').toString().trim();
-  if (c) {
-    const { results } = await env.mlttcd.prepare(
-      'SELECT ID FROM TIMETABLE WHERE CITY = ? LIMIT 1'
-    ).bind(c).all();
-    if (!results || results.length === 0) {
-      let cities = await readCities(env);
-      if (cities) {
-        cities.delete(c);
-        await setStat(env, 'cities', JSON.stringify([...cities]));
-      }
-    }
-  }
-
-  await touchUpdated(env);
-}
-
-/** 全量初始化统计表 */
-async function ensureFromScratch(env) {
+export async function recomputeStats(env) {
   try {
+    const row = await env.mlttcd.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM (SELECT DISTINCT CITY, WAY FROM TIMETABLE)) AS lineCount,
+         (SELECT COUNT(*) FROM (SELECT DISTINCT CITY FROM TIMETABLE WHERE ${CITY_NOT_BLANK})) AS cityCount`
+    ).first();
+
+    // cities 仍按旧格式存 JSON 数组：api/stats.js 用它的长度作为「覆盖城市数」
     const { results } = await env.mlttcd.prepare(
-      'SELECT DISTINCT CITY, WAY FROM TIMETABLE'
+      `SELECT DISTINCT CITY FROM TIMETABLE WHERE ${CITY_NOT_BLANK} ORDER BY CITY`
     ).all();
 
-    const citySet = new Set();
-    for (const r of results) {
-      const c = (r.CITY || '').toString().trim();
-      if (c) citySet.add(c);
-    }
+    const cityList = (results || []).map((r) => String(r.CITY).trim());
+    const linesValue = String((row && row.lineCount) || 0);
 
-    await setStat(env, 'lines', String(results.length));
-    await setStat(env, 'cities', JSON.stringify([...citySet]));
-    await touchUpdated(env);
-  } catch {
-    /* fail-open */
+    await setStat(env, 'lines', linesValue);
+    await setStat(env, 'cities', JSON.stringify(cityList));
+    await setStat(env, 'updated', new Date().toISOString());
+
+    return { lines: Number(linesValue), cities: cityList.length };
+  } catch (err) {
+    // fail-open：统计暂时不精确也不该影响主流程，下次写入时会自动纠正
+    console.warn('[stats] 重算失败（保留旧值）:', err);
+    return null;
   }
 }
