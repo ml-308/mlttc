@@ -265,6 +265,92 @@
             min-width: 0;
         }
 
+        /* BOSS 信息栏：与场上塔清单同一套卡片视觉（同一组里的第二块），内容换成血条 + 数值。
+           容器复用 .td-tinfo，这里只补内容排版；hidden 同样显式关掉 display。 */
+        .td-boss {
+            padding: 6px 8px 8px;
+        }
+
+        .td-boss[hidden] {
+            display: none;
+        }
+
+        .td-boss-head {
+            padding: 3px 4px 6px;
+            font-weight: 700;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-light);
+            margin-bottom: 6px;
+        }
+
+        #tdBossList {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        /* 一行 = BOSS 名 + 血条 + 数值 + 护甲/速度。flex-wrap + min-width:0 = 窄屏折行、数值不溢出。 */
+        .td-boss-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 2px 10px;
+            padding: 4px 6px;
+            border-radius: var(--radius-sm, .5rem);
+            min-width: 0;
+        }
+
+        .td-boss-name {
+            font-weight: 700;
+            color: var(--danger);
+            min-width: 0;
+        }
+
+        /* 血条：外层是轨道，内层 <i> 由 JS 直接改 style.width（血量变化频繁，不重建节点） */
+        .td-boss-hp {
+            flex: 1 1 90px;
+            min-width: 56px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--bg-hover);
+            overflow: hidden;
+        }
+
+        .td-boss-hp>i {
+            display: block;
+            height: 100%;
+            width: 0;
+            border-radius: 999px;
+            background: var(--primary);
+            transition: width .18s linear;
+        }
+
+        .td-boss-num,
+        .td-boss-meta,
+        .td-boss-more {
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .td-boss-more {
+            margin: 4px 4px 0;
+            color: var(--text-secondary);
+        }
+
+        /* 窄屏（≤720px）：血条整行独占、数值允许换行，绝不撑出横向滚动 */
+        @media (max-width:720px) {
+            .td-boss-hp {
+                flex: 1 1 100%;
+            }
+
+            .td-boss-num,
+            .td-boss-meta {
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+        }
+
         /* 一行 = 名称 + 等级 + 伤害/攻速/射程 + 坐标 + 两个按钮。
            flex-wrap + min-width:0 是「永不被内容撑出横向滚动」的关键：宽度不够就整块折行。 */
         .td-ti-row {
@@ -1276,7 +1362,7 @@
          若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
          启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
          **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
-    <script src="/src/pages/tower-defense.js?v=1.6.13-4" type="module"></script>
+    <script src="/src/pages/tower-defense.js?v=1.6.14" type="module"></script>
 </head>
 
 <body class="td-page-body">
@@ -1415,6 +1501,15 @@
             <summary id="tdTowerInfoSummary">场上塔（0）</summary>
             <div id="tdTowerList"></div>
         </details>
+
+        <!-- BOSS 信息栏：紧跟在场上塔清单**下面**、玩法提示之前，复用 .td-tinfo 的卡片视觉
+             （同一套圆角 / 边框 / 内边距 / 字号 / 主题变量），看起来像同一组里的第二块。
+             场上没有 BOSS 时整块 hidden（不留空盒子）；行内容与血条由 syncBossBar 写（签名比较）。 -->
+        <section class="td-tinfo td-boss" id="tdBossBar" aria-live="polite" hidden>
+            <div class="td-boss-head">场上 BOSS（<span id="tdBossCount">0</span>）</div>
+            <div id="tdBossList"></div>
+            <p class="td-boss-more" id="tdBossMore" hidden></p>
+        </section>
 
         <p class="td-hint" id="tdHint">
             点击空格子放塔 · 下方清单列出场上每座塔，行内可直接升级、超频或删除 · 点塔看射程圈 · 画布上的金环 = 已超频（50% 成功保留等级，失败降 5 级） · 敌人走到右侧终点扣 1 点生命

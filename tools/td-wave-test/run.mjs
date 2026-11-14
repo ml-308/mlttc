@@ -1331,6 +1331,188 @@ section('20. 词缀 / 连携 / 专精 / 下一波预告：模块接线与跨文�
 }
 
 
+// ─── 21. 「90 波卡死」的修复：僵局出口 / 血量斜率 / 性能兜底 / 残留敌人回收 ──────
+//
+//   参考 DPS 口径（平衡断言 21.9 用它，**阈值 240 秒不许放宽**）：
+//    REF_DPS = 100,000。为什么是十万：
+//     ① 复现存档（第 90 波 · 3 座 Lv.50 超频塔）实测总输出「几万」，约 2.7 万；
+//     ② 打到 90 波的玩家金币按 1.05^(n-1) 涨、升级价斜率已降到 1.12（见 20.8），塔的等级与座数
+//        都会明显高于那个复现阵容 —— 十万只比它高约 3.7 倍；
+//     ③ 上限侧参照：Lv.100 箭塔单体 dmg ≈ 1.43e6 × 4.4/s ≈ 627 万 DPS，十万只占其 1.6%。
+//    所以十万是「一个认真玩到 90 波的玩家应能达到」的**下限**口径，不是乐观值。
+//    清完秒数 = 单波总血量 ÷ REF_DPS（忽略护甲与出怪时长，纯持续输出口径，只用来抓数量级）。
+section('21. 高波次「打不完」的修复：僵局出口 / 血量斜率 / 性能兜底 / 残留敌人');
+const REF_DPS = 100000;
+const CLEAR_SEC_MAX = 240;   // 护栏：第 90 波必须在 240 秒内清完（这条阈值不许放宽）
+{
+    const { ENEMY_TYPES, isWaveStalled, STALL_LIMITS, isRunawayEnemy, MAX_TOWERS,
+        pointAt, nextWavePreview, towersDps, LATE_HP_STEP } = mod;
+
+    // 21.1 阈值策略本身也断言：口径被人顺手改掉时这里先响
+    assert('isWaveStalled / STALL_LIMITS 已导出，阈值 = 90s / 20s / 5min，提醒间隔 60s',
+        typeof isWaveStalled === 'function' && !!STALL_LIMITS
+        && STALL_LIMITS.waveMs === 90000 && STALL_LIMITS.sinceKillMs === 20000
+        && STALL_LIMITS.hardMs === 300000 && STALL_LIMITS.remindMs === 60000,
+        JSON.stringify(STALL_LIMITS));
+
+    // 21.2 正例：90 秒 + 20 秒无击杀 + 有活怪 → true
+    assert('僵局：90 秒 + 20 秒无击杀 + 场上有活怪 → true',
+        isWaveStalled({ waveMs: 90000, sinceKillMs: 20000, aliveCount: 5, total: 400 }) === true, '');
+
+    // 21.3 两条边界各一条（差 1 秒不算）
+    assert('僵局边界：波次 89 秒 → false',
+        isWaveStalled({ waveMs: 89000, sinceKillMs: 60000, aliveCount: 5 }) === false, '');
+    assert('僵局边界：19 秒前刚杀过 → false（输出还跟得上就不打扰）',
+        isWaveStalled({ waveMs: 120000, sinceKillMs: 19000, aliveCount: 5 }) === false, '');
+
+    // 21.4 场上无活怪 → 永远 false（哪怕时间早就超了）
+    assert('僵局：场上没有活怪 → false（超时也不报，那是正常收尾）',
+        isWaveStalled({ waveMs: 400000, sinceKillMs: 400000, aliveCount: 0 }) === false
+        && isWaveStalled({ waveMs: 90000, sinceKillMs: 20000, aliveCount: 0 }) === false, '');
+
+    // 21.5 5 分钟硬上限：不看击杀间隔
+    assert('僵局硬上限：单波 5 分钟 → true（刚杀过也算）',
+        isWaveStalled({ waveMs: 300000, sinceKillMs: 0, aliveCount: 3 }) === true, '');
+
+    // 21.6 用户截图那个局面：只剩 4 只、长期无进展
+    assert('僵局：只剩 4 只 + 波次 100 秒 + 25 秒无击杀 → true（复现用户截图那一幕）',
+        isWaveStalled({ waveMs: 100000, sinceKillMs: 25000, aliveCount: 4, total: 400 }) === true, '');
+
+    // 21.7 第 1~30 波血量逐组等于 1.06^(n-1)（BOSS 再 ×8）：改斜率不许误伤前段
+    const earlyBad = [];
+    for (let n = 1; n <= 30; n += 1) {
+        for (const g of generateEndlessWave(n, SEED).groups) {
+            const want = Math.max(1, Math.round(
+                ENEMY_TYPES[g.type].hp * Math.pow(1.06, n - 1) * (g.type === 'boss' ? 8 : 1)));
+            if (g.hp !== want) earlyBad.push(`第${n}波 ${g.type} ${g.hp}≠${want}`);
+        }
+    }
+    assert('第 1~30 波每组血量与「只按 1.06^(n-1)」逐组相等（LATE_HP_STEP 的改动没有误伤前段）',
+        earlyBad.length === 0, earlyBad.slice(0, 4).join(' '));
+
+    // 21.8 改动前后对照表（不是断言，供人工核对；旧值 1.025 在这里独立重算，不读被测常量）
+    const OLD_STEP = 1.025;
+    const baseHp = (g, n) => Math.max(1, Math.round(
+        ENEMY_TYPES[g.type].hp * Math.pow(1.06, n - 1) * (g.type === 'boss' ? 8 : 1)));
+    const hpSumOf = (w) => w.groups.reduce((s, g) => s + g.count * g.hp, 0);
+    const sumNew = (n) => hpSumOf(generateEndlessWave(n, SEED));
+    const sumOld = (n) => generateEndlessWave(n, SEED).groups.reduce((s, g) => s + g.count
+        * Math.max(1, Math.round(baseHp(g, n) * (n > mod.LATE_HP_FROM ? Math.pow(OLD_STEP, n - mod.LATE_HP_FROM) : 1))), 0);
+    const lateMulNew = (n) => (n > mod.LATE_HP_FROM ? Math.pow(LATE_HP_STEP, n - mod.LATE_HP_FROM) : 1);
+    console.log('  LATE_HP_STEP：' + OLD_STEP + ' → ' + LATE_HP_STEP + '（参考 DPS ' + REF_DPS + '，清完秒 = 总血量 ÷ 参考 DPS）');
+    console.log('    波次  lateHpMul  改动后总血量  清完秒  |  改动前总血量  清完秒');
+    for (const n of [30, 50, 75, 90, 100]) {
+        const sn = sumNew(n), so = sumOld(n);
+        console.log(`    ${String(n).padStart(3)}   ×${lateMulNew(n).toFixed(3).padStart(6)}  ${String(sn).padStart(12)}`
+            + `  ${String(Math.round(sn / REF_DPS)).padStart(6)}  |  ${String(so).padStart(12)}  ${String(Math.round(so / REF_DPS)).padStart(6)}`);
+    }
+
+    // 21.9 平衡护栏：第 90 波按参考 DPS 必须 240 秒内清完（阈值不许放宽 —— 若不满足只能继续降斜率）
+    const sec90 = sumNew(90) / REF_DPS;
+    assert(`平衡护栏：第 90 波按参考 DPS ${REF_DPS} 估算的清完秒数 < ${CLEAR_SEC_MAX} 秒（实际 ${Math.round(sec90)} 秒）`,
+        sec90 < CLEAR_SEC_MAX, `第 90 波总血量 ${sumNew(90)} ÷ ${REF_DPS} = ${sec90.toFixed(1)} 秒`);
+
+    // 21.10 pointAt 对坏输入必须给出有限坐标（塔多怪少时 dist 会来自推回 / 黑洞 / 坏存档）
+    const path0 = mod.buildPath(MAP_TEMPLATES[0]);
+    let pErr = null, pts = [];
+    try { pts = [-1, 1e18, NaN, Infinity, -Infinity, undefined].map((d) => pointAt(path0, d)); }
+    catch (err) { pErr = err; }
+    assert('pointAt：-1 / 1e18 / NaN / ±Infinity / undefined 都返回有限坐标且不抛异常',
+        pErr === null && pts.length === 6 && pts.every((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y)),
+        pErr ? String(pErr) : JSON.stringify(pts));
+
+    // 21.11 isRunawayEnemy：NaN / Infinity / hp≤0 / dead 一律认出来（否则 `hp <= 0` 永远为 false → 打不死）
+    const runaways = [{ hp: NaN }, { hp: Infinity }, { hp: -Infinity }, { hp: 0 }, { hp: 10, dead: true }];
+    assert('isRunawayEnemy：hp = NaN / Infinity / 0 / dead:true → true；正常敌人 → false；null → false',
+        runaways.every((e) => isRunawayEnemy(e) === true)
+        && isRunawayEnemy({ hp: 120, dead: false }) === false
+        && isRunawayEnemy(null) === false,
+        runaways.map((e) => e.hp + ':' + isRunawayEnemy(e)).join(' '));
+
+    // 21.12 塔数上限 + 满场压测（塔极多、怪极少时不炸）
+    assert('MAX_TOWERS = 80 且计划类纯函数仍在（批量升级 / 快速升级只操作已有的塔，不受上限影响）',
+        MAX_TOWERS === 80 && typeof mod.planBatchUpgrade === 'function' && typeof mod.nextUpgradeTarget === 'function',
+        'MAX_TOWERS=' + MAX_TOWERS);
+    const many = [];
+    const kinds = ['arrow', 'cannon', 'frost', 'aura'];
+    for (let i = 0; i < MAX_TOWERS; i += 1) {
+        many.push({ type: kinds[i % 4], lv: 50, oc: i % 3 === 0, rateBuff: 0, dmgBuff: 0, col: i % 24, row: Math.floor(i / 24) });
+    }
+    let manyErr = null, manyPrev = null, manyDps = 0;
+    try {
+        manyPrev = nextWavePreview({ wave: 89, seed: SEED, mode: 'endless', level: null, towers: many });
+        manyDps = towersDps(many);
+    } catch (err) { manyErr = err; }
+    assert(`${MAX_TOWERS} 座 Lv.50 塔（含超频）：nextWavePreview / towersDps 不抛异常且返回有限正数`,
+        manyErr === null && Number.isFinite(manyDps) && manyDps > 0
+        && !!manyPrev && Number.isFinite(manyPrev.myDps) && manyPrev.myDps > 0,
+        manyErr ? String(manyErr) : 'dps=' + Math.round(manyDps));
+    console.log('  ' + MAX_TOWERS + ' 座 Lv.50 塔合计 DPS ≈ ' + Math.round(manyDps)
+        + '（参考 DPS 口径 ' + REF_DPS + ' 只相当于约 ' + Math.round(manyDps / REF_DPS) + ' 倍 —— 说明口径偏保守）');
+
+    // 21.13 力场回推收敛（真因：血厚的怪被推回锁在起点 → 不漏怪、杀不死、波次永不结束）
+    const { canPush, clampPushDist, pushStrength, PUSH_IMMUNE_MS, PUSH_BACK_FLOOR_PX } = mod;
+    assert('canPush：被推回后 ' + PUSH_IMMUNE_MS + 'ms 免疫窗口内第二次推回不生效，过窗口/未推过的怪可推',
+        canPush({ hp: 100, pushImmuneUntil: 0 }, 500) === true
+        && canPush({ hp: 100, pushImmuneUntil: 2500 }, 1000) === false
+        && canPush({ hp: 100, pushImmuneUntil: 2500 }, 2500) === true
+        && canPush({ hp: 100, dead: true }, 9000) === false
+        && canPush(null, 0) === false,
+        'pushImmuneUntil 判定不按预期');
+    assert('clampPushDist：dist 低于「最远点 − ' + PUSH_BACK_FLOOR_PX + 'px」时抬到该下限，且永不为负',
+        clampPushDist(10, 500, PUSH_BACK_FLOOR_PX) === 500 - PUSH_BACK_FLOOR_PX
+        && clampPushDist(450, 500, PUSH_BACK_FLOOR_PX) === 450
+        && clampPushDist(-50, 100, PUSH_BACK_FLOOR_PX) === 4
+        && clampPushDist(-50, 0, PUSH_BACK_FLOOR_PX) === 0
+        && clampPushDist(NaN, 500, PUSH_BACK_FLOOR_PX) === 500 - PUSH_BACK_FLOOR_PX,
+        '下限计算不按预期');
+    const strengths = [0, 1, 2, 3, 40].map((n) => pushStrength(100, n));
+    assert('pushStrength：随被推次数严格递减，且下限恒为 2px（100 → 75 → 56.25 → 42.19 … → 2）',
+        strengths[0] === 100 && strengths[1] === 75 && strengths[2] === 56.25
+        && strengths[1] < strengths[0] && strengths[2] < strengths[1] && strengths[3] < strengths[2]
+        && strengths[4] === 2 && pushStrength(100, 999) === 2 && pushStrength(0.5, 0) === 2,
+        strengths.join(' → '));
+    // 收敛性：每帧前进 2px，每 2 秒（= 免疫窗口）才允许再吃一次满推回（400px）。
+    // 有下限兜底 → 位置仍单调向终点推进，这就是「血再厚也不会被永久锁在起点、波次一定会结束」的保证。
+    // 推回公式与模块里的 applyPush 同一条（max(0, dist - px)），这里独立重写一份便于断言。
+    const pushAfter = (cur, px) => Math.max(0, cur - px);
+    let d = 0, top = 0, pushed = 0;
+    for (let i = 0; i < 4000; i += 1) {
+        d += 2;                                  // 前进 2px/帧（≈120px/s 的怪在 60fps 下）
+        if (d > top) top = d;
+        if (i % 120 === 0) {                     // 每 2000ms 才允许推一次
+            pushed += 1;
+            d = clampPushDist(pushAfter(d, pushStrength(400, 0)), top, PUSH_BACK_FLOOR_PX);
+        }
+    }
+    assert('回推收敛：每帧前进 2px + 每 2 秒吃一次 400px 满推回，4000 帧后仍向终点推进了 > 1000px（不会被锁死）',
+        top > 1000 && d >= 0 && pushed >= 33, '峰值 dist=' + top.toFixed(0) + ' 末 dist=' + d.toFixed(0)
+        + ' 推回次数=' + pushed);
+
+    // 21.14 BOSS 信息栏的数据口径（血条 / 数值 / 护甲 / 速度全由 bossRows 现算，UI 不另算一份）
+    const { bossRows } = mod;
+    assert('bossRows：空数组 / null / 只有非 BOSS 敌人 → []（BOSS 栏整块 hidden 的依据）',
+        bossRows([]).length === 0 && bossRows(null).length === 0
+        && bossRows([{ type: 'basic', hp: 10, maxHp: 10 }]).length === 0, '');
+    const b2 = bossRows([
+        { type: 'boss', hp: 50, maxHp: 200, armor: 0.35, speed: 70 },
+        { type: 'boss', hp: 999, maxHp: 100, armor: 0.35, speed: 70 },
+        { type: 'boss', hp: 10, maxHp: 10, dead: true },
+        { type: 'basic', hp: 10, maxHp: 10 },
+    ]);
+    assert('bossRows：2 只活 BOSS（已死的那只被过滤）→ 2 条，pct = 0.25 与夹到 1，护甲/速度原样带出',
+        b2.length === 2 && b2[0].pct === 0.25 && b2[0].hp === 50 && b2[0].maxHp === 200
+        && b2[0].armor === 0.35 && b2[0].speed === 70 && b2[1].pct === 1, JSON.stringify(b2));
+    const b3 = bossRows([
+        { type: 'boss', hp: -20, maxHp: 100 }, { type: 'boss', hp: 5, maxHp: 0 }, { type: 'boss' },
+    ]);
+    assert('bossRows 容错：hp 为负 → 0；maxHp = 0 / 缺失 → pct 记 0 且不抛异常',
+        b3.length === 3 && b3[0].hp === 0 && b3[0].pct === 0 && b3[1].pct === 0 && b3[2].pct === 0,
+        JSON.stringify(b3));
+    console.log('  bossRows 实测：' + JSON.stringify(b2) + ' / 容错组 ' + JSON.stringify(b3));
+}
+
+
 // ─── 汇总 ────────────────────────────────────────────────────
 
 const total = passed + failures.length;

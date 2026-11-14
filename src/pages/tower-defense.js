@@ -76,6 +76,16 @@ const ALL_TOWER_TYPES = { ...TOWER_TYPES, ...SPECIAL_TOWER_TYPES };
  */
 const MAX_TOWER_LEVEL = 100;          // 塔的最高等级
 const HIGH_LV_UNLOCK_WAVE = 50;       // 无尽模式第 50 波后才允许升级到 Lv.4+
+/**
+ * 同屏塔数硬上限。每座塔每帧都要绘制塔身 / 等级 / 光环脉冲 / 超频金环并参与索敌，而 90 波之后
+ * 金币充裕，玩家会把每个可建格都铺满 —— 实测铺到 300 座上下时帧率塌方，画面看着就是「完全卡死」。
+ * 80 座已远超清掉一波所需的火力，所以它是纯兜底：超限时 placeTower 拒绝建造（不扣钱），
+ * 已有塔的升级 / 超频 / 拆除都不受影响。
+ */
+const MAX_TOWERS = 80;
+/** 特效降载阈值（见 perfSkipFx）：同屏敌人数 / 塔数超过它就不再生成粒子与飘字 */
+const FX_CROWD_ENEMIES = 200;
+const FX_CROWD_TOWERS = 40;
 const HIGH_LV_DMG_STEP = 1.12;        // 每级伤害 ×1.12
 const HIGH_LV_RATE_STEP = 0.015;      // 每级攻速 +1.5%（相对 Lv.3），累计上限 +100%
 const HIGH_LV_RANGE_STEP = 0.6;       // 每级射程 +0.6，累计上限 +50
@@ -194,8 +204,9 @@ function mulberry32(a) {
  *  · spawnGap 从 1.15s 收到 0.22s 封顶，只压缩到 1/5，防止后期一帧刷出整波。
  *  · BOSS 波 n%10===0：额外插入 1+floor(n/25) 只 BOSS（血量 ×8、速度 ×0.85），
  *    不计入 total → 实际出场数 = total + bossCount。
- *  · 高波次叠乘 LATE_HP_STEP^(n-LATE_HP_FROM)（见下面的常量注释）：1.06 单层在高波次
- *    偏软，第 30 波之后再加一层更陡的增长，让「无尽后期明显更硬」。
+ *  · 高波次叠乘 LATE_HP_STEP^(n-LATE_HP_FROM)：1.06 单层在高波次偏软，第 30 波之后再加一层
+ *    **轻量**叠乘（1.010/波）——它是「加一点点」，不是陡坡：陡到 1.025 时第 90 波单波 4144 万血，而
+ *    「场上不清空就不算这波结束」的收尾条件会让玩家永远停在同一波（BUG 的血量侧成因）。
  */
 
 /**
@@ -203,19 +214,23 @@ function mulberry32(a) {
  *  · 为什么从第 30 波起：**闯关模式每关最多 28 波**（waves = 4 + floor(L×0.24)，L100 → 28），
  *    而闯关的血量基数也走 generateEndlessWave —— 阈值 ≥ 30（= LATE_HP_FROM ≥ 30，自检第 14.4
  *    条钉住这条硬门槛）才能保证这一层**完全不进入闯关**，闯关平衡一点不动。
- *  · 为什么选 1.025：与 1.06 叠成每波 ×1.0865（约 8.4 波翻倍，原来约 12 波）——足够让
- *    高波次明显更硬，又不至于把「能不能推到 100 波」直接判死：第 100 波 lateHpMul = 1.025^70 ≈ 5.6。
- *    再陡（1.04+）会和 BOSS 的 ×8 叠成墙，高波次变成纯看脸。
+ *  · 为什么从 1.025 改成 1.010 —— 它只该是「加一点点」，不该是第二堵墙：
+ *    - 老值 1.025 与 1.06 叠成每波 ×1.0865：第 90 波 lateHpMul ≈ 4.40、单波 4144 万血，而玩家在
+ *      90 波的实际输出（复现存档：3 座 Lv.50 超频塔）只有几万 DPS → 一波要打 20 分钟以上。
+ *    - 新值 1.010：第 90 波 lateHpMul ≈ 1.82、单波 1711 万血；配合已降到 1.12 的升级价斜率
+ *      （自检第 20.8 条），按参考 DPS 10 万算约 171 秒清完，落在第 21 节「< 240 秒」的护栏内。
+ *    - 边界：再缓（≤1.005）等于没加、高波次失去「明显更硬」；再陡（≥1.02）又走回那堵墙。
+ *      这一层**只乘 hp**：hpMul = 1.06^(n-1) 一个数都没动（第 1~30 波逐组相等由第 21.7 条钉住）。
  *  · n ≤ LATE_HP_FROM 时 lateHpMul 严格等于 1（不是 ≈1、也不参与取整），第 1~30 波的
  *    每次取整结果都与改动前完全一致。
  */
 const LATE_HP_FROM = 30;      // 第 30 波起额外加血（必须 ≥ 30，见上面「闯关最多 28 波」）
-const LATE_HP_STEP = 1.025;   // 每多一波，血量再 ×1.025（叠在 1.06 之上）
+const LATE_HP_STEP = 1.010;   // 每多一波，血量再 ×1.010（叠在 1.06 之上；老值 1.025 见上面的 BUG 复盘）
 
 /**
  * 血量的有限上限。
  *
- * 无尽模式的波次本身没有上限，但血量是「1.06^(n-1) × 1.025^(n-30)」的指数叠乘：
+ * 无尽模式的波次本身没有上限，但血量是「1.06^(n-1) × 1.010^(n-30)」的指数叠乘：
  * 实测第 8000 波还是有限值，到第 ~10000 波就溢出成 Infinity —— 那时 `hp - 伤害`
  * 仍是 Infinity，敌人永远打不死，参与显示/结算还可能产生 NaN。也就是说「无尽」
  * 会在数值上先烂掉。
@@ -305,6 +320,41 @@ export function debugWaveCurve(waves) {
     const w = generateEndlessWave(n, DEFAULT_SEED);
     return { wave: w.n, total: w.total, hp: w.groups[0].hp };
   });
+}
+
+/* ===================== 2a. 波次僵局判定（无尽模式的「打不完」出口） ===================== */
+/**
+ * 僵局阈值（毫秒）。一波的收尾条件是「出场队列放空 **且** 场上清空」，高波次血量指数增长，
+ * 玩家输出一旦跟不上这一波就永远打不完（出怪无止境、金币不涨、像冻住）。血量斜率已降到
+ * 1.010/波（见 LATE_HP_STEP），这层判定是第二道保险：真打不完时给玩家一个体面的出口。
+ */
+const STALL_WAVE_MS = 90000;    // 波次已进行 ≥ 90 秒
+const STALL_NO_KILL_MS = 20000; // 且 ≥ 20 秒没死过一只（输出已经完全跟不上）
+const STALL_HARD_MS = 300000;   // 硬上限：单波 ≥ 5 分钟，不管还在不在杀，都算僵局
+const STALL_REMIND_MS = 60000;  // 浮层被「继续打」关掉后，同一波最多每 60 秒再提醒一次
+/** 阈值对外导出：自检断言「策略数字没被顺手改掉」，浮层文案与调参也读这一份 */
+export const STALL_LIMITS = Object.freeze({
+  waveMs: STALL_WAVE_MS, sinceKillMs: STALL_NO_KILL_MS, hardMs: STALL_HARD_MS, remindMs: STALL_REMIND_MS,
+});
+
+/**
+ * 波次僵局判定（纯函数：不读 state、不碰 DOM、不看时钟，参数进 → 布尔出）。
+ * info = { waveMs, sinceKillMs, aliveCount, total }：本波已进行毫秒 / 距上次击杀毫秒 /
+ * 场上活怪数 / 本波出场总数（total 本判定不读，留给浮层文案与后续调参）。
+ * 规则（边界取「≥」：90000 / 20000 这一刻即算僵局，与「90 秒 + 20 秒无击杀 → true」这条用例一致）：
+ *  1. waveMs ≥ 90000 且 sinceKillMs ≥ 20000 且 aliveCount > 0 → true；
+ *  2. waveMs ≥ 300000（5 分钟硬上限）且 aliveCount > 0 → true（不看击杀间隔）；
+ *  3. 其余 false。**场上没有活怪时永远 false** —— 那是正常收尾，不是僵局。
+ */
+export function isWaveStalled(info) {
+  if (!info || typeof info !== 'object') return false;
+  const waveMs = Number(info.waveMs);
+  const sinceKillMs = Number(info.sinceKillMs);
+  const alive = Number(info.aliveCount);
+  if (!(alive > 0)) return false;                    // 含 NaN：认不出活怪就不报僵局
+  if (!Number.isFinite(waveMs)) return false;
+  if (waveMs >= STALL_HARD_MS) return true;          // 硬上限不看击杀间隔
+  return Number.isFinite(sinceKillMs) && waveMs >= STALL_WAVE_MS && sinceKillMs >= STALL_NO_KILL_MS;
 }
 
 /* ===================== 2b. 闯关模式：关卡派生 + 关卡波次 ===================== */
@@ -467,11 +517,19 @@ function buildPath(points) {
   return { pts, segs, length: acc };
 }
 
-/** 路径进度 dist 处的像素坐标（越界自动夹到两端） */
+/**
+ * 路径进度 dist 处的像素坐标（越界自动夹到两端）。
+ * 塔多 / 怪少时这里是高风险点：dist 可能来自被力场推回、被黑洞插值、或坏存档还原出来的敌人。
+ * NaN 参与比较时所有 `d <= s.start + s.len` 都是 false，会一路穿到最后一个段的终点 —— 结果虽然
+ * 有限，但「为什么坐标跑到终点」完全不可预期。所以先把 dist 规整成 [0, length] 里的有限数，
+ * 函数对任何输入都返回有限坐标、且不抛异常（第 21 节断言这一点）。
+ */
 function pointAt(path, dist) {
-  const segs = path.segs;
+  const segs = path && path.segs ? path.segs : [];
   if (!segs.length) return { x: 0, y: 0 };
-  const d = dist < 0 ? 0 : dist > path.length ? path.length : dist;
+  const raw = Number(dist);
+  const len = Number.isFinite(path.length) ? path.length : 0;
+  const d = Number.isNaN(raw) ? 0 : (raw <= 0 ? 0 : (raw >= len ? len : raw));
   for (let i = 0; i < segs.length; i++) {
     const s = segs[i];
     if (d <= s.start + s.len) {
@@ -540,6 +598,9 @@ export {
   SPEC_TIERS, specOptions, specById, applySpecialization, specSummary,
   towerStatSpec,   // towerStat + 专精（自检断言「串起来之后 dmg 真的变大」，不必再造一座塔）
   LATE_HP_FROM, LATE_HP_STEP, SPEED_LEVELS, HP_CEIL,   // 高波次叠乘阈值/斜率 + 倍速档位（自检直接断言）
+  MAX_TOWERS,   // 同屏塔数硬上限（自检断言存在 + 其余计划类纯函数不受它影响）
+  pointAt,          // 路径进度 → 坐标（纯函数：自检用坏 dist 断言「有限坐标、不抛异常」）
+  PUSH_IMMUNE_MS, PUSH_BACK_FLOOR_PX, PUSH_DECAY, PUSH_MIN_PX,   // 力场回推收敛的四个数（自检直接断言）
 };
 
 /* ===================== 4. 运行时状态 ===================== */
@@ -554,10 +615,19 @@ const state = {
   waveActive: false, nextWaveIn: 0,      // 当前波是否在打 / 下一波倒计时（ms）
   spawnQueue: [], spawnIdx: 0,           // 本波出场队列（元素是 group 引用）+ 消费下标
   spawnGap: 1000, spawnTimer: 0, waveStats: null,
+  // 僵局出口用的时间戳 / 标志（判定见 isWaveStalled）：全部是本局内存态，**不进存档**（存档结构一个字段都没加）。
+  waveStartedAt: 0,      // 本波开始的逻辑时刻（startWave 写 state.timeMs）
+  lastKillAt: 0,         // 最近一次击杀的逻辑时刻（killEnemy 写 state.timeMs）
+  stallShown: false,     // 本波是否已弹过僵局浮层（防反复打扰）
+  stallNoticeAt: 0,      // 上次弹 / 关掉浮层的逻辑时刻（配 STALL_REMIND_MS 限流）
+  stallPaused: false,    // 浮层挂起中：主循环像 state.paused 一样不推进，但不改 UI 的暂停按钮态
   // 本波的词缀（无尽模式 5 的倍数波才有，闯关模式恒为 null）+ 它的 flags 副本。
   // waveFlags 单独存一份是为了让减速结算处不必每次都 `&& affix.flags &&` 地判空。
   waveAffix: null, waveFlags: {},
   paused: false, hidden: false, speed: 1, gameOver: false, timeMs: 0,
+  // 逻辑步进抛过异常：主循环停摆（否则每帧抛一次、render 被跳过 → 画面停在最后一帧、数据全冻，
+  // 玩家看到的只是「卡死」而不是「出错」）。提示画在画布顶部，见 frame 的 try/catch 与 drawHaltBanner。
+  halted: false,
   awaitingResume: false, resumeDone: false,   // 等玩家选「继续/重开」时主循环不推进（见 frame）
   selectedType: null, selectedTower: null, hover: { col: -1, row: -1 }, reducedMotion: false,
   enemies: [], towers: [], bullets: [], particles: [], floaters: [],
@@ -785,7 +855,11 @@ function resetGame() {
   state.gold = lv ? lv.gold : BALANCE.startGold;
   state.kills = 0; state.waveActive = false; state.nextWaveIn = 1800;
   state.spawnQueue = []; state.spawnIdx = 0; state.spawnTimer = 0; state.waveStats = null;
+  // 僵局出口的本局状态：重开归零（startWave 每波会重写 waveStartedAt / lastKillAt）
+  state.waveStartedAt = 0; state.lastKillAt = 0;
+  state.stallShown = false; state.stallNoticeAt = 0; state.stallPaused = false;
   state.paused = false; state.speed = 1; state.gameOver = false; state.result = ''; state.timeMs = 0;
+  state.halted = false;   // 新的一局重新给主循环一次机会（护栏见 frame 的 try/catch）
   // 技能时序跟着本局清零：冷却不进存档（存档结构一个字段都不加），重开就是全新的一局
   state.skillReady = {}; state.casting = null; state.aim = null; state.stopUntil = 0;
   state.overloadUntil = 0; state.fatigueUntil = 0; state.overloadScale = 1; state.overloadRateMul = 1;
@@ -866,6 +940,10 @@ function startWave() {
   state.spawnGap = wave.spawnGap;
   state.spawnTimer = 0;
   state.waveActive = true;
+  // 僵局计时：每波开头重新起算。lastKillAt 也归到此刻 —— 一波刚开始还没击杀，
+  // 不该立刻被算成「20 秒没死过一只」（否则第 20 秒一到就误报僵局）。
+  state.waveStartedAt = state.timeMs; state.lastKillAt = state.timeMs;
+  state.stallShown = false; state.stallNoticeAt = 0; state.stallPaused = false;
   noteBest(state.wave);
   announceUnlocks(state.wave);   // 这一波若有新技能 / 新特殊塔解锁，就在画布顶部飘一句
   noteEndlessRun();   // 每波开始时落盘：此刻波中还没有敌人，存下来的正是「该波开头」
@@ -978,6 +1056,10 @@ function spawnEnemy(spec) {
     type: spec.type, hp: spec.hp, maxHp: spec.hp, speed: spec.speed * jitter,
     armor: spec.armor, bounty: spec.bounty,
     dist: 0, x: start.x, y: start.y,     // dist = 沿路径像素进度，越大越靠前
+    // 力场回推的收敛状态（见 canPush / clampPushDist / pushStrength）：
+    maxDistReached: 0,   // 它走过的最远 dist —— 回推的最低位置由它减去 PUSH_BACK_FLOOR_PX 决定
+    pushCount: 0,        // 累计被推次数（推回距离按 0.75^n 递减）
+    pushImmuneUntil: 0,  // 免疫窗口的到期时刻（逻辑毫秒），窗口内再命中只结算伤害、不再推
     id: nextEnemyId++,                  // 唯一 id：链式闪电用它排除已电过的目标
     slowUntil: 0, slowFactor: 0, hitFlash: 0, dead: false,
     // 技能状态字段（td-skills 的约定）：前三个是剩余毫秒，由 tickStatus 递减；poisonDps 是每秒毒伤
@@ -996,7 +1078,10 @@ function updateEnemies(dt) {
   const frozen = state.timeMs < state.stopUntil;   // 时停：整场敌人原地不动，但仍然会被打（塔/子弹照常跑）
   for (let i = arr.length - 1; i >= 0; i--) {
     const e = arr[i];
-    if (e.dead) { arr[i] = arr[arr.length - 1]; arr.pop(); continue; }
+    // 清理阶段：dead / 血量非有限 / hp ≤ 0 一律移除。这是「该死了却没死」的最后一道回收 ——
+    // hp 变成 NaN 时 `hp <= 0` 永远为 false，那只敌人会一直赖在场上，而波次收尾要求「场上清空」，
+    // 结果就是整波永远结束不了（症状：只剩几只敌人不动、波次卡死）。
+    if (isRunawayEnemy(e)) { arr[i] = arr[arr.length - 1]; arr.pop(); continue; }
     // 中毒：先把「本步剩余时间内的那一段」结算掉（无视护甲，见 poisonDamage），再统一递减计时
     if (e.poisonMs > 0) {
       poisonDamage(e, poisonTick(e.poisonMs, e.poisonDps, dtMs));
@@ -1015,6 +1100,9 @@ function updateEnemies(dt) {
       const slowed = state.timeMs < e.slowUntil;
       e.dist += (slowed ? e.speed * (1 - e.slowFactor) : e.speed) * dt;
     }
+    // 走过的最远点：力场回推的「最低可推回位置」由它决定（见 clampPushDist）。
+    // 正因为有它，血量再厚、力场塔再多的怪也保证能持续推进 —— 要么被打死、要么漏过去，波次一定会结束。
+    if (e.dist > e.maxDistReached) e.maxDistReached = e.dist;
     if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt * 5);
     // 被拉住的这一帧既不结算漏怪、也不回写路径坐标：dist 没动，hold 结束后的下一帧
     // 就会由下面的 pointAt(path, dist) 把坐标重新同步回路径上（= 「解除控制后归位」）。
@@ -1051,6 +1139,17 @@ function leak() {
 }
 
 /**
+ * 「该死了却没死」的兜底判定（纯函数：只看一只敌人的血量与标记）。hp 若变成 NaN / Infinity，
+ * `hp <= 0` 永远为 false → 这只怪再也打不死，而收尾要求「场上清空」→ 整波永远结束不了。
+ * 判为 true 的敌人在 updateEnemies 的清理阶段一律移除。
+ */
+export function isRunawayEnemy(e) {
+  if (!e || typeof e !== 'object') return false;
+  const hp = Number(e.hp);
+  return e.dead === true || !Number.isFinite(hp) || hp <= 0;
+}
+
+/**
  * 击杀结算（赏金 / 击杀数 / 粒子）：damageEnemy 与无视护甲的真实伤害共用，保证两条伤害路径记同一本账。
  * 赏金加成读的是逻辑时间（state.timeMs）而不是墙钟：暂停 / 切后台 / 等续玩时不会白白烧掉赏金时段。
  */
@@ -1062,14 +1161,18 @@ function killEnemy(enemy) {
   const reward = state.timeMs < state.bountyUntil ? enemy.bounty * (1 + state.bountyMul) : enemy.bounty;
   state.gold += Math.max(1, Math.round(reward));
   state.kills += 1;
+  state.lastKillAt = state.timeMs;   // 僵局判定用：只要还在杀，这一波就不算「清不完」（见 isWaveStalled）
   addParticles(enemy.x, enemy.y, 7, ENEMY_COLORS[enemy.type] || '#999');
 }
 
 /** 伤害结算：真实伤害 = dmg × (1 - armor)；击杀给赏金（bounty 已在波次里算好倍率） */
 function damageEnemy(enemy, dmg) {
-  if (enemy.dead) return;
+  // 塔多 / 怪少时这里是空值高发点：索敌返回 null、目标已被 swap-remove、被技能标了 dead 都会传进来
+  if (!enemy || enemy.dead) return;
+  if (!Number.isFinite(enemy.hp)) enemy.hp = 0;   // 非有限血量视为可击杀，否则 NaN <= 0 永远为 false → 打不死
   const real = dmg * (1 - enemy.armor);
   enemy.hp -= real;
+  if (!Number.isFinite(enemy.hp)) enemy.hp = 0;   // 伤害本身是 NaN / Infinity 时同样落到 0（见 isRunawayEnemy）
   enemy.hitFlash = 1;
   addFloater(enemy.x, enemy.y - 8, Math.round(real), null);
   if (enemy.hp <= 0) killEnemy(enemy);
@@ -1082,7 +1185,9 @@ function damageEnemy(enemy, dmg) {
  */
 function trueDamage(enemy, dmg) {
   if (!enemy || enemy.dead || !(dmg > 0)) return;
+  if (!Number.isFinite(enemy.hp)) enemy.hp = 0;   // 同 damageEnemy：非有限血量视为可击杀（见 isRunawayEnemy）
   enemy.hp -= dmg;
+  if (!Number.isFinite(enemy.hp)) enemy.hp = 0;
   enemy.hitFlash = 1;
   if (enemy.hp <= 0) killEnemy(enemy);
 }
@@ -1202,6 +1307,13 @@ function placeTower(type, col, row) {
   if (!def) return false;
   if (isSpecialTower(type) && (state.mode !== 'endless' || state.wave < towerUnlockWave(type))) return false;
   const cost = def.cost[0];
+  // 塔数上限：先拦在这里（不扣钱、不建塔）。铺满整张图的塔阵会让每帧的绘制与索敌一起塌方，
+  // 而「塔更多」对高波次并没有边际收益 —— 火力瓶颈在等级与血量曲线，不在座数。
+  if (state.towers.length >= MAX_TOWERS) {
+    addFloater((col + 0.5) * GRID.tile, (row + 0.5) * GRID.tile, '已达 ' + MAX_TOWERS + ' 座上限', palette.danger, 1.2);
+    saveMsg('塔数量已达上限 ' + MAX_TOWERS + ' 座，请先拆除不用的塔', true);
+    return false;
+  }
   if (state.gold < cost || !isBuildable(state, col, row) || towerAt(state, col, row)) return false;
   state.gold -= cost;
   state.towers.push({
@@ -1772,6 +1884,45 @@ function updateBullets(dt) {
   }
 }
 
+/* ---------- 力场回推的收敛规则（BUG：力场把血厚的怪永久锁在起点） ---------- */
+/**
+ * 回推收敛的三条规则。力场塔（force，第 40 波解锁）沿路径把敌人**往回推**；90 波的血厚怪在场
+ * 时间长，推回量一旦赶上它单位时间的前进量，敌人就被永久锁在起点附近：既不前进（不漏怪、不扣命）、
+ * 也杀不死（击杀不涨、金币不涨），而收尾条件要求「场上清空」→ 波次永不结束（「画面在动、数字全冻」）。
+ * 三条必须一起做：① 免疫窗口（多座力场塔不许按帧连推同一只）② 回推下限（最多往回 3 格，
+ * 保证它总在推进）③ 推回递减（推得越多推得越轻，否则一堆力场塔只会让敌人原地抖动）。
+ */
+const PUSH_IMMUNE_MS = 2000;      // 被推回后的免疫窗口（逻辑毫秒）
+const PUSH_BACK_FLOOR_PX = 96;    // 回推最多往回 3 格（GRID.tile = 32px）
+const PUSH_DECAY = 0.75;          // 每多被推一次，推回距离 ×0.75
+const PUSH_MIN_PX = 2;            // 递减下限：再小就只是原地抖动，等于没推
+
+/** 现在这一刻这只敌人还能不能被推回（纯函数）：已死不能推，免疫窗口内也不能推 */
+export function canPush(enemy, now) {
+  if (!enemy || typeof enemy !== 'object' || enemy.dead === true) return false;
+  const t = Number(now);
+  return !(Number.isFinite(t) && t < enemy.pushImmuneUntil);
+}
+
+/** 回推后的路径进度下限（纯函数）：不低于「走过的最远点 − floorPx」，也不低于 0（起点） */
+export function clampPushDist(dist, maxDistReached, floorPx) {
+  const d = Number(dist);
+  const top = Number(maxDistReached);
+  const floor = Number(floorPx);
+  const topSafe = Number.isFinite(top) ? Math.max(0, top) : 0;
+  const floorSafe = Number.isFinite(floor) && floor >= 0 ? floor : PUSH_BACK_FLOOR_PX;
+  return Math.max(Math.max(0, topSafe - floorSafe), Number.isFinite(d) ? d : 0);
+}
+
+/** 第 n 次被推回时的实际距离（纯函数）：base × 0.75^n，下限 2px */
+export function pushStrength(base, pushCount) {
+  const b = Number(base);
+  const n = Number(pushCount);
+  const baseSafe = Number.isFinite(b) && b > 0 ? b : 0;
+  const countSafe = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  return Math.max(PUSH_MIN_PX, baseSafe * Math.pow(PUSH_DECAY, countSafe));
+}
+
 /**
  * 力场推回的像素距离：Lv.1~3 走 td-special-towers 的 pushDistance（口径不变）再按超频 ×1.25，
  * Lv.4+ 用 towerStat 外推的格数（oc 已在 towerStat 里乘过）× 同一条公式（格 × 32 × BOSS 减半）。
@@ -1812,10 +1963,18 @@ function impact(b) {
   damageEnemy(target, b.dmg);
   if (b.type === 'tesla') chainShock(b, target);   // 链式闪电：命中后额外跳 3 个目标（超频 5 个）
   if (b.type === 'force' && !target.dead) {
-    // 力场：沿路径推回（dist 减小、不小于 0；BOSS 减半由 pushDistance 处理），坐标立刻回写免得看着像穿墙
-    target.dist = applyPush(target.dist, forcePushPx(b.lv, target.type === 'boss', b.oc === true, b.spec));
-    const pt = pointAt(state.path, target.dist);
-    target.x = pt.x; target.y = pt.y;
+    // 力场：沿路径推回。**推回必须收敛**（三条规则见 canPush / clampPushDist / pushStrength 的注释），
+    // 否则血厚的怪会被力场塔反复推回、永久锁在起点：不漏怪、杀不死、波次永不结束。
+    // 免疫窗口内的命中只结算伤害、不推回 —— 「伤害照常、只是不推」，力场塔不会因此变成哑炮。
+    if (canPush(target, state.timeMs)) {
+      const px = pushStrength(forcePushPx(b.lv, target.type === 'boss', b.oc === true, b.spec),
+          target.pushCount || 0);
+      target.pushCount = (target.pushCount || 0) + 1;
+      target.pushImmuneUntil = state.timeMs + PUSH_IMMUNE_MS;
+      target.dist = clampPushDist(applyPush(target.dist, px), target.maxDistReached || 0, PUSH_BACK_FLOOR_PX);
+      const pt = pointAt(state.path, target.dist);
+      target.x = pt.x; target.y = pt.y;
+    }
   }
   if (b.slow > 0 && !target.dead) {
     // 禁魔波（词缀 noSlow）：冰塔这一发**不施加也不更新**减速 —— 已有减速保持原样（见 waveNoSlow 的注释）。
@@ -1851,10 +2010,20 @@ function chainShock(b, first) {
 
 /* ===================== 8. 特效（飘字 / 粒子） ===================== */
 /**
+ * 降载判定（同屏拥挤时跳过粒子与伤害飘字）。粒子 + 飘字是最贵的两条绘制通道，数量随命中次数线性涨，
+ * 而高波次恰好「敌人多 + 塔多 + 命中频繁」同时成立。**只影响观感，不影响伤害与赏金** ——
+ * 赏金在 killEnemy 结算、伤害在 damageEnemy 结算，与这两条特效通道无关。
+ */
+function perfSkipFx() {
+  return state.enemies.length > FX_CROWD_ENEMIES || state.towers.length > FX_CROWD_TOWERS;
+}
+
+/**
  * 飘字：reduce 动效时改为静态显示（不上飘、不淡出），信息不丢。
  * lifeSec 可省略（默认 0.7s）—— 技能 / 解锁提示要停留久一点才读得完，所以开了这个口子。
  */
 function addFloater(x, y, value, color, lifeSec) {
+  if (perfSkipFx()) return;   // 降载：同屏过挤时不生成飘字（只影响观感，见 perfSkipFx）
   if (state.floaters.length > 60) state.floaters.shift();
   const life = Number.isFinite(lifeSec) && lifeSec > 0 ? lifeSec : 0.7;
   state.floaters.push({
@@ -1864,9 +2033,9 @@ function addFloater(x, y, value, color, lifeSec) {
   });
 }
 
-/** 命中粒子：reduce 动效时干脆不生成（不画＝最彻底的「关掉位移」） */
+/** 命中粒子：reduce 动效时干脆不生成（不画＝最彻底的「关掉位移」）；同屏过挤时同样跳过（见 perfSkipFx） */
 function addParticles(x, y, count, color) {
-  if (state.reducedMotion) return;
+  if (state.reducedMotion || perfSkipFx()) return;
   for (let i = 0; i < count; i++) {
     if (state.particles.length > 220) break;
     const ang = Math.random() * Math.PI * 2;
@@ -2268,7 +2437,29 @@ function updateWaves(dt) {
     state.waveActive = false;
     if (state.mode === 'level' && state.wave >= state.level.waves) { levelClear(); return; }
     state.nextWaveIn = BALANCE.waveGapMs;
+    return;   // 这一波已经收尾：不必再判僵局
   }
+  checkWaveStall();   // 还在打，却已经清不动 → 无尽模式的僵局出口（见 isWaveStalled）
+}
+
+/**
+ * 僵局出口：本波「打不完」时弹一次结算浮层。**只接无尽模式**（闯关每关最多 28 波、血量曲线已按
+ * 「可通」调平；无尽没有终点，卡在同一波就等于整局冻结）。防打扰：stallShown 一旦置真，
+ * 同一波只在「距上次提醒 ≥ STALL_REMIND_MS（60 秒）」时才再弹；换波时两个字段一起归零。
+ */
+function checkWaveStall() {
+  if (state.mode !== 'endless' || !state.waveActive || state.gameOver) return;
+  const info = {
+    waveMs: state.timeMs - state.waveStartedAt,
+    sinceKillMs: state.timeMs - state.lastKillAt,
+    aliveCount: state.enemies.length,
+    total: state.waveStats ? state.waveStats.total : 0,
+  };
+  if (!isWaveStalled(info)) return;
+  if (state.stallShown && state.timeMs - state.stallNoticeAt < STALL_REMIND_MS) return;
+  state.stallShown = true;
+  state.stallNoticeAt = state.timeMs;
+  showStallOverlay();
 }
 
 /** 一个固定逻辑步：时间 → 波次 → 敌人 → 塔 → 子弹 → 特效 */
@@ -2312,6 +2503,7 @@ function render() {
   drawHover(ctx); drawTowers(ctx);
   drawEnemies(ctx); drawBullets(ctx); drawFx(ctx); drawPrompts(ctx);
   drawAim(ctx);       // 陨石选点准星：最上层，指针在哪都能看见
+  drawHaltBanner(ctx);   // 逻辑停摆提示：压在一切之上（停摆时其它图层已经不再变化）
 }
 
 /** 时停罩：一层淡蓝 + 顶部倒计时。敌人只是不移动，照样挨打，所以用半透明而不是把画面挡住 */
@@ -2394,6 +2586,10 @@ function drawHover(ctx) {
 /** 塔：底盘 + 图标 + 等级点；选中时画射程圈；超频塔多一圈金色脉冲环 + 右上角金色角标 */
 function drawTowers(ctx) {
   const towers = state.towers;
+  // 塔多时的降载（与粒子/飘字共用同一套判定，见 perfSkipFx）：超频金环不再逐帧呼吸，
+  // 改画一圈静态金环 —— 仍然一眼认得出超频塔，但省掉 40+ 座塔每帧的 sin + 整圆描边。
+  // 射程圈只在「选中的那一座」上画（同一时刻最多 1 个，不会随塔数批量画），是操作反馈，不参与降载。
+  const light = perfSkipFx();
   for (let i = 0; i < towers.length; i++) {
     const t = towers[i];
     const def = ALL_TOWER_TYPES[t.type];
@@ -2405,7 +2601,12 @@ function drawTowers(ctx) {
       ctx.beginPath(); ctx.arc(t.x, t.y, towerStatOf(t).range, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha = 1;
     }
-    if (oc) {
+    if (oc && light) {
+      // 降载态：静态金环（不呼吸、不算 sin，也不逐帧改 globalAlpha）
+      ctx.strokeStyle = OC_COLOR; ctx.lineWidth = 2; ctx.globalAlpha = 0.75;
+      ctx.beginPath(); ctx.arc(t.x, t.y, 16.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (oc) {
       // 金色脉冲环：半径与不透明度都随 state.timeMs 呼吸（2.6s 一圈），一眼就能从一片塔里认出来。
       // 用 state.timeMs（逻辑步累计）而不是 Date.now()，暂停时环也跟着停，与其它动效同一口径。
       const pulse = 0.5 + 0.5 * Math.sin(state.timeMs / 260);
@@ -2844,6 +3045,98 @@ function syncSkillButtons() {
 }
 
 /** HUD：值变了才写 DOM，避免每帧 6 次无效写入 */
+/* ---------- BOSS 信息栏（排在场上塔清单下面，同一套卡片视觉） ---------- */
+const BOSS_BAR_MAX = 5;   // 最多显示 5 行，超出的折成一行小字「另有 N 只 BOSS」
+
+/**
+ * 场上 BOSS 的行数据（纯函数：不碰 DOM，UI 与自检共用同一份口径）。
+ * 只取 type === 'boss' 且未 dead 的；hp 取整、pct 夹到 0..1。
+ * 容错：maxHp 缺失 / ≤0 时 pct 记 0 —— 血条宽度写成 NaN 会静默失效，宁可显示空条。
+ */
+export function bossRows(enemies) {
+  const out = [];
+  if (!Array.isArray(enemies)) return out;
+  for (const e of enemies) {
+    if (!e || typeof e !== 'object' || e.type !== 'boss' || e.dead === true) continue;
+    const maxHp = Math.max(0, Math.round(Number(e.maxHp) || 0));
+    const hp = Math.max(0, Math.round(Number(e.hp) || 0));
+    out.push({
+      idx: out.length, hp, maxHp,
+      pct: maxHp > 0 ? Math.min(1, hp / maxHp) : 0,
+      armor: Number(e.armor) || 0,
+      speed: Number(e.speed) || 0,
+    });
+  }
+  return out;
+}
+
+/** 千分位（不依赖 Intl：三档分组就够 BOSS 血量用） */
+function fmtInt(n) {
+  return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/** 血条配色：>60% 绿、30%~60% 黄、<30% 红（与 HUD 的视觉语言一致） */
+function bossHpColor(pct) {
+  if (pct > 0.6) return 'var(--primary)';
+  if (pct >= 0.3) return '#e8a33d';
+  return 'var(--danger)';
+}
+
+let bossSig = '';   // BOSS 栏上次写的签名（总只数 + 每只的百分比取整值 : 整数血量）
+
+/** 只数变了才重建行节点：血量变化只改 style.width 与 textContent（别每帧重建 DOM） */
+function buildBossRows(count) {
+  const box = ui.bossList;
+  box.textContent = '';
+  for (let i = 0; i < count; i += 1) {
+    const row = document.createElement('div'); row.className = 'td-boss-row';
+    const name = document.createElement('b'); name.className = 'td-boss-name';
+    const bar = document.createElement('span'); bar.className = 'td-boss-hp';
+    const fill = document.createElement('i'); bar.appendChild(fill);
+    const num = document.createElement('span'); num.className = 'td-boss-num';
+    const meta = document.createElement('span'); meta.className = 'td-boss-meta';
+    row.appendChild(name); row.appendChild(bar); row.appendChild(num); row.appendChild(meta);
+    box.appendChild(row);
+  }
+}
+
+/**
+ * BOSS 栏刷新（由 syncHud 每帧调用）。签名 = 总只数 + 每只的「百分比取整 : 整数血量」：
+ * 血量百分比没变的那一帧一个字符都不写；变了也只改宽度与文本，不重建节点。
+ */
+function syncBossBar() {
+  if (!ui.bossBar || !ui.bossList) return;
+  if (!state.inRun) {   // 回关卡列表 / 不在对局：整块收起（不留空盒子）
+    if (bossSig !== 'off') { bossSig = 'off'; ui.bossBar.hidden = true; ui.bossList.textContent = ''; }
+    return;
+  }
+  const rows = bossRows(state.enemies);
+  const shown = rows.slice(0, BOSS_BAR_MAX);
+  const sig = rows.length + '|' + shown.map((r) => Math.round(r.pct * 100) + ':' + r.hp).join(',');
+  if (sig === bossSig) return;
+  bossSig = sig;
+  ui.bossBar.hidden = rows.length === 0;
+  if (ui.bossCount) ui.bossCount.textContent = String(rows.length);
+  if (rows.length === 0) ui.bossList.textContent = '';
+  else {
+    if (ui.bossList.childElementCount !== shown.length) buildBossRows(shown.length);
+    for (let i = 0; i < shown.length; i += 1) {
+      const el = ui.bossList.children[i], r = shown[i];
+      if (!el || el.children.length < 4) continue;
+      el.children[0].textContent = rows.length > 1 ? 'BOSS ' + (i + 1) : 'BOSS';
+      const fill = el.children[1].firstElementChild;
+      if (fill) { fill.style.width = (r.pct * 100).toFixed(1) + '%'; fill.style.background = bossHpColor(r.pct); }
+      el.children[2].textContent = fmtInt(r.hp) + ' / ' + fmtInt(r.maxHp);
+      el.children[3].textContent = '护甲 ' + Math.round(r.armor * 100) + '% · 速度 ' + Math.round(r.speed);
+    }
+  }
+  if (ui.bossMore) {
+    const rest = rows.length - shown.length;
+    ui.bossMore.hidden = rest <= 0;
+    if (rest > 0) ui.bossMore.textContent = '另有 ' + rest + ' 只 BOSS';
+  }
+}
+
 const hudCache = { wave: -1, lives: -1, gold: -1, kills: -1, alive: -1, best: -1 };
 
 let nextWaveSig = '';   // 预告条上次写的签名（色调 + 文案 + 词缀），没变就不写 DOM
@@ -2892,6 +3185,7 @@ function syncHud() {
   if (hudCache.alive !== alive) { ui.alive.textContent = alive; hudCache.alive = alive; }
   if (hudCache.best !== state.best) { ui.best.textContent = state.best; hudCache.best = state.best; }
   renderTowerList();   // 每帧走到这里，但签名没变就只做一次字符串拼接，不写 DOM
+  syncBossBar();       // BOSS 栏：签名里带血量百分比取整值，血量不动就不写 DOM
   syncQuickUpgrade();  // 同上：按钮三态由签名比较决定写不写
   syncBatchUpgrade();  // 「批量升级」同上（文案里的合计价随金币/塔等级变，签名比较照样只写一次）
   syncBatchOverclock(); // 「一键超频」同上（合计价与成功率提示随金币/塔等级变）
@@ -3113,6 +3407,8 @@ function showOverlay() {
     ? '本关最好：' + (progress.levelBest[lv.level] || 0) + '/' + lv.waves + ' 波'
     : '最高波数：' + progress.endlessBest;
   ui.btnAgain.textContent = isLevel ? '重打本关' : '再来一局';
+  ui.btnAgain.hidden = false;   // 僵局浮层会把主按钮藏起来，结算浮层要显式还原
+  if (stallUI.keep) { stallUI.keep.hidden = true; stallUI.end.hidden = true; }
   ui.btnNext.hidden = !(win && isLevel && lv.level < LEVEL_MAX);
   ui.btnList.hidden = !isLevel;
   ui.overlay.classList.add('show');
@@ -3120,6 +3416,63 @@ function showOverlay() {
 
 function hideOverlay() {
   if (ui.overlay) ui.overlay.classList.remove('show');
+  state.stallPaused = false;   // 任何路径关掉浮层都恢复推进（重开 / 换模式 / 结算都会走到这里）
+}
+
+/* ---------- 僵局浮层（无尽模式「这一波清不完」的出口） ---------- */
+/**
+ * 复用结算浮层那个盒子（tdOverlay），只换文案与按钮：不新增 DOM id，也不碰 CSS。
+ * 两个按钮首次用到时现建（createElement），挂在「再来一局」的父节点里，顺带复用 .td-overacts 的排版。
+ */
+const stallUI = { keep: null, end: null };
+
+function ensureStallButtons() {
+  if (stallUI.keep || !ui.btnAgain || !ui.btnAgain.parentNode) return stallUI;
+  const host = ui.btnAgain.parentNode;
+  // 主按钮「结束本局」走 gameOver()：与生命归零同一条路径（写 endlessBest / 清续玩记录 / 亮结算浮层）
+  stallUI.end = document.createElement('button');
+  stallUI.end.textContent = '结束本局（记入最高波数）';
+  stallUI.end.addEventListener('click', giveUpStalledRun);
+  // 次按钮「继续打」：关掉提示接着打，不再反复打扰（同一波最多每 60 秒提醒一次，见 checkWaveStall）
+  stallUI.keep = document.createElement('button');
+  stallUI.keep.className = 'td-secondary';
+  stallUI.keep.textContent = '继续打';
+  stallUI.keep.addEventListener('click', keepFightingStall);
+  host.appendChild(stallUI.end);
+  host.appendChild(stallUI.keep);
+  stallUI.end.hidden = true; stallUI.keep.hidden = true;
+  return stallUI;
+}
+
+/** 亮僵局浮层：标题 / 正文 / 两个按钮；同时把主循环挂起（stallPaused），别让玩家在决策时继续掉命 */
+function showStallOverlay() {
+  ensureStallButtons();
+  clearTowerSelect();
+  ui.overTitle.textContent = '这一波清不完了';
+  ui.overWave.textContent = state.wave;
+  ui.overSub.textContent = '第 ' + state.wave + ' 波 · 场上还剩 ' + state.enemies.length
+    + ' 只 · 继续打下去也清不完（敌人总血量远超当前输出）';
+  ui.overBest.textContent = '最高波数：' + progress.endlessBest;
+  // 结算浮层那三个按钮（再来一局 / 下一关 / 关卡列表）在这里全藏起来：它们不是这次的选项
+  ui.btnAgain.hidden = true; ui.btnNext.hidden = true; ui.btnList.hidden = true;
+  if (stallUI.end) stallUI.end.hidden = false;
+  if (stallUI.keep) stallUI.keep.hidden = false;
+  ui.overlay.classList.add('show');
+  state.stallPaused = true;
+}
+
+/** 「继续打」：关浮层、恢复推进，并记下提醒时刻（下一次最早 60 秒后再说） */
+function keepFightingStall() {
+  state.stallNoticeAt = state.timeMs;
+  hideOverlay();   // 内部会把 stallPaused 复位
+}
+
+/** 「结束本局」：走结算那条路（endlessBest 由 gameOver → noteBest 写对），只把标题换成「主动结束」 */
+function giveUpStalledRun() {
+  hideOverlay();
+  gameOver();
+  ui.overTitle.textContent = '本局结束（这一波清不完）';
+  syncHud();
 }
 
 /* ---------- 塔数值表（每个数字都现读塔表，绝不手抄第二份） ---------- */
@@ -3416,13 +3769,23 @@ function frame(ts) {
   let dt = (ts - lastTs) / 1000;
   lastTs = ts;
   if (dt > 0.25) dt = 0.25;               // 长卡顿先给真实间隔封顶
-  if (!state.inRun || state.paused || state.hidden || state.gameOver || state.awaitingResume) {
-    acc = 0;                                // 不在对局中（关卡列表）/ 等玩家选继续时彻底不推进逻辑
+  if (!state.inRun || state.paused || state.hidden || state.gameOver || state.awaitingResume
+      || state.stallPaused || state.halted) {
+    acc = 0;                                // 不在对局中（关卡列表）/ 等玩家选继续 / 僵局浮层挂着 / 已停摆时彻底不推进逻辑
   } else {
     acc += dt * state.speed;              // 倍速只加快累积，不改渲染帧率
     let steps = 0;
     while (acc >= STEP && steps < MAX_STEPS_PER_FRAME) {
-      step(STEP);
+      // 护栏：step() 抛异常时**不吞、不每帧刷屏** —— 打一条带栈的 error、停掉主循环、在画布顶部挂一行
+      // 可读提示。没有这道护栏时异常每帧抛一次、render 被跳过，表现就是「画面正常但所有数据不动」。
+      try {
+        step(STEP);
+      } catch (err) {
+        console.error('[tower-defense] step 异常：', err && err.stack ? err.stack : err);
+        state.halted = true;
+        acc = 0; lastTs = 0;
+        break;
+      }
       acc -= STEP;
       steps += 1;
       if (state.gameOver) break;
@@ -3430,6 +3793,23 @@ function frame(ts) {
     if (steps >= MAX_STEPS_PER_FRAME) acc = 0;   // 追不上就丢弃欠账，绝不滚成雪球
   }
   if (state.inRun) { render(); syncHud(); }
+}
+
+/**
+ * 停摆提示：逻辑步进出错后画在画布顶部（画布是最靠得住的那块区域 —— 出错的可能是 HUD 的数据源）。
+ * 文案里给出「导出存档后刷新」这条可执行动作，用户看到的是「游戏逻辑出错」而不是「游戏卡死」。
+ */
+function drawHaltBanner(ctx) {
+  if (!state.halted) return;
+  const text = '游戏逻辑出错已暂停（第 ' + state.wave + ' 波），请导出存档后刷新页面';
+  ctx.save();
+  ctx.fillStyle = 'rgba(217,48,37,0.94)';
+  ctx.fillRect(0, 0, VIEW.w, 26);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 14px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, VIEW.w / 2, 13.5);
+  ctx.restore();
 }
 
 /* ===================== 14. 尺寸 / 事件 / 启动 ===================== */
@@ -3488,7 +3868,9 @@ function resumeEndlessRun() {
   state.wave = run.wave - 1;                    // startWave 会 +1 → 正好从该波开头重来
   state.nextWaveIn = 1500;
   let skipped = 0;
+  let overCap = 0;                              // 旧存档可能铺了远超上限的塔：只恢复前 MAX_TOWERS 座
   for (const t of run.towers) {
+    if (state.towers.length >= MAX_TOWERS) { overCap += 1; continue; }
     const def = ALL_TOWER_TYPES[t.type];
     if (!def || !isBuildable(state, t.col, t.row) || towerAt(state, t.col, t.row)) { skipped += 1; continue; }
     state.towers.push({
@@ -3517,6 +3899,7 @@ function resumeEndlessRun() {
     };
   }
   if (skipped > 0) console.warn('[tower-defense] 续玩跳过 ' + skipped + ' 座非法塔位（越界/在路径上/重叠）');
+  if (overCap > 0) console.warn('[tower-defense] 续玩时塔数超过上限 ' + MAX_TOWERS + ' 座，已忽略多出的 ' + overCap + ' 座');
   state.resumeDone = true;                      // 已经选过「继续」，别再拦一次
   state.awaitingResume = false;
   hideOverlay(); clearTowerSelect();
@@ -3711,6 +4094,9 @@ function boot() {
   // 场上塔清单（塔栏下方，details 可折叠：每座塔一行，升级 / 删除都在行内）
   ui.tInfo = byId('tdTowerInfo'); ui.towerList = byId('tdTowerList');
   ui.towerSummary = byId('tdTowerInfoSummary');
+  // BOSS 信息栏（紧跟场上塔清单下面）：容器 / 列表 / 总只数 / 「另有 N 只」小字
+  ui.bossBar = byId('tdBossBar'); ui.bossList = byId('tdBossList');
+  ui.bossCount = byId('tdBossCount'); ui.bossMore = byId('tdBossMore');
   ui.overlay = byId('tdOverlay'); ui.overWave = byId('tdOverWave'); ui.overBest = byId('tdOverBest');
   ui.overTitle = byId('tdOverTitle'); ui.overSub = byId('tdOverSub');
   ui.btnAgain = byId('tdBtnAgain'); ui.btnNext = byId('tdBtnNext'); ui.btnList = byId('tdBtnList');
