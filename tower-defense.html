@@ -229,7 +229,26 @@
         /* 场上塔清单：排在「布置塔防」的塔栏**下方**，列出场上每一座塔（一行一座），行内直接升级 / 删除。
            用 <details> 折叠（与上方塔数值表同一套视觉语言），HTML 里带 open 默认展开：
            它已经在塔栏下方，展开不会挤压画布，而默认藏起来正是「信息看不到」的老问题。 */
-        .td-tinfo {
+        .td-spec {
+    margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border-light); border-radius: var(--radius-md, 8px);
+    background: var(--bg-card); color: var(--text-primary);
+}
+.td-spec[hidden] { display: none; }
+.td-spec-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-bottom: 6px; }
+.td-spec-tip { font-size: .78rem; color: var(--text-secondary); }
+.td-spec-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.td-spec-opts button {
+    flex: 1 1 160px; min-width: 0; padding: 6px 10px; cursor: pointer;
+    border: 1px solid var(--border-light); border-radius: var(--radius-sm, 6px);
+    background: var(--bg-hover); color: var(--text-primary); font-size: .84rem;
+}
+.td-spec-opts button:hover { border-color: var(--primary); }
+.td-spec-foot { margin-top: 6px; }
+.td-spec-foot button {
+    padding: 4px 10px; cursor: pointer; background: none; color: var(--text-secondary);
+    border: 1px solid var(--border-light); border-radius: var(--radius-sm, 6px); font-size: .78rem;
+}
+.td-tinfo {
             border-radius: var(--radius-md, .5rem);
             background: var(--bg-card);
             border: 1px solid var(--primary);
@@ -1362,7 +1381,7 @@
          若只写裸路径，升级后会出现「新 HTML + 旧 JS」错配 —— 旧 JS 找不到新 HTML 里的元素，
          启动直接抛错、画布全白。带版本号后每次发版都是新 URL，必然重新下载。
          **每次发版请同步改这里的 v**（与 src/version.js 保持一致）。 -->
-    <script src="/src/pages/tower-defense.js?v=1.6.20" type="module"></script>
+    <script src="/src/pages/tower-defense.js?v=1.6.21" type="module"></script>
 </head>
 
 <body class="td-page-body">
@@ -1448,6 +1467,12 @@
         <!-- 主动技能栏：塔栏之上一整行 6 个按钮，只在无尽模式出现（闯关模式整行 hidden）。
              按钮由 buildSkillBar() 按 SKILLS 现生成：名字 / 花费 / 解锁波次 / 冷却都来自模块，
              页面这边只留一个空容器，不抄第二份数据。 -->
+        <!-- 专精选择：内联放在塔栏下方，不用模态弹窗（弹窗会盖住画面） -->
+        <section class="td-spec" id="tdSpecPicker" hidden aria-live="polite">
+            <div class="td-spec-head"><b id="tdSpecTitle">专精</b><span class="td-spec-tip">二选一，只改数值、不改升级价</span></div>
+            <div class="td-spec-opts" id="tdSpecOpts"></div>
+            <div class="td-spec-foot"><button type="button" id="tdSpecLater">稍后再选</button></div>
+        </section>
         <section class="td-skills" id="tdSkills" aria-label="主动技能（无尽模式）" hidden></section>
 
         <!-- 塔按钮 + 控制 -->

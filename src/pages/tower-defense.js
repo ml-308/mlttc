@@ -1364,41 +1364,43 @@ function assignSpecialization(tower, tier, id) {
 }
 
 /**
- * 弹二选一对话框。动态 import popup —— 只有升到 Lv.10 才用得上，不该进首屏依赖。
- * ★ 按钮索引是**倒序**的（lib/ui/popup.mjs：finish(all.length - i - 1)，且关闭 / Esc 按最后一个按钮计 = 0），
- *   所以 [A, B, 取消] 三个按钮回的是 2 / 1 / 0 —— 按这个映射取 pick，别按直觉写成 0/1/2
- *   （写反了的表现就是「点取消却选中了 A」）。
+ * 在塔栏下方的内联面板里展示二选一（不再用模态弹窗 —— 弹窗会盖住画面，用户明确要求挪下来）。
+ * 同时把「待选」记到 state.pendingSpec：面板可见期间自动升级会跳过（专精必须玩家手动选）。
  */
-function openSpecDialog(tower, tier) {
+function openSpecPicker(tower, tier) {
   const opts = specOptions(tower.type, tier);
   if (opts.length < 2) return;
-  const a = opts[0], b = opts[1];
   const def = ALL_TOWER_TYPES[tower.type];
-  specDialogOpen = true;
-  // 与 offerImportedRun 同一写法：async IIFE + try/finally，失败也不把 specDialogOpen 卡在 true
-  // （卡住了的话，之后再升到 Lv.25 / Lv.50 就永远问不出来 —— 静默失效）。
-  (async () => {
-    try {
-      const { showConfirm } = await import('/lib/ui/popup.mjs');
-      const index = await showConfirm({
-        title: (def ? def.name : String(tower.type)) + ' · Lv.' + tier + ' 专精',
-        eyebrow: '专精 · Lv.' + tier,
-        text: '二选一（只改数值，不改升级价）。取消的话，下次升级会再问一次。',
-        buttons: [a.name + '（' + a.desc + '）', b.name + '（' + b.desc + '）', '稍后再选'],
-        button_style: ['primary', '', ''],
-      });
-      const pick = index === 2 ? a.id : (index === 1 ? b.id : '');   // 倒序索引：A=2 / B=1 / 取消=0
-      if (!pick) return;                                     // 取消：什么都不写，下次升级重问
-      if (!assignSpecialization(tower, tier, pick)) return;   // 归属校验没过（塔已被卖掉 / 类型对不上）：安静放弃
-      const hit = specById(pick);
-      addFloater(tower.x, tower.y - 18, '专精：' + (hit ? hit.option.name : pick), palette.primary, 2.2);
-      syncHud();
-    } catch (err) {
-      console.warn('[tower-defense] 专精对话框加载失败：', err);
-    } finally {
-      specDialogOpen = false;
-    }
-  })();
+  state.pendingSpec = { tower, tier };
+  specDialogOpen = true;             // 语义不变：有待选专精时自动升级停手
+  if (ui.specTitle) ui.specTitle.textContent = (def ? def.name : String(tower.type)) + ' · Lv.' + tier + ' 专精';
+  if (ui.specOpts) {
+    ui.specOpts.innerHTML = opts.slice(0, 2).map((o, i) =>
+      '<button type="button" data-spec-idx="' + i + '" title="' + o.desc + '">'
+      + o.name + '（' + o.desc + '）</button>').join('');
+  }
+  show(ui.specPicker, true);
+}
+
+/** 关闭专精面板（选了 / 稍后 / 塔没了都走这里） */
+function closeSpecPicker() {
+  state.pendingSpec = null;
+  specDialogOpen = false;
+  show(ui.specPicker, false);
+}
+
+/** 点选项：写入 pick（含归属校验）后关闭面板 */
+function pickSpecialization(idx) {
+  const pend = state.pendingSpec;
+  if (!pend || !pend.tower) { closeSpecPicker(); return; }
+  const opts = specOptions(pend.tower.type, pend.tier);
+  const chosen = opts[idx];
+  if (chosen && assignSpecialization(pend.tower, pend.tier, chosen.id)) {
+    const hit = specById(chosen.id);
+    addFloater(pend.tower.x, pend.tower.y - 18, '专精：' + (hit ? hit.option.name : chosen.name), palette.primary, 2.2);
+  }
+  closeSpecPicker();
+  syncHud();
 }
 
 /**
@@ -1418,7 +1420,7 @@ function maybeOfferSpecialization() {
       const tier = SPEC_TIERS[j];
       if (lv < tier) break;                                   // 档位递增：后面的更高，不必再看
       if (picks && typeof picks[tier] === 'string') continue;  // 这一档已经选过了
-      openSpecDialog(t, tier);
+      openSpecPicker(t, tier);
       return;                                                 // 一次只问一档
     }
   }
@@ -2850,6 +2852,7 @@ function selectTower(tower) {
  * 注意它**不隐藏清单**——清单展示的是「场上所有塔」，与有没有选中无关；隐藏只由 syncView 管。
  */
 function clearTowerSelect() {
+  if (state.pendingSpec) closeSpecPicker();
   state.selectedTower = null;
   tListSig = '';
 }
@@ -3773,6 +3776,7 @@ function syncView() {
   show(ui.batchBox, playing && state.mode === 'endless');
   show(ui.btnBatchUp, playing && state.mode === 'endless');
   show(ui.btnAutoUp, playing && state.mode === 'endless');
+  if (!playing) closeSpecPicker();   // 回关卡列表 / 切模式：专精面板跟着收起
   // 一键超频（座数输入 + 按钮）同样只在无尽模式：闯关最多 28 波、等级上不去，赌超频没有意义
   show(ui.ocBox, playing && state.mode === 'endless');
   show(ui.btnBatchOc, playing && state.mode === 'endless');
@@ -4050,6 +4054,12 @@ function bindEvents() {
   });
   // 「批量升级」：先算整份计划 → 一次扣款 → 逐座 +1 级（只扣一次钱、只落一次盘，见 applyBatchUpgrade）。
   // 计划为空（没塔 / 全满级 / Lv.3 未解锁 / 连第一座都买不起）时直接返回，不提示也不扣钱。
+  // 专精面板：选项用事件委托（选项是动态重建的），稍后再选 = 关闭（下次升级再问）
+  if (ui.specOpts) ui.specOpts.addEventListener('click', (ev) => {
+    const b = ev.target && ev.target.closest ? ev.target.closest('[data-spec-idx]') : null;
+    if (b) pickSpecialization(Number(b.dataset.specIdx));
+  });
+  if (ui.specLater) ui.specLater.addEventListener('click', closeSpecPicker);
   // 「自动升级」开关：只切 state.autoUpgrade；真正的升级动作在 autoUpgradeTick（每 0.7s 一座）
   if (ui.btnAutoUp) ui.btnAutoUp.addEventListener('click', () => {
     state.autoUpgrade = !state.autoUpgrade;
@@ -4179,7 +4189,10 @@ function boot() {
   ui.overTitle = byId('tdOverTitle'); ui.overSub = byId('tdOverSub');
   ui.btnAgain = byId('tdBtnAgain'); ui.btnNext = byId('tdBtnNext'); ui.btnList = byId('tdBtnList');
   ui.btnPause = byId('tdPause');
-  ui.btnAutoUp = byId('tdAutoUp');          // 「自动升级」开关（同 .td-controls，跟 .td-bar 一起显隐）
+  ui.btnAutoUp = byId('tdAutoUp');
+  // 专精内联面板（在塔栏下方，不是弹窗）
+  ui.specPicker = byId('tdSpecPicker'); ui.specTitle = byId('tdSpecTitle');
+  ui.specOpts = byId('tdSpecOpts'); ui.specLater = byId('tdSpecLater');          // 「自动升级」开关（同 .td-controls，跟 .td-bar 一起显隐）
   ui.btnQuickUp = byId('tdQuickUpgrade');   // 「快速升级」（在 .td-controls 里，跟着 .td-bar 一起显隐）
   ui.btnBatchUp = byId('tdBatchUpgrade');   // 「批量升级」（同上，另加「只在无尽模式」一道闸，见 syncView）
   ui.batchCount = byId('tdBatchCount');     // 批量升级的座数输入框（1..100，夹取见 batchCount）
