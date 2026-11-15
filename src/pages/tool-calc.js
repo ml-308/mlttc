@@ -12,7 +12,7 @@
  * 全程本地运算，不上传数据。
  */
 import { showMessage } from '/lib/ui/message.mjs';
-import { $, copyText, formatNumber } from './tool-utils.mjs';
+import { $, copyText, formatNumber, on } from './tool-utils.mjs';
 
 /* =====================================================================
  * 共用小工具
@@ -478,15 +478,15 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage('计算完成');
     }
 
-    $('calcGo').addEventListener('click', calcRun);
-    $('calcIn').addEventListener('keydown', (e) => {
+    on('calcGo', 'click', calcRun);
+    on('calcIn', 'keydown', (e) => {
         if (e.key === 'Enter') calcRun();
     });
-    $('calcCopy').addEventListener('click', () => {
+    on('calcCopy', 'click', () => {
         if (!last.calc) { showMessage('还没有计算结果', true); return; }
         copyText(last.calc);
     });
-    $('calcClear').addEventListener('click', () => {
+    on('calcClear', 'click', () => {
         $('calcIn').value = '';
         $('calcOut').classList.add('hidden');
         $('calcOut').innerHTML = '';
@@ -555,9 +555,9 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage('已生成 ' + rows.length + ' 年的还款计划');
     }
 
-    $('lnGo').addEventListener('click', loanRun);
-    $('lnPlan').addEventListener('click', loanPlanRun);
-    $('lnCopy').addEventListener('click', () => {
+    on('lnGo', 'click', loanRun);
+    on('lnPlan', 'click', loanPlanRun);
+    on('lnCopy', 'click', () => {
         if (!last.loan) { showMessage('先点一次「计算月供」', true); return; }
         copyText(last.loan);
     });
@@ -591,8 +591,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage('计算完成（按月度税率表估算）');
     }
 
-    $('txGo').addEventListener('click', taxRun);
-    $('txCopy').addEventListener('click', () => {
+    on('txGo', 'click', taxRun);
+    on('txCopy', 'click', () => {
         if (!last.tax) { showMessage('先点一次「计算个税」', true); return; }
         copyText(last.tax);
     });
@@ -626,8 +626,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage('测算完成');
     }
 
-    $('bmiGo').addEventListener('click', bmiRun);
-    $('bmiCopy').addEventListener('click', () => {
+    on('bmiGo', 'click', bmiRun);
+    on('bmiCopy', 'click', () => {
         if (!last.bmi) { showMessage('先点一次「测算」', true); return; }
         copyText(last.bmi);
     });

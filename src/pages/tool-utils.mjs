@@ -13,6 +13,29 @@
 export const $ = (id) => document.getElementById(id);
 
 /**
+ * 给 id 对应的元素绑定事件：元素不存在时只打警告，不抛错。
+ *
+ * 为什么需要它：工具页把多个子工具都写在一个 DOMContentLoaded 回调里，
+ * 只要有一个 `$('x').addEventListener` 拿到 null 就会抛 TypeError，
+ * 回调就此中断 —— 后面所有子工具的事件一个都绑不上，界面上表现为
+ * 「有的工具正常、有的工具点了没反应」，而且控制台里没有任何提示。
+ * （现实例子：tool-life 的身份证卡片被删掉后，秒表 / 倒计时 / 月历全部失效）
+ * @param {string} id
+ * @param {string} type 事件名
+ * @param {(e: Event) => void} handler
+ * @returns {boolean} 是否绑定成功
+ */
+export function on(id, type, handler) {
+    const el = $(id);
+    if (!el) {
+        console.warn('[tool-utils] 页面缺少元素 #' + id + '，已跳过它的「' + type + '」事件绑定');
+        return false;
+    }
+    el.addEventListener(type, handler);
+    return true;
+}
+
+/**
  * 把文本按行拆开（兼容 \r\n / \r / \n），并去掉结尾空行造成的空数组项
  * @param {string} text
  * @returns {string[]}
@@ -49,6 +72,8 @@ export async function copyText(text) {
         try {
             ok = document.execCommand('copy');
         } catch (e) {
+            // 回退方案本身也失败：留一条可诊断的日志，而不是静默吞掉
+            console.warn('[tool-utils] execCommand("copy") 执行失败：', e);
             ok = false;
         }
         ta.remove();

@@ -9,7 +9,7 @@
  * 交互：顶部菜单栏切换分类 → 选单位或输数值即实时换算；「交换」对调两端。
  */
 import { showMessage } from '/lib/ui/message.mjs';
-import { $, formatNumber, copyText } from './tool-utils.mjs';
+import { $, formatNumber, copyText, on } from './tool-utils.mjs';
 
 const CATS = {
     length: {
@@ -207,13 +207,13 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => switchCategory(btn.getAttribute('data-cat'), btn));
     });
 
+    // 输入 / 单位变化即时重算；缺任何一个节点都只警告，不影响别的控件
     ['cvIn', 'cvFrom', 'cvTo'].forEach((id) => {
-        const el = $(id);
-        el.addEventListener('input', convert);
-        el.addEventListener('change', convert);
+        on(id, 'input', convert);
+        on(id, 'change', convert);
     });
 
-    $('cvSwapBtn').addEventListener('click', () => {
+    on('cvSwapBtn', 'click', () => {
         const from = $('cvFrom');
         const to = $('cvTo');
         const tmp = from.value;
@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         convert();
     });
 
-    $('cvCopyBtn').addEventListener('click', () => copyText($('cvOut').value));
+    on('cvCopyBtn', 'click', () => copyText($('cvOut').value));
 
     switchCategory('length', document.querySelector('#catBar .menu-btn[data-cat="length"]'));
 });

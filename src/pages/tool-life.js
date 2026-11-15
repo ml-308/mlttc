@@ -13,7 +13,7 @@
  * 全程本地运算，不上传数据。
  */
 import { showMessage } from '/lib/ui/message.mjs';
-import { $, copyText } from './tool-utils.mjs';
+import { $, copyText, on } from './tool-utils.mjs';
 
 /* =====================================================================
  * 共用小工具
@@ -376,19 +376,19 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage('转换完成');
     }
 
-    $('rmbGo').addEventListener('click', rmbRun);
-    $('rmbIn').addEventListener('keydown', (e) => {
+    on('rmbGo', 'click', rmbRun);
+    on('rmbIn', 'keydown', (e) => {
         if (e.key === 'Enter') rmbRun();
     });
-    $('rmbEg').addEventListener('click', () => {
+    on('rmbEg', 'click', () => {
         $('rmbIn').value = '12345.67';
         rmbRun();
     });
-    $('rmbCopy').addEventListener('click', () => {
+    on('rmbCopy', 'click', () => {
         if (!lastRmb) { showMessage('还没有可复制的结果', true); return; }
         copyText(lastRmb);
     });
-    $('rmbClear').addEventListener('click', () => {
+    on('rmbClear', 'click', () => {
         $('rmbIn').value = '';
         $('rmbOut').classList.add('hidden');
         $('rmbOut').innerHTML = '';
@@ -426,20 +426,20 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage(r.checkOk ? '校验通过' : '校验码不通过', !r.checkOk);
     }
 
-    $('idGo').addEventListener('click', idRun);
-    $('idIn').addEventListener('keydown', (e) => {
+    on('idGo', 'click', idRun);
+    on('idIn', 'keydown', (e) => {
         if (e.key === 'Enter') idRun();
     });
-    $('idEg').addEventListener('click', () => {
+    on('idEg', 'click', () => {
         const base = '41010119900101123';            // 17 位示例前缀
         $('idIn').value = base + idCheckChar(base);   // 补上正确校验码
         idRun();
     });
-    $('idCopy').addEventListener('click', () => {
+    on('idCopy', 'click', () => {
         if (!lastId) { showMessage('还没有可复制的结果', true); return; }
         copyText(lastId);
     });
-    $('idClear').addEventListener('click', () => {
+    on('idClear', 'click', () => {
         $('idIn').value = '';
         $('idOut').classList.add('hidden');
         $('idOut').innerHTML = '';
@@ -475,14 +475,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    $('swStart').addEventListener('click', () => {
+    on('swStart', 'click', () => {
         if (swRunning) { showMessage('秒表已经在跑了', true); return; }
         swRunning = true;
         swBase = performance.now();
         swTimer = setInterval(swPaint, 31);
         showMessage('开始计时');
     });
-    $('swStop').addEventListener('click', () => {
+    on('swStop', 'click', () => {
         if (!swRunning) { showMessage('秒表没有在运行', true); return; }
         swElapsed += performance.now() - swBase;
         swRunning = false;
@@ -491,12 +491,12 @@ document.addEventListener('DOMContentLoaded', () => {
         swPaint();
         showMessage('已停止');
     });
-    $('swLap').addEventListener('click', () => {
+    on('swLap', 'click', () => {
         if (!swRunning) { showMessage('先开始计时才能计次', true); return; }
         swLaps.push(swNow());
         swRenderLaps();
     });
-    $('swReset').addEventListener('click', () => {
+    on('swReset', 'click', () => {
         if (swTimer) clearInterval(swTimer);
         swTimer = null;
         swRunning = false;
@@ -527,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cdRunning = false;
     }
 
-    $('cdStart').addEventListener('click', () => {
+    on('cdStart', 'click', () => {
         if (cdRunning) { showMessage('倒计时已经在跑了', true); return; }
         if (cdRemain <= 0) {
             cdRemain = cdReadTotal();
@@ -550,14 +550,14 @@ document.addEventListener('DOMContentLoaded', () => {
         cdPaint();
         showMessage('倒计时开始');
     });
-    $('cdPause').addEventListener('click', () => {
+    on('cdPause', 'click', () => {
         if (!cdRunning) { showMessage('倒计时没有在运行', true); return; }
         cdRemain = Math.max(0, cdEnd - performance.now());
         cdStopTimer();
         cdPaint();
         showMessage('已暂停');
     });
-    $('cdReset').addEventListener('click', () => {
+    on('cdReset', 'click', () => {
         cdStopTimer();
         cdRemain = cdReadTotal();
         cdPaint();
@@ -585,8 +585,8 @@ document.addEventListener('DOMContentLoaded', () => {
         calRender(now.getFullYear(), now.getMonth() + 1, $('calOut'));
     }
 
-    $('calGo').addEventListener('click', calRun);
-    $('calToday').addEventListener('click', calToToday);
+    on('calGo', 'click', calRun);
+    on('calToday', 'click', calToToday);
     calToToday();   // 默认展示本月
 
     // 从列表页锚点进入时，滚动到对应卡片
