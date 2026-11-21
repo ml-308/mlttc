@@ -1,0 +1,274 @@
+/* style/information.css
+ * 车辆信息录入页（information.html）—— 复用 style/timetable.css 的页头、卡片、
+ * 表单与按钮组骨架，这里只补 timetable.css 没有的少量控件：
+ * 分组标题、卡片说明、下拉框、日期三级下拉、搜索输入框、必填标记与校验态。
+ * 颜色 / 圆角 / 间距一律取 main.css 的设计令牌，不硬编码。
+ */
+
+/* ---------- 卡片说明 ---------- */
+.information-card {
+    /* 长表单改用稍宽的卡内留白，仍由 --hcw-card-padding 钩子控制 */
+    --hcw-card-padding: 1.5rem 1.75rem;
+}
+
+.card-lead {
+    margin: 0 0 1.1rem;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+
+.required-mark {
+    color: var(--danger);
+    font-weight: 700;
+}
+
+/* timetable.css 给 label 内所有 span 设了 .9rem / 700，必填星号跟着变小一档 */
+.form-group label .required-mark {
+    font-size: var(--text-caption);
+    line-height: 1;
+}
+
+/* ---------- 页内分区跳转 ---------- */
+/* 长表单的分区入口：原生锚点，点击后滚到对应 section；不依赖脚本 */
+.section-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    margin: 0 0 1.25rem;
+}
+
+.section-jump {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--touch-target);
+    padding: 0 .85rem;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-full);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    letter-spacing: .01em;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: var(--transition-fast);
+    transition-property: color, background-color, border-color, box-shadow;
+}
+
+.section-jump:hover {
+    color: var(--primary-ink);
+    border-color: var(--primary);
+    background: var(--primary-bg);
+}
+
+.section-jump:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+}
+
+/* ---------- 表单分组 ---------- */
+.form-section {
+    /* 页头是 sticky 的：锚点跳转后给标题让出页头高度，避免被盖住 */
+    scroll-margin-top: 5.5rem;
+}
+
+.form-section + .form-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-light);
+}
+
+.form-section-title {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: 0 0 .9rem;
+    font-size: var(--text-body);
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+}
+
+.form-section-title::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 3px;
+    height: 1rem;
+    border-radius: var(--radius-full);
+    background: var(--primary);
+}
+
+/* 操作按钮与最后一个分组之间留出分隔线，长表单不会「找不到提交键」 */
+.vehicle-form > .btn-group {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-light);
+}
+
+/* ---------- 搜索输入框 ---------- */
+/* 只做视觉标识：搜索联想 / 下拉候选留空，由后续数据源接入时再补 */
+.search-field {
+    position: relative;
+    min-width: 0;
+}
+
+.search-field::before,
+.search-field::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    pointer-events: none;
+    color: var(--text-muted);
+}
+
+/* 放大镜的圆 */
+.search-field::before {
+    left: 1rem;
+    width: .55rem;
+    height: .55rem;
+    margin-top: -.36rem;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+}
+
+/* 放大镜的柄 */
+.search-field::after {
+    left: calc(1rem + .52rem);
+    width: .38rem;
+    height: 2px;
+    margin-top: .12rem;
+    border-radius: var(--radius-full);
+    background: currentColor;
+    transform: rotate(45deg);
+    transform-origin: left center;
+}
+
+.search-field [hcw-input] {
+    padding-left: 2.4rem;
+}
+
+/* 输入框获得焦点时放大镜跟随主色，和 hcw-input 的绿色焦点框同一节奏 */
+.search-field:focus-within::before,
+.search-field:focus-within::after {
+    color: var(--primary);
+}
+
+/* ---------- 下拉框 ---------- */
+.form-select,
+.date-select {
+    appearance: none;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: var(--touch-target-lg);
+    padding: .7rem 2.3rem .7rem 1rem;
+    font-family: var(--font-family);
+    font-size: var(--text-body);
+    color: var(--input-color);
+    background-color: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    transition-property: background-color, color, box-shadow, border-color;
+    /* 用两段渐变画下拉箭头：不用内嵌 SVG，箭头颜色能跟随主题变量 */
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+        linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+    background-position:
+        calc(100% - 1.2rem) 50%,
+        calc(100% - .85rem) 50%;
+    background-size: .35rem .35rem, .35rem .35rem;
+    background-repeat: no-repeat;
+}
+
+.form-select:hover,
+.date-select:hover {
+    background-color: var(--input-bg-hl);
+}
+
+.form-select:focus,
+.date-select:focus {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-focus);
+    outline: none;
+}
+
+/* 下拉展开后的选项由系统渲染，显式给出可读的底色 / 字色 */
+.form-select option,
+.date-select option {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+}
+
+/* ---------- 车牌地区选项卡 ---------- */
+/* 桌面端不必横跨整张卡片；窄屏时由下方媒体查询放开 */
+.plate-tabs {
+    max-width: 24rem;
+}
+
+/* ---------- 日期三级下拉 ---------- */
+.date-field {
+    display: flex;
+    gap: .5rem;
+}
+
+.date-field .date-select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-left: .75rem;
+    padding-right: 1.6rem;
+    background-position:
+        calc(100% - .9rem) 50%,
+        calc(100% - .6rem) 50%;
+}
+
+/* ---------- 备注 ---------- */
+/* main.css 的 textarea[hcw-input] 把 min-height 锁在 44px，这里提高选择器权重覆盖 */
+.form-group textarea.remark-input {
+    min-height: 7rem;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+/* ---------- 校验提示 / 校验态 ---------- */
+/* 空提示行不占位（timetable.css 里 .lp 由脚本控制显隐，这里用 :empty 收掉） */
+.lp:empty {
+    display: none;
+}
+
+.form-group :is(input, select, textarea).is-invalid,
+.form-group :is(input, select, textarea).is-invalid:focus {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 768px) {
+    .information-card {
+        --hcw-card-padding: 1.1rem 1rem;
+    }
+
+    .form-section + .form-section {
+        margin-top: 1.2rem;
+        padding-top: 1.2rem;
+    }
+
+    /* 窄屏让车牌地区选项卡占满整行 */
+    .plate-tabs {
+        max-width: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .date-field {
+        gap: .35rem;
+    }
+
+    .date-field .date-select {
+        padding-left: .5rem;
+    }
+}

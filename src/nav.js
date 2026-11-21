@@ -33,6 +33,12 @@ const NAV_SECTIONS = [
     ]
   },
   {
+    title: '车辆',
+    items: [
+      { label: '车辆信息', href: '/information.html' }
+    ]
+  },
+  {
     title: '其它',
     items: [
       { label: '个人主页', href: '/account.html' },

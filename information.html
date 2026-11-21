@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<title>车辆信息 - MLTTC</title>
+	<!-- 页头 / 菜单栏 / 表单 / 结果卡 / 导入表格复用 timetable 的样式；本页新增控件见 style/information.css -->
+	<link rel="stylesheet" href="style/timetable.css">
+	<link rel="stylesheet" href="style/information.css">
+	<script src="src/pages/main.js" type="module"></script>
+	<script src="/lib/ui/init.mjs" type="module"></script>
+	<script src="/src/pages/information.js" type="module"></script>
+	<script src="/src/auth-header.js" type="module"></script>
+</head>
+
+<body>
+	<hcw-body-header>
+		<hcw-button flat fill style="min-width: 5rem;" id="back-btn">返回</hcw-button>
+		<div class="logo-area">
+			<div class="logo-text">MLTTC - 车辆信息</div>
+		</div>
+		<p hidden-on-mobile style="margin-left: auto; color: var(--text-muted)">Beta测试版，功能仍在完善中</p>
+		<div id="headerAuthArea">
+			<!-- 主题切换按钮 -->
+			<hcw-button id="themeToggleBtn" flat icon large aria-label="切换主题">🌙</hcw-button>
+			<hcw-button id="globalLoginBtn" primary flat style="min-width: 5rem">登录</hcw-button>
+		</div>
+	</hcw-body-header>
+
+	<hcw-article>
+		<!-- 页头下方的分段导航栏：与 timetable.html 同一套 .menu-bar--nav 样式 -->
+		<div class="menu-bar menu-bar--nav" id="vehicle-menu">
+			<hcw-button id="search-btn" class="menu-btn is-active" data-menu="search">查询车辆信息</hcw-button>
+			<hcw-button id="add-btn" class="menu-btn" data-menu="add">添加车辆信息</hcw-button>
+			<hcw-button id="import-btn" class="menu-btn" data-menu="import">批量导入</hcw-button>
+		</div>
+
+		<div class="form-panel">
+			<!-- ── 查询模块 ─────────────────────────────── -->
+			<div hcw-card id="search-form" class="form-card information-card">
+				<div class="card-lead">按公司、关键词或车辆ID查询车辆记录。</div>
+				<div class="grid-2col">
+					<div class="form-group">
+						<label for="search-company">公司 <span class="optional">(可选)</span></label>
+						<div class="search-field">
+							<input hcw-input type="text" id="search-company" name="searchCompany"
+								placeholder="输入公司名称或简称搜索..." autocomplete="off">
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="search-keyword">关键词搜索 <span class="optional">(自编号 / 车牌号 / VIN)</span></label>
+						<input hcw-input type="text" id="search-keyword" name="searchKeyword"
+							placeholder="输入自编号、车牌号或VIN" autocomplete="off">
+					</div>
+					<div class="form-group full-width">
+						<label for="search-id">车辆ID（精确查找）</label>
+						<input hcw-input type="text" id="search-id" name="searchId" placeholder="输入12位ID直接精确查找"
+							autocomplete="off" inputmode="numeric" maxlength="12">
+					</div>
+				</div>
+				<div class="btn-group">
+					<hcw-button primary flat style="min-width: 6rem;" id="submitSearchBtn">查询车辆信息</hcw-button>
+					<hcw-button style="min-width: 4rem;" id="clearSearchBtn">清除</hcw-button>
+				</div>
+				<div id="search-result" class="result-area hidden">
+					<div class="result-header">
+						<span id="result-count">共 0 条结果</span>
+					</div>
+					<div id="result-list" class="result-list"></div>
+				</div>
+			</div>
+
+			<!-- ── 添加模块 ─────────────────────────────── -->
+			<div hcw-card id="add-form" class="form-card information-card hidden">
+				<div class="card-lead">
+					录入车辆基础信息、车牌与配置；带 <span class="required-mark">*</span> 的为必填项。
+				</div>
+				<nav class="section-nav" aria-label="页面分区导航">
+					<a class="section-jump" href="#basic">基本车辆信息</a>
+					<a class="section-jump" href="#plate">车牌号信息</a>
+					<a class="section-jump" href="#power">动力系统</a>
+					<a class="section-jump" href="#body-chassis">车身底盘</a>
+					<a class="section-jump" href="#other">其他系统</a>
+					<a class="section-jump" href="#dates">日期信息</a>
+					<a class="section-jump" href="#notes">备注</a>
+				</nav>
+
+				<div id="vehicle-form" class="vehicle-form">
+					<!-- 基本车辆信息 -->
+					<section class="form-section" id="basic">
+						<h4 class="form-section-title">基本车辆信息</h4>
+						<div class="grid-2col">
+							<div class="form-group">
+								<label for="self-no">自编号</label>
+								<input hcw-input type="text" id="self-no" name="selfNo" placeholder="请输入自编号"
+									autocomplete="off">
+							</div>
+							<div class="form-group">
+								<label for="company">公司 <span class="required-mark" aria-hidden="true">*</span></label>
+								<div class="search-field">
+									<input hcw-input type="text" id="company" name="company"
+										placeholder="输入公司名称或简称搜索..." autocomplete="off" required>
+								</div>
+								<p class="lp" id="company-hint" role="status" aria-live="polite"></p>
+							</div>
+							<div class="form-group">
+								<label for="branch">分公司/车队 <span class="optional">(可选)</span></label>
+								<div class="search-field">
+									<input hcw-input type="text" id="branch" name="branch" placeholder="请先选择公司"
+										autocomplete="off" disabled>
+								</div>
+								<p class="lp" id="branch-hint">请先选择公司</p>
+							</div>
+							<div class="form-group">
+								<label for="vehicle-model">车型 <span class="required-mark" aria-hidden="true">*</span></label>
+								<div class="search-field">
+									<input hcw-input type="text" id="vehicle-model" name="vehicleModel"
+										placeholder="输入车型搜索..." autocomplete="off" required>
+								</div>
+								<p class="lp" id="vehicle-model-hint" role="status" aria-live="polite"></p>
+							</div>
+							<div class="form-group">
+								<label for="operation-status">运营状态</label>
+								<select class="form-select" id="operation-status" name="operationStatus">
+									<option value="">请选择</option>
+									<option value="待上线">待上线</option>
+									<option value="运营中">运营中</option>
+									<option value="停驶">停驶</option>
+									<option value="维修中">维修中</option>
+									<option value="报废">报废</option>
+								</select>
+							</div>
+							<div class="form-group">
+								<label for="fuel-type">燃料类型 <span class="required-mark" aria-hidden="true">*</span></label>
+								<select class="form-select" id="fuel-type" name="fuelType" required>
+									<option value="">请选择</option>
+									<option value="纯电动">纯电动</option>
+									<option value="插电式混合动力">插电式混合动力</option>
+									<option value="油电混合">油电混合</option>
+									<option value="柴油">柴油</option>
+									<option value="汽油">汽油</option>
+									<option value="天然气">天然气</option>
+									<option value="氢燃料">氢燃料</option>
+									<option value="其他">其他</option>
+								</select>
+								<p class="lp" id="fuel-type-hint" role="status" aria-live="polite"></p>
+							</div>
+							<div class="form-group full-width">
+								<label for="vin">VIN码</label>
+								<input hcw-input type="text" id="vin" name="vin" placeholder="请输入VIN码" maxlength="17"
+									autocomplete="off" spellcheck="false">
+							</div>
+							<div class="form-group">
+								<label for="factory-no">出厂编号</label>
+								<input hcw-input type="text" id="factory-no" name="factoryNo" placeholder="请输入出厂编号"
+									autocomplete="off">
+							</div>
+							<div class="form-group">
+								<label for="vehicle-type">车辆类型 <span class="required-mark" aria-hidden="true">*</span></label>
+								<select class="form-select" id="vehicle-type" name="vehicleType" required>
+									<option value="">请选择</option>
+									<option value="城市客车">城市客车</option>
+									<option value="公路客车">公路客车</option>
+									<option value="铰接式客车">铰接式客车</option>
+									<option value="双层客车">双层客车</option>
+									<option value="无轨电车">无轨电车</option>
+									<option value="小型客车">小型客车</option>
+									<option value="其他">其他</option>
+								</select>
+								<p class="lp" id="vehicle-type-hint" role="status" aria-live="polite"></p>
+							</div>
+						</div>
+					</section>
+
+					<!-- 车牌号信息 -->
+					<section class="form-section" id="plate">
+						<h4 class="form-section-title">车牌号信息</h4>
+						<div class="grid-2col">
+							<div class="form-group full-width">
+								<label id="plate-region-label">车牌地区</label>
+								<div class="menu-bar menu-bar--nav plate-tabs" id="plate-region-tabs"
+									aria-labelledby="plate-region-label">
+									<hcw-button class="menu-btn is-active" data-region="mainland">中国大陆</hcw-button>
+									<hcw-button class="menu-btn" data-region="hk">中国香港</hcw-button>
+								</div>
+								<input type="hidden" id="plate-region" name="plateRegion" value="mainland">
+							</div>
+							<div class="form-group">
+								<label for="plate-prefix">车牌号前缀 <span class="required-mark" aria-hidden="true">*</span></label>
+								<input hcw-input type="text" id="plate-prefix" name="platePrefix"
+									placeholder="例：琼A、粤B、京A等" autocomplete="off" required>
+								<p class="lp" id="plate-prefix-hint" role="status" aria-live="polite"></p>
+							</div>
+							<div class="form-group">
+								<label for="plate-suffix">车牌号后缀 <span class="optional">(可选)</span></label>
+								<input hcw-input type="text" id="plate-suffix" name="plateSuffix"
+									placeholder="例：12345、6789D等" autocomplete="off">
+							</div>
+						</div>
+					</section>
+
+					<!-- 动力系统 -->
+					<section class="form-section" id="power">
+						<h4 class="form-section-title">动力系统</h4>
+						<div class="grid-2col">
+							<div class="form-group">
+								<label for="engine">发动机</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="engine" name="engine" placeholder="搜索发动机"
+										autocomplete="off">
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="motor">电机</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="motor" name="motor" placeholder="搜索电机"
+										autocomplete="off">
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="battery">电池</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="battery" name="battery" placeholder="搜索电池"
+										autocomplete="off">
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="transmission">变速器</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="transmission" name="transmission"
+										placeholder="搜索变速器" autocomplete="off">
+								</div>
+							</div>
+						</div>
+					</section>
+
+					<!-- 车身底盘 -->
+					<section class="form-section" id="body-chassis">
+						<h4 class="form-section-title">车身底盘</h4>
+						<div class="grid-2col">
+							<div class="form-group">
+								<label for="axle">车桥</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="axle" name="axle" placeholder="搜索车桥"
+										autocomplete="off">
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="chassis">底盘</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="chassis" name="chassis" placeholder="搜索底盘"
+										autocomplete="off">
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="tire">轮胎</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="tire" name="tire" placeholder="搜索轮胎"
+										autocomplete="off">
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="suspension">悬挂</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="suspension" name="suspension"
+										placeholder="搜索悬挂类型" autocomplete="off">
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="step">踏步</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="step" name="step" placeholder="搜索踏步级数"
+										autocomplete="off">
+								</div>
+							</div>
+						</div>
+					</section>
+
+					<!-- 其他系统 -->
+					<section class="form-section" id="other">
+						<h4 class="form-section-title">其他系统</h4>
+						<div class="grid-2col">
+							<div class="form-group">
+								<label for="air-conditioner">空调</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="air-conditioner" name="airConditioner"
+										placeholder="搜索空调" autocomplete="off">
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="door">车门</label>
+								<div class="search-field">
+									<input hcw-input type="text" id="door" name="door" placeholder="搜索车门类型"
+										autocomplete="off">
+								</div>
+							</div>
+						</div>
+					</section>
+
+					<!-- 日期信息 -->
+					<section class="form-section" id="dates">
+						<h4 class="form-section-title">日期信息</h4>
+						<div class="grid-2col">
+							<div class="form-group">
+								<label>出厂日期</label>
+								<div class="date-field" id="factory-date" role="group" aria-label="出厂日期">
+									<select class="date-select" name="factoryYear" data-part="year"
+										aria-label="出厂年份"></select>
+									<select class="date-select" name="factoryMonth" data-part="month"
+										aria-label="出厂月份"></select>
+									<select class="date-select" name="factoryDay" data-part="day"
+										aria-label="出厂日"></select>
+								</div>
+							</div>
+							<div class="form-group">
+								<label>上线日期</label>
+								<div class="date-field" id="online-date" role="group" aria-label="上线日期">
+									<select class="date-select" name="onlineYear" data-part="year"
+										aria-label="上线年份"></select>
+									<select class="date-select" name="onlineMonth" data-part="month"
+										aria-label="上线月份"></select>
+									<select class="date-select" name="onlineDay" data-part="day"
+										aria-label="上线日"></select>
+								</div>
+							</div>
+							<div class="form-group">
+								<label>报废日期</label>
+								<div class="date-field" id="scrap-date" role="group" aria-label="报废日期">
+									<select class="date-select" name="scrapYear" data-part="year"
+										aria-label="报废年份"></select>
+									<select class="date-select" name="scrapMonth" data-part="month"
+										aria-label="报废月份"></select>
+									<select class="date-select" name="scrapDay" data-part="day"
+										aria-label="报废日"></select>
+								</div>
+							</div>
+						</div>
+					</section>
+
+					<!-- 备注 -->
+					<section class="form-section" id="notes">
+						<h4 class="form-section-title">备注</h4>
+						<div class="form-group">
+							<textarea hcw-input class="remark-input" id="remark" name="remark" aria-label="车辆备注"
+								placeholder="请输入车辆备注信息..."></textarea>
+						</div>
+					</section>
+
+					<div class="btn-group">
+						<hcw-button primary flat style="min-width: 6rem;" id="submitAddBtn">保存车辆</hcw-button>
+						<hcw-button style="min-width: 5rem;" id="resetAddBtn">清空表单</hcw-button>
+					</div>
+					<div id="add-result" class="result-card hidden"></div>
+				</div>
+			</div>
+
+			<!-- ── 批量导入模块 ─────────────────────────── -->
+			<div hcw-card id="import-form" class="form-card information-card hidden">
+				<div class="form-group">
+					<label>批量导入车辆信息</label>
+					<p class="lp">
+						支持 .csv / .xlsx（XLSX 取第一个能认出表头的工作表，通常是第一张）。CSV 编码自动识别（UTF-8 / GBK·GB18030 / UTF-16 都可）。
+						表头至少包含：公司、车型、燃料类型、车辆类型、车牌号前缀；其余列可选：自编号、分公司/车队、运营状态、VIN码、出厂编号、车牌地区、车牌号后缀、发动机、电机、电池、变速器、车桥、底盘、轮胎、悬挂、踏步、空调、车门、出厂日期、上线日期、报废日期、备注。
+						超过 20 行会自动分页预览。
+					</p>
+					<p class="lp">当前为页面 / 交互版本：查询、写入和批量写入接口尚未接入；导入会先在本地完成解析、校验与预览，确认上传只提示待接入。</p>
+				</div>
+				<div id="import-body">
+					<div class="tt-drop" id="import-drop">
+						<p>把 .csv 或 .xlsx 文件拖到这里，或点下面的按钮选择文件</p>
+						<div class="btn-group">
+							<hcw-button primary flat id="import-pick">选择文件</hcw-button>
+							<hcw-button id="import-template">下载 CSV 模板</hcw-button>
+						</div>
+						<input type="file" id="import-file"
+							accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+							hidden>
+					</div>
+					<p id="import-stat" class="lp"></p>
+					<p id="import-notice" class="lp lp-warning hidden"></p>
+					<div id="import-problems" class="lp lp-invalid hidden"></div>
+					<div id="import-preview" class="tt-table-wrap hidden"></div>
+					<div id="import-pager" class="tt-pager hidden"></div>
+					<div class="btn-group">
+						<hcw-button primary flat style="min-width: 6rem;" id="import-confirm" disabled>确认上传</hcw-button>
+						<hcw-button style="min-width: 5rem;" id="import-clear">清空</hcw-button>
+					</div>
+					<div id="import-result" class="result-card hidden"></div>
+				</div>
+			</div>
+		</div>
+	</hcw-article>
+
+	<hcw-body-footer></hcw-body-footer>
+
+	<!-- 登录模态框 -->
+	<div id="globalLoginModal" class="modal" style="align-items: center; display: none;">
+		<div hcw-modal>
+			<div hcw-modal-title>
+				<h3>登录系统</h3>
+				<hcw-button tp icon id="closeModalBtn">&times;</hcw-button>
+			</div>
+			<div hcw-modal-body>
+				<hcw-input primary label="用户名" type="text" id="username" placeholder="邮箱/昵称" autocomplete="off"
+					required></hcw-input>
+				<hcw-input label="密码" type="password" id="password" placeholder="请输入密码" required></hcw-input>
+				<div id="ErrorLogin" class="error-msg">
+					<p>用户名或密码错误，请重新输入</p>
+				</div>
+				<hcw-button primary large id="login-btn" type="submit">登 录</hcw-button>
+				<hcw-button id='RegisterBtn' large href="register.html">
+					注册账户
+				</hcw-button>
+			</div>
+		</div>
+	</div>
+</body>
+
+</html>

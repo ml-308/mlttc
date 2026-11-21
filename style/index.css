@@ -203,9 +203,10 @@ hcw-hero h1 {
     margin-top: .5rem;
 }
 
-/* 功能卡分两行：前两张是时刻表相关功能（时刻表查询 / 我的时刻表），其余入口另起一行。
+/* 功能卡按行分组：前两张是时刻表相关功能（时刻表查询 / 我的时刻表），其余入口另起一行。
  * 做法是让第三张卡（data-idx="3"）强制从第 1 列开始 —— 网格自动布局就会把它推到下一行，
- * 后面那张跟着排在它右边。
+ * 后面那张跟着排在它右边；最后一张「车辆信息」用 .feature-wide 整行横幅收口，
+ * 避免 5 张卡在 2 列网格里落单。
  *
  * 为什么不加一层 <div class="feature-group"> 包装：本文件里大量规则用的是
  * `.feature-grid > hcw-card` 这类**直接子代**选择器（入场动画、错峰延迟、hover/active
@@ -232,12 +233,58 @@ hcw-hero h1 {
 }
 
 /* 桌面端固定 2 列：功能墙按「一行两张」分组排布 ——
-   第一行是时刻表相关功能（查询 / 我的时刻表），第二行是其它入口（游戏与工具 / 关于我们）。
+   第一行是时刻表相关功能（查询 / 我的时刻表），第二行是其它入口（游戏与工具 / 关于我们），
+   第三行是车辆信息整行横幅。
    既然每行固定两张，用 2 列让卡片撑满整行；若仍用 4 列，每行会空出右侧两列，看起来像没排满。
    窄屏（<1024）走上面的 auto-fill，≤600 自然退成单列。 */
 @media (min-width: 1024px) {
     .feature-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* 功能卡第三行：车辆信息整行横幅（左文右按钮）。
+   卡片默认是竖排、最小高 14rem，这里改成横排并放开最小高度；窄屏回到纵向。 */
+.feature-grid > .feature-wide {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    --hcw-card-min-height: auto;
+}
+
+.feature-wide-copy {
+    min-width: 0;
+}
+
+.feature-wide-copy h3 {
+    margin: 0 0 .5rem;
+    font-weight: 800;
+}
+
+.feature-wide-copy p {
+    margin: 0;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+
+.feature-grid > .feature-wide > hcw-button {
+    flex: 0 0 auto;
+    align-self: center;
+    margin-top: 0;
+}
+
+@media (max-width: 640px) {
+    .feature-grid > .feature-wide {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .feature-grid > .feature-wide > hcw-button {
+        align-self: flex-start;
     }
 }
 
