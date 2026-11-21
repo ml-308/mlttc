@@ -71,7 +71,7 @@
 
 .detail-id {
     font-family: var(--font-mono);
-    font-size: 0.78rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
     background: var(--bg-hover);
     padding: 4px 12px;
@@ -132,7 +132,7 @@
 }
 
 .detail-label {
-    font-size: 0.76rem;
+    font-size: var(--text-caption);
     font-weight: 500;
     color: var(--text-muted);
     letter-spacing: 0.02em;
@@ -148,9 +148,9 @@
 
 /* 时间网格 */
 .detail-section-title {
-    font-size: 1rem;
+    font-size: var(--text-body);
     font-weight: 600;
-    color: var(--primary);
+    color: var(--primary-ink);
     margin-bottom: 0.75rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--border-light);
@@ -272,7 +272,7 @@
 /* 小屏收紧时刻表格：仍保持横向滚动，不撑破布局 */
 @media (max-width: 600px) {
     .detail-time-table {
-        font-size: 0.76rem;
+        font-size: var(--text-caption);
     }
 
     .detail-time-table td {

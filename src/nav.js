@@ -212,7 +212,7 @@ function bindNavEvents() {
 
   // 退出登录（防重复提交）
   const logoutGuard = createGuard('正在退出…');
-  document.getElementById('navLogoutBtn')?.addEventListener('click', () => {
+  document.getElementById('navLogoutBtn')?.addEventListener('click', (event) => {
     logoutGuard.run(async () => {
       try {
         await fetch('/api/logout-D1', { credentials: 'include' });
@@ -221,7 +221,7 @@ function bindNavEvents() {
       } catch {
         showMessage('退出失败，请稍后重试', true);
       }
-    });
+    }, event.currentTarget);
   });
 }
 

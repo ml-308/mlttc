@@ -836,8 +836,8 @@ const addGuard = createGuard('正在提交，请稍候…');
  * 「添加时刻表」按钮的入口（403/567 等多处绑定与解绑都引用这个名字，
  * 所以防重复提交裹在里面，而不是改绑定处）
  */
-function confirmAdd() {
-    return addGuard.run(doConfirmAdd);
+function confirmAdd(event) {
+    return addGuard.run(doConfirmAdd, event?.currentTarget);
 }
 
 async function doConfirmAdd() {

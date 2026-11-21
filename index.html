@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#f8f8f7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b0b0b" media="(prefers-color-scheme: dark)">
     <title>MLTTC
     </title>
     <link rel="stylesheet" href="style/index.css">
@@ -18,6 +21,9 @@
 </head>
 
 <body>
+    <!-- 键盘用户第一个 Tab 就能跳过导航，直达正文 -->
+    <a class="skip-link" href="#main">跳到主要内容</a>
+
     <hcw-body-header>
         <div class="logo-area">
             <div class="logo-text">
@@ -34,41 +40,45 @@
     </hcw-body-header>
 
     <!-- 主内容区域：hero + 数据速览 + 核心功能卡片墙 -->
-    <hcw-article>
+    <!-- tabindex=-1：让「跳到主要内容」把键盘焦点真正移进正文，而不只是滚动 -->
+    <hcw-article id="main" tabindex="-1">
         <hcw-hero>
             <h1>MLTTC</h1>
             <p class="hero-sub">把散落在站牌上的公交、班车时刻，整理成一份可以搜索、可以纠错的电子时刻表</p>
             <p id="time"></p>
-            <p id="BUG">点我<b style="color:brown">BUG</b>反馈</p>
+            <!-- 反馈入口是「按钮」：有边界、可按、可聚焦，不再是一行看起来像普通文字的可点区域 -->
+            <button type="button" id="BUG" class="hero-bug">点我<b>BUG</b>反馈</button>
             <!-- 更新日志入口：只做插入，保持 #BUG 与 .hero-meta 的位置和语义不变 -->
             <div class="hero-changelog">
                 <h2>更新日志</h2>
                 <p>版本检查、界面重做、新增工具……站点每一次功能性改动都记在这里</p>
                 <hcw-button primary href="changelog.html">查看更新日志</hcw-button>
             </div>
-            <p class="hero-meta">管理员页面：https://admin.mlttc.bond　·　Version:<span id="appVersion">1.6.27</span></p>
+            <p class="hero-meta">管理员页面：https://admin.mlttc.bond　·　Version:<span id="appVersion" data-num>1.6.27</span></p>
         </hcw-hero>
 
         <!-- 数据速览：真实接口统计 -->
+        <h2 class="visually-hidden">数据速览</h2>
         <section class="stat-grid" id="statGrid">
             <hcw-card class="stat-card">
                 <h3 hcw-card-title>已收录线路</h3>
-                <p class="stat-value" id="statLines">—</p>
+                <p class="stat-value" id="statLines" data-num>—</p>
                 <p class="stat-label">条公交 / 班车线路</p>
             </hcw-card>
             <hcw-card class="stat-card">
                 <h3 hcw-card-title>覆盖城市</h3>
-                <p class="stat-value" id="statCities">—</p>
+                <p class="stat-value" id="statCities" data-num>—</p>
                 <p class="stat-label">座城市</p>
             </hcw-card>
             <hcw-card class="stat-card">
                 <h3 hcw-card-title>数据更新</h3>
-                <p class="stat-value" id="statUpdated">—</p>
+                <p class="stat-value" id="statUpdated" data-num>—</p>
                 <p class="stat-label">持续补充中</p>
             </hcw-card>
         </section>
 
         <!-- 核心功能卡片墙 -->
+        <h2 class="visually-hidden">核心功能</h2>
         <section class="feature-grid" id="buttonGridContainer">
             <!-- 第一行：时刻表相关功能（查询 / 我的时刻表） -->
             <hcw-card data-action="timetable" data-idx="1">
@@ -90,7 +100,7 @@
                 <hcw-button primary href="tools.html">立即使用</hcw-button>
             </hcw-card>
             <hcw-card data-action="about" data-idx="4">
-                <h3 hcw-card-title>关于我们</h3>
+                <h3 hcw-card-title>关于我们</h3>qq
                 <p>了解这个公益时刻表项目，以及如何参与共建</p>
                 <hcw-button primary href="about.html">了解更多</hcw-button>
             </hcw-card>
@@ -102,16 +112,16 @@
     </hcw-body-footer>
 
     <!-- 登录模态框 -->
-    <div id="globalLoginModal" class="modal" style="align-items: center; display: none;">
+    <div id="globalLoginModal" class="modal" style="align-items: center; display: none;" role="dialog" aria-modal="true" aria-label="登录系统">
         <div hcw-modal>
             <div hcw-modal-title>
                 <h3>登录系统</h3>
-                <hcw-button tp icon id="closeModalBtn" >&times;</hcw-button>
+                <hcw-button tp icon id="closeModalBtn" aria-label="关闭登录弹窗">&times;</hcw-button>
             </div>
             <div hcw-modal-body>
                 <hcw-input primary label="用户名" type="text" id="username" placeholder="邮箱/昵称" autocomplete="off" required></hcw-input>
                 <hcw-input label="密码" type="password" id="password" placeholder="请输入密码" required></hcw-input>
-                <div id="ErrorLogin" class="error-msg">
+                <div id="ErrorLogin" class="error-msg" role="alert" aria-live="polite">
                     <p>用户名或密码错误，请重新输入</p>
                 </div>
                 <hcw-button primary large id="login-btn" type="submit" >登 录</hcw-button>

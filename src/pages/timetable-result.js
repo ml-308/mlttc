@@ -581,7 +581,7 @@ const submitGuard = createGuard('正在提交，请稍候…');
 
 /** 「提交修改」按钮的入口（绑定处引用 submitEdit，所以守卫裹在这里） */
 function submitEdit() {
-  return submitGuard.run(doSubmitEdit);
+  return submitGuard.run(doSubmitEdit, submitBtn);
 }
 
 async function doSubmitEdit() {

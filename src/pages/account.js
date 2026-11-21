@@ -280,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 与 /src/api/logout-D1 的 cookie 清理链路不一致，故一并删除。
   const logoutMsg = document.getElementById('accountLogoutMsg');
   const logoutGuard = createGuard('正在退出…');
-  document.getElementById('accountLogoutBtn')?.addEventListener('click', () => logoutGuard.run(async () => {
+  document.getElementById('accountLogoutBtn')?.addEventListener('click', (event) => logoutGuard.run(async () => {
     try {
       // 与 src/auth-header.js / src/nav.js 使用同一个退出接口：清 auth_token 与 user_name
       await fetch('/api/logout-D1', { credentials: 'include' });
@@ -300,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutMsg.style.color = 'var(--danger)';
       }
     }
-  }));
+  }, event.currentTarget));
 
   // 实时验证：昵称（最多6字）
   const nameInput = document.getElementById('nameInput');
@@ -338,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 保存按钮（外包一层防重复提交：连点会发出多个写请求，容易触发服务端限流）
   const saveGuard = createGuard('正在保存，请稍候…');
-  document.getElementById('saveBtn')?.addEventListener('click', () => saveGuard.run(async () => {
+  document.getElementById('saveBtn')?.addEventListener('click', (event) => saveGuard.run(async () => {
     const name = nameInput?.value.trim() || null;
     const city = cityInput?.value.trim() || null;
 
@@ -377,6 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
         msgout(cityInput, cityMsg, '', 2);
       }
     }
-  }));
+  }, event.currentTarget));
 
 });

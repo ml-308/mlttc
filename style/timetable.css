@@ -194,7 +194,7 @@ hcw-article,
 
 .form-group label .optional {
     font-weight: 400;
-    font-size: 0.78rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
     letter-spacing: 0.01em;
 }
@@ -235,7 +235,7 @@ hcw-article,
 }
 
 .lp {
-    font-size: 0.65rem;
+    font-size: var(--text-caption);
     letter-spacing: 0.02em;
     opacity: 1;
 }
@@ -253,7 +253,7 @@ hcw-article,
 }
 
 .lp.lp-warning {
-    color: var(--warning) !important;
+    color: var(--warning-ink) !important;
     display: block !important;
 }
 
@@ -331,7 +331,7 @@ hcw-article,
 footer {
     text-align: center;
     padding: 20px 16px;
-    font-size: 0.75rem;
+    font-size: var(--text-caption);
     color: var(--footer-text);
     letter-spacing: 0.01em;
     border-top: 1px solid var(--border-light);
@@ -502,7 +502,7 @@ footer::before {
 
 .result-item-id {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
     background: var(--bg-hover);
     padding: 3px 10px;
@@ -533,7 +533,7 @@ footer::before {
 
 .station-label {
     color: var(--text-muted);
-    font-size: 0.78rem;
+    font-size: var(--text-caption);
 }
 
 .station-name {
@@ -542,7 +542,7 @@ footer::before {
 }
 
 .station-arrow {
-    color: var(--primary);
+    color: var(--primary-ink);
     font-weight: 700;
     margin: 0 2px;
 }
@@ -560,7 +560,7 @@ footer::before {
 .result-item-meta {
     display: flex;
     gap: 16px;
-    font-size: 0.75rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
     margin-top: 4px;
     padding-top: 6px;
@@ -640,7 +640,7 @@ footer::before {
     }
 
     footer {
-        font-size: 0.72rem;
+        font-size: var(--text-caption);
         padding: 14px 10px;
     }
 }
@@ -801,7 +801,7 @@ footer::before {
 
 [data-theme="dark"] .result-area .result-item-id {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
     background: var(--bg-hover);
     padding: 2px 10px;
@@ -832,7 +832,7 @@ footer::before {
 
 [data-theme="dark"] .result-area .station-label {
     color: var(--text-muted);
-    font-size: 0.76rem;
+    font-size: var(--text-caption);
 }
 
 [data-theme="dark"] .result-area .station-name {
@@ -841,14 +841,14 @@ footer::before {
 }
 
 [data-theme="dark"] .result-area .station-arrow {
-    color: var(--primary);
+    color: var(--primary-ink);
     opacity: 0.8;
     font-weight: 700;
     margin: 0 2px;
 }
 
 [data-theme="dark"] .result-area .result-item-note {
-    font-size: 0.78rem;
+    font-size: var(--text-caption);
     color: var(--accent);
     background: var(--accent-light);
     border: 1px solid rgba(255, 179, 64, 0.25);
@@ -859,7 +859,7 @@ footer::before {
 [data-theme="dark"] .result-area .result-item-meta {
     display: flex;
     gap: 16px;
-    font-size: 0.74rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
     margin-top: 4px;
     padding-top: 6px;
@@ -912,7 +912,7 @@ footer::before {
     }
 
     [data-theme="dark"] .result-area .result-item-stations {
-        font-size: 0.78rem;
+        font-size: var(--text-caption);
     }
 }
 
@@ -1107,7 +1107,7 @@ footer::before {
 
 @media (max-width: 600px) {
     .tt-import-table {
-        font-size: 0.75rem;
+        font-size: var(--text-caption);
     }
 
     .tt-import-table th,
@@ -1158,7 +1158,7 @@ footer::before {
 .my-report-title {
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--warning);
+    color: var(--warning-ink);
 }
 
 /* ---------- 提醒清单 ---------- */
@@ -1190,7 +1190,7 @@ footer::before {
 
 .my-report-item-id {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
 }
 
@@ -1214,7 +1214,7 @@ footer::before {
 
 .my-report-item-label {
     flex: 0 0 auto;
-    font-size: 0.72rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
 }
 
@@ -1237,7 +1237,7 @@ footer::before {
 
 .my-report-item-time {
     margin-top: 0.3rem;
-    font-size: 0.72rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
 }
 
@@ -1267,7 +1267,7 @@ footer::before {
 
 .my-report-badge {
     flex: 0 0 auto;
-    font-size: 0.68rem;
+    font-size: var(--text-caption);
     font-weight: 600;
     color: var(--on-primary);
     background: var(--warning);

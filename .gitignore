@@ -13,3 +13,17 @@ tools/nav-smoke-test/nav-under-test.mjs
 
 # 本地推广片项目（不是站点代码，含 node_modules/.npm-cache，勿提交）
 mlttc-promo/
+
+# ─── 本地素材与工具缓存（不是站点代码，不入库） ───────────
+# B 站视频总结流水线：Python 依赖、模型缓存、脚本工具、每条视频的转写/关键帧/mp4
+.pylibs/
+.hf_cache/
+.tools/
+vidsum_out/
+# pip 安装过程残留（权限受限，删除也会失败，直接忽略）
+pip-*/
+
+# 操作系统垃圾文件
+Thumbs.db
+desktop.ini
+.DS_Store

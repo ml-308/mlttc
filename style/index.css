@@ -38,24 +38,28 @@
 
 .stat-card [hcw-card-title] {
     /* 统计卡标题的字号与下方间距改用卡片钩子（main.css 读 --hcw-card-title-font-size / -gap） */
-    --hcw-card-title-font-size: 1rem;
-    --hcw-card-title-gap: .5rem;
-    font-weight: 700;
-    letter-spacing: 0;
+    --hcw-card-title-font-size: var(--text-caption);
+    --hcw-card-title-gap: .35rem;
+    font-weight: 600;
+    letter-spacing: .02em;
     color: var(--text-secondary);
 }
 
 .stat-value {
-    font-size: 2.5rem;
+    /* 首屏只有这一处「大数字」：44px 显示档 + 等宽数字，数值跳动不会左右抖 */
+    font-size: clamp(2.25rem, 6vw, var(--text-display));
     font-weight: 800;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
-    color: var(--primary);
+    letter-spacing: -0.02em;
+    line-height: var(--leading-display);
+    font-variant-numeric: tabular-nums;
+    /* 亮绿当文字只有 ~2:1，改用同色系深绿 */
+    color: var(--primary-ink);
     margin: 0;
 }
 
 .stat-label {
-    font-size: .82rem;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     color: var(--text-muted);
     margin: 0;
 }
@@ -70,25 +74,78 @@ hcw-hero {
 }
 
 hcw-hero h1 {
-    font-size: clamp(2.75rem, 8vw, 4.5rem);
+    /* 显示档：44px 封顶，窄屏按视口缩到 36px，不再出现 72px 的巨字 */
+    font-size: clamp(2.25rem, 5vw, var(--text-display));
     font-weight: 800;
-    letter-spacing: -0.04em;
-    line-height: 1;
-    margin: 0.5rem 0;
+    letter-spacing: -0.03em;
+    line-height: var(--leading-display);
+    margin: 0 0 .5rem;
 }
 
 .hero-sub {
-    font-size: 1.15rem;
-    line-height: 1.65;
+    /* 标题档：与 44px 主标题形成 2:1 的层级差，读起来不费劲 */
+    font-size: var(--text-title);
+    line-height: 1.5;
     color: var(--text-secondary);
-    max-width: 42rem;
-    margin: 0.75rem 0;
+    max-width: 34rem;
+    margin: 0 0 1rem;
 }
 
 .hero-meta {
-    font-size: .8rem;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     color: var(--text-muted);
     margin-top: 1.25rem;
+}
+
+/* 高考倒计时：辅助信息，等宽数字避免秒数跳动时整行左右抖 */
+#time {
+    margin: .25rem 0 0;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* BUG 反馈入口：它是「按钮」，就不能长得像一句普通文字 —— 要有边界、可按、可聚焦 */
+.hero-bug {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    min-height: var(--touch-target);
+    margin: .35rem 0 .5rem;
+    padding: 0 .9rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-full);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: var(--text-caption);
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-standard),
+        border-color var(--dur-fast) var(--ease-standard),
+        background-color var(--dur-fast) var(--ease-standard),
+        transform var(--dur-fast) var(--ease-standard);
+}
+
+.hero-bug b {
+    color: var(--warning-ink);
+    font-weight: 800;
+    letter-spacing: .02em;
+}
+
+.hero-bug:hover {
+    border-style: solid;
+    border-color: var(--primary);
+    color: var(--text-primary);
+    background: var(--bg-card);
+}
+
+.hero-bug:active {
+    transform: translateY(1px) scale(0.98);
 }
 
 /* ---------- hero 内的更新日志入口 ---------- */
@@ -110,7 +167,7 @@ hcw-hero h1 {
 .hero-changelog h2 {
     /* 与 hero 主标题拉开层级：入口块是次要信息 */
     margin: 0;
-    font-size: .95rem;
+    font-size: var(--text-body);
     font-weight: 700;
     letter-spacing: 0;
     line-height: 1.3;
@@ -119,14 +176,15 @@ hcw-hero h1 {
 
 .hero-changelog p {
     margin: 0;
-    font-size: .82rem;
-    line-height: 1.6;
-    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    color: var(--text-muted);
 }
 
 .hero-changelog hcw-button,
 .hero-changelog [hcw-button] {
-    --hcw-button-min-height: 2.25rem;
+    /* 主操作按钮 44px：拇指落在上面不用瞄准 */
+    --hcw-button-min-height: var(--touch-target-lg);
     margin-top: .45rem;
 }
 
@@ -161,11 +219,15 @@ hcw-hero h1 {
 .feature-grid [hcw-card] {
     /* 最小高度改由组件钩子控制：main.css 的 hcw-card 读 var(--hcw-card-min-height)，默认 auto */
     --hcw-card-min-height: 14rem;
+    /* 卡片里的主操作按 44px 给足热区（视觉上由内距撑开，不用放大字号） */
+    --hcw-button-min-height: var(--touch-target-lg);
 }
 
 .feature-grid hcw-card h3,
 .feature-grid [hcw-card] h3 {
-    font-size: 1.25rem;
+    font-size: var(--text-title);
+    line-height: var(--leading-title);
+    letter-spacing: -0.015em;
     margin-bottom: .5rem;
 }
 
@@ -185,10 +247,6 @@ hcw-hero h1 {
         grid-template-columns: repeat(3, 1fr);
         gap: .75rem;
     }
-
-    .stat-value {
-        font-size: 1.8rem;
-    }
 }
 
 @media (max-width: 480px) {
@@ -199,10 +257,6 @@ hcw-hero h1 {
     .stat-grid {
         grid-template-columns: 1fr;
         gap: .6rem;
-    }
-
-    .stat-value {
-        font-size: 1.6rem;
     }
 }
 
@@ -232,7 +286,8 @@ hcw-hero h1 {
 .error-msg {
     margin-top: 8px;
     padding: 10px 16px;
-    font-size: 0.82rem;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     color: var(--danger);
     background: rgba(255, 59, 48, 0.08);
     border: 1px solid rgba(255, 59, 48, 0.25);
@@ -337,7 +392,8 @@ hcw-hero > .hero-meta {
 .button-grid > [hcw-card] {
     animation: fade-up-in var(--dur-base) var(--ease-decelerate) backwards;
     transition: transform var(--dur-fast) var(--ease-standard),
-        box-shadow var(--dur-fast) var(--ease-standard);
+        box-shadow var(--dur-fast) var(--ease-standard),
+        background-color var(--dur-fast) var(--ease-standard);
 }
 
 /* 组内按 nth-child 错峰；每网格排到第 6 拍封顶，第 6 张之后同延迟，

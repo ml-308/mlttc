@@ -242,7 +242,7 @@ async function refisterbtnclick(){
 
     const emaili=email.value;
     const passwordi=password.value;
-    registerGuard.run(() => writeD1(emaili, passwordi, token));
+    registerGuard.run(() => writeD1(emaili, passwordi, token), registerbtn);
 }
 
 async function writeD1(email,password,token){

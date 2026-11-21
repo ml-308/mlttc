@@ -386,6 +386,8 @@ function mountLoginConsent() {
 
 async function login(e) {
   e.preventDefault();
+  // 后面要等 Turnstile，await 之后 e.currentTarget 已被浏览器清空，所以先存下来
+  const submitBtn = e.currentTarget;
   const email = document.getElementById('username')?.value.trim();
   const password = document.getElementById('password')?.value;
   if (!email || !password) {
@@ -422,7 +424,7 @@ async function login(e) {
     }
   }
 
-  loginGuard.run(() => loginread(email, password, { rememberCookie, turnstileToken: token }));
+  loginGuard.run(() => loginread(email, password, { rememberCookie, turnstileToken: token }), submitBtn);
 }
 
 async function loginread(email, password, opts = {}) {

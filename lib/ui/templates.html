@@ -106,13 +106,16 @@
             transition-property: transform, background-color, color, box-shadow, opacity;
             text-align: center;
             cursor: pointer;
-            /* --hcw-button-font-size：按钮字号，默认 0.95rem（改动前硬编码值） */
-            font-size: var(--hcw-button-font-size, 0.95rem);
+            /* --hcw-button-font-size：按钮字号，默认 --text-body（15px） */
+            font-size: var(--hcw-button-font-size, var(--text-body, 0.9375rem));
             font-weight: 700;
             letter-spacing: -0.01em;
+            /* 裁掉字体自带的上下空白，文字才在胶囊里真的居中（不支持的浏览器保持原样） */
+            text-box: trim-both cap alphabetic;
             /* --hcw-button-min-height / --hcw-button-min-width：按钮最小高/宽，默认 2.4rem */
-            min-height: var(--hcw-button-min-height, 2.4rem);
-            min-width: var(--hcw-button-min-width, 2.4rem);
+            /* 触控热区 ≥40×40：图标可以 16px，手指按下去的区域不能跟着变小 */
+            min-height: var(--hcw-button-min-height, var(--touch-target, 2.5rem));
+            min-width: var(--hcw-button-min-width, var(--touch-target, 2.5rem));
             /* --hcw-button-gap：按钮内部内容间距，默认 0（改动前无 gap，钩子不产生视觉变化） */
             gap: var(--hcw-button-gap, 0);
             text-decoration: none;
@@ -167,8 +170,8 @@
 
         :host([icon])>.inner-root {
             aspect-ratio: 1;
-            /* --hcw-button-icon-size：图标按钮边长，默认 2.4rem（改动前硬编码值） */
-            height: var(--hcw-button-icon-size, 2.4rem);
+            /* --hcw-button-icon-size：图标按钮边长，默认 --touch-target（40px） */
+            height: var(--hcw-button-icon-size, var(--touch-target, 2.5rem));
             padding: 0;
             display: flex;
             align-items: center;
@@ -176,8 +179,8 @@
         }
 
         :host([icon][large])>.inner-root {
-            /* --hcw-button-icon-min-height-lg：大号图标按钮最小高度，默认 3rem（改动前硬编码值） */
-            min-height: var(--hcw-button-icon-min-height-lg, 3rem);
+            /* --hcw-button-icon-min-height-lg：大号图标按钮最小高度，默认 44px（与页头按钮同高） */
+            min-height: var(--hcw-button-icon-min-height-lg, var(--touch-target-lg, 2.75rem));
         }
 
         :host(:not([disabled], [primary], [variant]):hover)>.inner-root {
@@ -236,8 +239,42 @@
             opacity: .5;
         }
 
-        :host(:active:not([disabled]))>.inner-root {
-            transform: scale(0.97);
+        /* 按下：往下沉 1px，手指能明确感到「点到了」 */
+        :host(:active:not([disabled], [loading]))>.inner-root {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        /* 加载态（验收单第 5 条）：按钮里转圈 + 同时锁住不让再点。
+           用法：el.setAttribute('loading', '')；结束后 removeAttribute('loading')。
+           少了这一态，网卡那两秒用户会以为没点上，再点一次就是两次提交。 */
+        :host([loading])>.inner-root {
+            pointer-events: none;
+            cursor: progress;
+            /* 只把「字」藏起来，保留 currentColor 给转圈用（color: transparent 会一并抹掉） */
+            -webkit-text-fill-color: transparent;
+            /* 加载中仍保留按钮本来的颜色，只是转圈 + 锁住；不要被 [disabled] 灰掉 */
+            opacity: 1;
+            filter: none;
+        }
+
+        :host([loading])>.inner-root::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 1rem;
+            height: 1rem;
+            margin: -.5rem 0 0 -.5rem;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: hcw-button-spin .7s linear infinite;
+        }
+
+        @keyframes hcw-button-spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
     <div class="inner-root">
@@ -255,8 +292,8 @@
         }
 
         label {
-            /* 输入框标签字号，默认 0.85rem */
-            font-size: var(--hcw-input-label-font-size, 0.85rem);
+            /* 输入框标签字号，默认 --text-caption（12px） */
+            font-size: var(--hcw-input-label-font-size, var(--text-caption, 0.75rem));
             font-weight: 600;
             color: var(--text-secondary);
             letter-spacing: 0.02em;
@@ -287,12 +324,12 @@
             cursor: text;
             /* 输入控件不吃 UA 字体：显式跟随全站 --font-family，与弹窗正文同一张脸 */
             font-family: var(--font-family);
-            /* --hcw-input-font-size：输入框字号，默认 1rem */
-            font-size: var(--hcw-input-font-size, 1rem);
+            /* --hcw-input-font-size：输入框字号，默认 --text-body（15px） */
+            font-size: var(--hcw-input-font-size, var(--text-body, 0.9375rem));
             /* --hcw-input-line-height：输入框行高，默认 1.4，单行文本垂直居中不贴边框 */
             line-height: var(--hcw-input-line-height, 1.4);
-            /* --hcw-input-min-height：输入框最小高度，默认 auto（改动前无此声明，加钩子不改高度） */
-            min-height: var(--hcw-input-min-height, auto);
+            /* --hcw-input-min-height：输入框最小高度，默认 --touch-target-lg（44px） */
+            min-height: var(--hcw-input-min-height, var(--touch-target-lg, 2.75rem));
             outline: none;
             animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
         }
@@ -357,8 +394,8 @@
         }
 
         label {
-            /* --hcw-textarea-label-font-size：多行输入框标签字号，默认 0.85rem */
-            font-size: var(--hcw-textarea-label-font-size, 0.85rem);
+            /* --hcw-textarea-label-font-size：多行输入框标签字号，默认 --text-caption（12px） */
+            font-size: var(--hcw-textarea-label-font-size, var(--text-caption, 0.75rem));
             font-weight: 600;
             color: var(--text-secondary);
             letter-spacing: 0.02em;
@@ -389,8 +426,8 @@
             transition-property: background-color, color, box-shadow, border-color;
             cursor: text;
             font-family: var(--font-family);
-            /* --hcw-textarea-font-size：多行输入框字号，默认 1rem */
-            font-size: var(--hcw-textarea-font-size, 1rem);
+            /* --hcw-textarea-font-size：多行输入框字号，默认 --text-body（15px） */
+            font-size: var(--hcw-textarea-font-size, var(--text-body, 0.9375rem));
             /* --hcw-textarea-line-height：多行行高，默认 1.6，与弹窗正文同一档，多行输入读起来不憋 */
             line-height: var(--hcw-textarea-line-height, 1.6);
             outline: none;
@@ -478,6 +515,7 @@
             background-size: cover;
             /* --hcw-hero-media-radius：装饰图圆角，默认取 --radius-lg（.5rem） */
             border-radius: var(--hcw-hero-media-radius, var(--radius-lg));
+            corner-shape: squircle;
         }
 
         h1,
@@ -523,6 +561,8 @@
             gap: var(--hcw-popup-gap, 1.25rem);
             margin: 0;
             border-radius: var(--hcw-popup-radius, var(--radius-xl));
+            /* 弹窗也是卡片：用连续曲率圆角，和页面上的卡片保持同一套「手感」 */
+            corner-shape: squircle;
             background-color: var(--bg-card);
             color: var(--text-primary);
             font-family: var(--font-family);
@@ -561,8 +601,8 @@
             flex-direction: column;
             /* 标题与描述之间，默认 .5rem */
             gap: var(--hcw-popup-header-gap, .5rem);
-            /* 给右上角关闭钮留出位置，长标题不会压到 × 上 */
-            padding-inline-end: var(--hcw-popup-header-padding-end, 1.75rem);
+            /* 给右上角关闭钮（40px 热区 + 14px 偏移）留出位置，长标题不会压到 × 上 */
+            padding-inline-end: var(--hcw-popup-header-padding-end, 3.5rem);
             min-width: 0;
         }
 
@@ -573,7 +613,7 @@
         /* eyebrow：补上下文（「更新可用」「危险操作」），小字号 + 大字距，不抢标题 */
         .eyebrow {
             margin: 0;
-            font-size: var(--hcw-popup-eyebrow-font-size, .75rem);
+            font-size: var(--hcw-popup-eyebrow-font-size, var(--text-caption, .75rem));
             font-weight: 700;
             letter-spacing: .12em;
             text-transform: uppercase;
@@ -588,8 +628,8 @@
         /* 标题：全卡唯一的粗黑层级：Spotify 用字重而不是字号堆层级 */
         .title {
             margin: 0;
-            font-size: var(--hcw-popup-title-font-size, 1.1875rem);
-            line-height: 1.35;
+            font-size: var(--hcw-popup-title-font-size, var(--text-title, 1.375rem));
+            line-height: var(--leading-title, 1.35);
             font-weight: 800;
             letter-spacing: -.015em;
             color: var(--text-primary);
@@ -605,8 +645,8 @@
         /* 描述：比标题低一档字号 + secondary 色，长段读起来不压眼 */
         .text {
             margin: 0;
-            font-size: var(--hcw-popup-text-font-size, .9375rem);
-            line-height: 1.65;
+            font-size: var(--hcw-popup-text-font-size, var(--text-body, .9375rem));
+            line-height: var(--leading-body, 1.6);
             font-weight: 400;
             letter-spacing: 0;
             color: var(--text-secondary);
@@ -621,8 +661,8 @@
         /* 只有正文、没有标题时（旧调用方只传 text），让正文升格成标题：
            单句确认（「确定要删除…吗？」）不该被压成灰色小字。 */
         .header:not(:has(.title:not([hidden]))) .text {
-            font-size: var(--hcw-popup-title-font-size, 1.1875rem);
-            line-height: 1.35;
+            font-size: var(--hcw-popup-title-font-size, var(--text-title, 1.375rem));
+            line-height: var(--leading-title, 1.35);
             font-weight: 800;
             letter-spacing: -.015em;
             color: var(--text-primary);
@@ -671,8 +711,9 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: var(--hcw-popup-close-size, 2rem);
-            height: var(--hcw-popup-close-size, 2rem);
+            /* 热区 40px，静止时仍只是一个 ×（悬停才浮现底色） */
+            width: var(--hcw-popup-close-size, 2.5rem);
+            height: var(--hcw-popup-close-size, 2.5rem);
             padding: 0;
             border-radius: var(--radius-full);
             cursor: pointer;
@@ -696,7 +737,7 @@
         }
 
         .close:focus-visible {
-            outline: 2px solid var(--primary);
+            outline: 2px solid var(--primary-ink, var(--primary));
             outline-offset: 2px;
         }
 

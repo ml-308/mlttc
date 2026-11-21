@@ -16,16 +16,16 @@
 }
 
 .legal-kicker {
-    font-size: .74rem;
+    font-size: var(--text-caption);
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--primary);
+    color: var(--primary-ink);
     margin-bottom: .35rem;
 }
 
 .legal h1 {
-    font-size: clamp(1.75rem, 5vw, 2.35rem);
+    font-size: clamp(2rem, 3.4vw, var(--text-display));
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.2;
@@ -34,7 +34,8 @@
 }
 
 .legal-meta {
-    font-size: .82rem;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     color: var(--text-muted);
     margin-bottom: 1rem;
 }
@@ -44,8 +45,8 @@
 }
 
 .legal-lead {
-    font-size: 1rem;
-    line-height: 1.75;
+    font-size: var(--text-body);
+    line-height: 1.7;
     color: var(--text-secondary);
     margin-bottom: 1.25rem;
 }
@@ -61,7 +62,7 @@
 }
 
 .legal-toc a {
-    font-size: .85rem;
+    font-size: var(--text-body);
     color: var(--link-color);
 }
 
@@ -72,7 +73,8 @@
 }
 
 .legal-section h2 {
-    font-size: 1.25rem;
+    font-size: var(--text-title);
+    line-height: var(--leading-title);
     font-weight: 700;
     letter-spacing: -0.015em;
     color: var(--text-primary);
@@ -80,7 +82,7 @@
 }
 
 .legal-section h3 {
-    font-size: .95rem;
+    font-size: var(--text-body);
     font-weight: 600;
     color: var(--text-primary);
     margin: 1.15rem 0 .4rem;
@@ -88,7 +90,7 @@
 
 .legal-section p,
 .legal-section li {
-    font-size: .88rem;
+    font-size: var(--text-body);
     line-height: 1.8;
     color: var(--text-secondary);
 }
@@ -137,7 +139,7 @@
     width: 100%;
     min-width: 32rem;
     border-collapse: collapse;
-    font-size: .82rem;
+    font-size: var(--text-caption);
 }
 
 .legal th,
@@ -163,7 +165,7 @@
 
 /* ---------- 附注 ---------- */
 .legal-note {
-    font-size: .8rem;
+    font-size: var(--text-caption);
     color: var(--text-muted);
     line-height: 1.7;
     margin-top: .5rem;

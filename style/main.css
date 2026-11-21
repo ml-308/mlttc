@@ -1,7 +1,10 @@
 
 :root {
-    /* ===== Spotify 风格配色（浅色主题，默认） =====
-       绿 #1DB954 作唯一强调 · 浅色画布 · 近白分层表面 */
+    /* ===== 配色（浅色主题，默认） =====
+       一个强调色（Spotify 绿）+ 一组暖灰。层次只靠 1%–3% 的明度差
+       （画布 #f8f8f7 → 卡片 #fff → 悬停面 #f1f1ec），不用纯黑、不用粗黑边框。
+       亮绿 #1db954 只作填充色；当文字用时换成同色系更深的 --primary-ink，
+       否则浅底上只有 ~2:1，读不清也过不了 WCAG。 */
 
     /* 主色调 —— Spotify 绿 */
     --primary: #1db954;
@@ -12,69 +15,74 @@
     --primary-dark: #169c46; /* 按压态更深的绿 */
     --primary-bg: rgba(29, 185, 84, 0.12);
     --primary-surface: rgba(29, 185, 84, 0.07);
+    --primary-ink: #0f7a36;  /* 绿色文字/数字专用，浅底对比 ≥4.5:1 */
 
-    /* 强调色 —— 保留一点暖橙用于「备注」等次要高亮（远离绿色系，避免混淆） */
-    --accent: #e8541f;
-    --accent-hover: #f06a35;
-    --accent-light: rgba(232, 84, 31, 0.12);
+    /* 强调色 —— 「备注」等次要高亮，收进暖橙色系（与 --warning 同族，不再多一个色相） */
+    --accent: #b45309;
+    --accent-hover: #92400e;
+    --accent-light: rgba(180, 83, 9, 0.10);
 
     /* 功能色 */
-    --success: #169c46;
+    --success: #12803a;
     --success-light: #ffffff;
-    --danger: #d93025;
+    --danger: #c9362b;
     --danger-light: #ffffff;
-    --warning: #e8900a;
+    --warning: #c47a06;
     --warning-light: #000000;
+    --warning-ink: #8a5a00;  /* 橙色文字专用 */
 
-    /* 中性色 —— 浅色画布上的文字层级 */
-    --text-primary: #111111;
-    --text-secondary: #535353;
-    --text-muted: #7a7a7a;
-    --text-placeholder: #8a8a8a;
-    --border: #d9d9d9;
-    --border-light: #ececec;
+    /* 中性色 —— 暖灰，逐级拉开且保证对比度 */
+    --text-primary: #141413;
+    --text-secondary: #55544f;
+    /* muted 也按 4.5:1 收：在 --bg-hover(#f1f1ec) 上仍有 ~4.7:1 */
+    --text-muted: #6a6961;
+    --text-placeholder: #8a8981;
+    --border: #dcdcd6;
+    --border-light: #eaeae5;
 
-    --link-color: #169c46; /* 链接用稍深的绿，保证浅底对比度 */
+    --link-color: #117a37;
 
     /* 按钮 */
-    --button-bg: rgba(0, 0, 0, 0.06);
-    --button-color: #111111;
-    --button-fill-bg: #111111;      /* 实底按钮 = 黑底白字 */
+    --button-bg: rgba(20, 20, 19, 0.06);
+    --button-color: #141413;
+    --button-fill-bg: #141413;      /* 实底按钮 = 墨黑底白字 */
     --button-fill-color: #ffffff;
-    --button-bg-hl: rgba(0, 0, 0, 0.10);
+    --button-bg-hl: rgba(20, 20, 19, 0.10);
     --button-color-hl: #000000;
-    --button-color-disabled: #b3b3b3;
+    --button-color-disabled: #a3a39c;
+
+    /* 深色模式字重下调一档：黑底白字会显粗，靠字重补偿（见 body 的 font-weight） */
+    --font-weight-body: 400;
 
     /* 输入框 */
-    --input-bg: rgba(0, 0, 0, 0.04);
-    --input-color: #111111;
-    --input-bg-hl: rgba(0, 0, 0, 0.07);
+    --input-bg: rgba(20, 20, 19, 0.04);
+    --input-color: #141413;
+    --input-bg-hl: rgba(20, 20, 19, 0.07);
     --input-color-hl: #000000;
 
-    /* 页面背景 —— 浅色分层 */
-    --bg-page: #ffffff;
-    --on-bg-page: #111111;
+    /* 页面背景 —— 暖灰分层（画布比卡片深一档） */
+    --bg-page: #f8f8f7;
+    --on-bg-page: #141413;
     --bg-card: #ffffff;             /* 卡片 */
-    --bg-input: rgba(0, 0, 0, 0.04);
-    --bg-hover: #f2f2f2;            /* 悬停表面 */
+    --bg-input: rgba(20, 20, 19, 0.04);
+    --bg-hover: #f1f1ec;            /* 悬停表面 */
 
     /* 导航栏磨砂玻璃 */
-    --glass-bg: rgba(255, 255, 255, 0.82);
-    --glass-text: #111111;
+    --glass-bg: rgba(255, 255, 255, 0.86);
+    --glass-text: #141413;
     --glass-inner-hl: transparent;
     --glass-inner-dl: transparent;
 
     /* 页脚 */
-    --footer-bg: #f2f2f2;
-    --footer-text: #535353;
+    --footer-bg: #f2f2ed;
+    --footer-text: #55544f;
 
     /* 导航栏专用 */
-    --nav-bg: rgba(255, 255, 255, 0.85);
-    --nav-text: #111111;
+    --nav-bg: rgba(248, 248, 247, 0.85);
+    --nav-text: #141413;
 }
 
-/* 深色主题变量（通过 data-theme 属性或系统偏好）
-   默认主题已即 Spotify 深色；这里让显式深色模式与默认一致、仅微调分层 */
+/* 深色主题变量（html[data-theme="dark"]，由 src/auth-header.js 写入） */
 [data-theme="dark"] {
     --primary: #1db954;
     --on-primary: #000000;
@@ -84,10 +92,11 @@
     --primary-dark: #169c46;
     --primary-bg: rgba(29, 185, 84, 0.16);
     --primary-surface: rgba(29, 185, 84, 0.10);
+    --primary-ink: #1ed760;
 
-    --accent: #ff7a45;
-    --accent-hover: #ff986e;
-    --accent-light: rgba(255, 122, 69, 0.18);
+    --accent: #f0a35e;
+    --accent-hover: #ffbd85;
+    --accent-light: rgba(240, 163, 94, 0.16);
 
     --success: #1db954;
     --success-light: #000000;
@@ -95,48 +104,51 @@
     --danger-light: #000000;
     --warning: #ffb020;
     --warning-light: #000000;
+    --warning-ink: #ffb020;
 
-    --text-primary: #ffffff;
-    --text-secondary: #b3b3b3;
-    --text-muted: #7a7a7a;
-    --text-placeholder: #7a7a7a;
-    --border: #2a2a2a;
-    --border-light: #1f1f1f;
+    --text-primary: #f4f4f0;
+    --text-secondary: #b3b3ad;
+    --text-muted: #8a8a83;
+    --text-placeholder: #8a8a83;
+    --border: #2a2a26;
+    --border-light: #212120;
+    --font-weight-body: 380;
 
     --link-color: #1ed760;
 
-    --button-bg: rgba(255, 255, 255, 0.12);
+    --button-bg: rgba(255, 255, 255, 0.10);
     --button-color: #ffffff;
     --button-fill-bg: #ffffff;
     --button-fill-color: #000000;
-    --button-bg-hl: rgba(255, 255, 255, 0.20);
+    --button-bg-hl: rgba(255, 255, 255, 0.18);
     --button-color-hl: #ffffff;
-    --button-color-disabled: #5a5a5a;
+    --button-color-disabled: #6b6b64;
 
-    --input-bg: rgba(255, 255, 255, 0.10);
+    --input-bg: rgba(255, 255, 255, 0.08);
     --input-color: #ffffff;
-    --input-bg-hl: rgba(255, 255, 255, 0.16);
+    --input-bg-hl: rgba(255, 255, 255, 0.14);
     --input-color-hl: #ffffff;
 
-    --bg-page: #000000;
-    --on-bg-page: #ffffff;
-    --bg-card: #181818;
-    --bg-input: rgba(255, 255, 255, 0.10);
-    --bg-hover: #242424;
+    /* 深色分层：不用纯黑，按 #0B0B0B → #151515 → #1A1A19 → #20201F 逐级抬一层 */
+    --bg-page: #0b0b0b;
+    --on-bg-page: #f4f4f0;
+    --bg-card: #151515;
+    --bg-input: rgba(255, 255, 255, 0.08);
+    --bg-hover: #1a1a19;
 
     --glass-bg: #121212;
-    --glass-text: #ffffff;
+    --glass-text: #f4f4f0;
     --glass-inner-hl: transparent;
     --glass-inner-dl: transparent;
 
     --footer-bg: #121212;
-    --footer-text: #b3b3b3;
+    --footer-text: #b3b3ad;
 
     --nav-bg: #121212;
-    --nav-text: #ffffff;
+    --nav-text: #f4f4f0;
 }
 
-/* 系统深色偏好（仅在未设置 data-theme 时生效）—— 默认主题已为深色，此块与 :root 保持一致 */
+/* 系统深色偏好（仅在未设置 data-theme 时生效），取值必须与上面的显式深色一致 */
 @media(prefers-color-scheme: dark) {
     :root:not([data-theme]) {
         --primary: #1db954;
@@ -147,10 +159,11 @@
         --primary-dark: #169c46;
         --primary-bg: rgba(29, 185, 84, 0.16);
         --primary-surface: rgba(29, 185, 84, 0.10);
+        --primary-ink: #1ed760;
 
-        --accent: #ff7a45;
-        --accent-hover: #ff986e;
-        --accent-light: rgba(255, 122, 69, 0.18);
+        --accent: #f0a35e;
+        --accent-hover: #ffbd85;
+        --accent-light: rgba(240, 163, 94, 0.16);
 
         --success: #1db954;
         --success-light: #000000;
@@ -158,45 +171,48 @@
         --danger-light: #000000;
         --warning: #ffb020;
         --warning-light: #000000;
+        --warning-ink: #ffb020;
 
-        --text-primary: #ffffff;
-        --text-secondary: #b3b3b3;
-        --text-muted: #7a7a7a;
-        --text-placeholder: #7a7a7a;
-        --border: #2a2a2a;
-        --border-light: #1f1f1f;
+        --text-primary: #f4f4f0;
+        --text-secondary: #b3b3ad;
+        --text-muted: #8a8a83;
+        --text-placeholder: #8a8a83;
+        --border: #2a2a26;
+        --border-light: #212120;
+        --font-weight-body: 380;
 
         --link-color: #1ed760;
 
-        --button-bg: rgba(255, 255, 255, 0.12);
+        --button-bg: rgba(255, 255, 255, 0.10);
         --button-color: #ffffff;
         --button-fill-bg: #ffffff;
         --button-fill-color: #000000;
-        --button-bg-hl: rgba(255, 255, 255, 0.20);
+        --button-bg-hl: rgba(255, 255, 255, 0.18);
         --button-color-hl: #ffffff;
-        --button-color-disabled: #5a5a5a;
+        --button-color-disabled: #6b6b64;
 
-        --input-bg: rgba(255, 255, 255, 0.10);
+        --input-bg: rgba(255, 255, 255, 0.08);
         --input-color: #ffffff;
-        --input-bg-hl: rgba(255, 255, 255, 0.16);
+        --input-bg-hl: rgba(255, 255, 255, 0.14);
         --input-color-hl: #ffffff;
 
-        --bg-page: #000000;
-        --on-bg-page: #ffffff;
-        --bg-card: #181818;
-        --bg-input: rgba(255, 255, 255, 0.10);
-        --bg-hover: #242424;
+        /* 与显式深色同一条分层：#0B0B0B → #151515 → #1A1A19 → #20201F */
+        --bg-page: #0b0b0b;
+        --on-bg-page: #f4f4f0;
+        --bg-card: #151515;
+        --bg-input: rgba(255, 255, 255, 0.08);
+        --bg-hover: #1a1a19;
 
         --glass-bg: #121212;
-        --glass-text: #ffffff;
+        --glass-text: #f4f4f0;
         --glass-inner-hl: transparent;
         --glass-inner-dl: transparent;
 
         --footer-bg: #121212;
-        --footer-text: #b3b3b3;
+        --footer-text: #b3b3ad;
 
         --nav-bg: #121212;
-        --nav-text: #ffffff;
+        --nav-text: #f4f4f0;
     }
 }hcw-card, [hcw-card] {
     position: relative;
@@ -205,6 +221,8 @@
     flex-direction: column;
     /* --hcw-card-radius：卡片圆角，默认取 --radius-lg（.5rem） */
     border-radius: var(--hcw-card-radius, var(--radius-lg));
+    /* 连续曲率圆角：直线到圆弧不再「一下打死方向盘」，不支持的浏览器退回普通圆角 */
+    corner-shape: squircle;
     background: var(--bg-card);
     color: var(--text-primary);
     /* --hcw-card-padding：卡片内距，默认 1.25rem 1.5rem（改动前硬编码值） */
@@ -219,10 +237,11 @@
     gap: var(--hcw-card-gap, 0);
 
     &>:is(hcw-card-title, [hcw-card-title]) {
-        /* --hcw-card-title-font-size：卡片标题字号，默认 1.5rem */
-        font-size: var(--hcw-card-title-font-size, 1.5rem);
+        /* --hcw-card-title-font-size：卡片标题字号，默认 --text-title（22px） */
+        font-size: var(--hcw-card-title-font-size, var(--text-title));
         font-weight: 800;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.015em;
+        line-height: var(--leading-title);
         text-align: left;
         position: relative;
         margin: 0;
@@ -237,6 +256,10 @@
     /* 描述段落：占据弹性空间，把按钮统一压到卡片底部（等高对齐的关键） */
     &>p {
         margin-bottom: auto;
+        /* 描述是正文档，颜色退到 secondary：卡片标题才是唯一的强调层 */
+        font-size: var(--text-body);
+        line-height: var(--leading-body);
+        color: var(--text-secondary);
     }
 
     /* 卡片内的按钮：沉底，与其它卡片对齐 */
@@ -270,15 +293,19 @@
     color: var(--button-color);
     /* --hcw-button-padding：属性写法按钮内距，默认 .5rem 1.1rem（改动前硬编码值） */
     padding: var(--hcw-button-padding, .5rem 1.1rem);
+    /* 触控热区 ≥40×40：图标可以 16px，手指按下去的区域不能跟着变小 */
+    min-height: var(--hcw-button-min-height, var(--touch-target));
     box-shadow: none;
     transition: var(--transition-fast);
     transition-property: transform, background-color, color, box-shadow, opacity;
     text-align: center;
     cursor: pointer;
-    /* --hcw-button-font-size：属性写法按钮字号，默认 0.95rem */
-    font-size: var(--hcw-button-font-size, 0.95rem);
+    /* --hcw-button-font-size：属性写法按钮字号，默认 --text-body（15px） */
+    font-size: var(--hcw-button-font-size, var(--text-body));
     font-weight: 700;
     letter-spacing: -0.01em;
+    /* 裁掉字体自带的上下空白，文字在胶囊里才真的居中（不支持的浏览器保持原样） */
+    text-box: trim-both cap alphabetic;
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
     -webkit-user-select: none;
@@ -293,8 +320,8 @@
     }
 
     &[large] {
-        /* 属性写法大号按钮字号与内距，默认 1.1rem / .65rem 1.4rem */
-        font-size: var(--hcw-button-font-size-lg, 1.1rem);
+        /* 大号按钮只放大内距与高度，字号仍留在「正文」档，不额外造一档字号 */
+        font-size: var(--hcw-button-font-size-lg, var(--text-body));
         padding: var(--hcw-button-padding-lg, .65rem 1.4rem);
     }
 
@@ -304,8 +331,8 @@
 
     &[icon] {
         aspect-ratio: 1;
-        /* --hcw-button-icon-size：属性写法图标按钮边长，默认 2.4rem */
-        height: var(--hcw-button-icon-size, 2.4rem);
+        /* --hcw-button-icon-size：属性写法图标按钮边长，默认 --touch-target（40px） */
+        height: var(--hcw-button-icon-size, var(--touch-target));
         padding: 0;
         display: flex;
         align-items: center;
@@ -381,8 +408,36 @@
         opacity: .5;
     }
 
-    &:active:not([disabled]) {
-        transform: scale(0.97);
+    /* 按下：往下沉 1px，手指能明确感到「点到了」 */
+    &:active:not([disabled], [loading]) {
+        transform: translateY(1px) scale(0.98);
+    }
+
+    /* 加载态（验收单第 5 条）：按钮里转圈 + 同时锁住不让再点。
+       用法：btn.setAttribute('loading', '')，结束后 removeAttribute('loading')。
+       少了这一态，网卡那两秒用户会以为没点上，再点一次就是两次提交。 */
+    &[loading] {
+        pointer-events: none;
+        cursor: progress;
+        /* 只把「字」藏起来，保留 currentColor 给转圈用 */
+        -webkit-text-fill-color: transparent;
+        /* 加载中仍保留按钮本来的颜色，只是转圈 + 锁住；不要被 [disabled] 灰掉 */
+        opacity: 1;
+        filter: none;
+    }
+
+    &[loading]::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 1rem;
+        height: 1rem;
+        margin: -.5rem 0 0 -.5rem;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: hcw-button-spin .7s linear infinite;
     }
 
     /* 导航栏内的按钮：随主题的半透明底 + 反色文字 */
@@ -412,6 +467,21 @@
     }
 
     animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-slow) 0s 1 forwards;
+}
+
+/* 加载态转圈：匀速旋转（loading 指示不适用缓动） */
+@keyframes hcw-button-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 加载态锁：连宿主一起挡住，避免点中按钮外轮廓时再次触发 click。
+   自定义元素 hcw-button 的转圈在 shadow 内（lib/ui/templates.html），属性写法在下方。 */
+hcw-button[loading],
+[hcw-button][loading] {
+    pointer-events: none;
+    cursor: progress;
 }[hcw-input] {
     appearance: none;
     border: 1px solid var(--border);
@@ -428,19 +498,21 @@
     transition: var(--transition-fast);
     transition-property: background-color, color, box-shadow, border-color;
     cursor: text;
-    /* --hcw-input-font-size：属性写法输入框字号，默认 1rem */
-    font-size: var(--hcw-input-font-size, 1rem);
+    /* --hcw-input-font-size：属性写法输入框字号，默认 --text-body（15px） */
+    font-size: var(--hcw-input-font-size, var(--text-body));
+    /* 输入框高度 ≥44px：手指点进去的区域不能比文字行高还窄 */
+    min-height: var(--hcw-input-min-height, var(--touch-target-lg));
     width: 100%;
 
     /* 原生 input/textarea 上的 hcw-input 属性 */
     input[hcw-input],
     textarea[hcw-input] {
         display: block;
-        min-height: 2.6rem;
+        min-height: var(--touch-target-lg, 2.75rem);
     }
 
     &[large] {
-        font-size: 1.1rem;
+        font-size: var(--text-body);
     }
 
     &:not([disabled]):hover {
@@ -459,11 +531,7 @@
 
     &[primary]::placeholder {
         opacity: .5;
-        color: var(--primary);
-
-        &:hover {
-            color: var(--primary-hl);
-        }
+        color: var(--primary-ink);
     }
 
     &[disabled] {
@@ -518,9 +586,10 @@ textarea[hcw-input]:focus {
 }
 
 .logo-text {
-    font-size: 1.2rem;
+    /* 品牌名按「标题」档走，不再单独占一档字号 */
+    font-size: var(--text-title);
     font-weight: 800;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
     color: var(--nav-text);
     background: none;
     -webkit-background-clip: initial;
@@ -539,7 +608,7 @@ textarea[hcw-input]:focus {
     }
 
     .logo-text {
-        font-size: 1rem;
+        font-size: var(--text-body);
     }
 }
 
@@ -550,7 +619,7 @@ textarea[hcw-input]:focus {
     }
 
     .logo-text {
-        font-size: .75rem;
+        font-size: var(--text-body);
     }
 }hcw-article,
 [hcw-article] {
@@ -583,8 +652,9 @@ hcw-article.legal,
        ≥1024 时 padding-inline 仍由下方 --page-gutter 规则接管 */
     padding-block: var(--hcw-footer-padding-block, .8rem);
     padding-inline: var(--hcw-footer-padding-inline, 1.5rem);
-    /* --hcw-footer-font-size：页脚字号，默认 .75rem */
-    font-size: var(--hcw-footer-font-size, .75rem);
+    /* --hcw-footer-font-size：页脚字号，默认 --text-caption（12px） */
+    font-size: var(--hcw-footer-font-size, var(--text-caption));
+    line-height: var(--leading-caption);
     letter-spacing: 0.01em;
     border-top: 1px solid var(--border-light);
     transition: var(--transition-fast);
@@ -604,6 +674,7 @@ hcw-body-footer a,
     display: flex;
     flex-direction: column;
     border-radius: var(--radius-lg);
+    corner-shape: squircle;
     background-color: var(--bg-card);
     color: var(--text-primary);
     padding: 1.25rem 1.5rem;
@@ -613,7 +684,7 @@ hcw-body-footer a,
     overflow: hidden;
 
     &>:is(hcw-modal-title, [hcw-modal-title]) {
-        font-size: 1.4rem;
+        font-size: var(--text-title);
         font-weight: 700;
         letter-spacing: -0.015em;
         text-align: left;
@@ -641,9 +712,10 @@ hcw-body-footer a,
     position: fixed;
     inset: 0;
     z-index: 200;
-    background: rgba(0, 0, 0, 0.4);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
+    /* 遮罩只负责「把页压暗、把焦点留给浮层」，不做厚毛玻璃 */
+    background: rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
     justify-content: center;
     align-items: center;
     padding: 20px;
@@ -672,11 +744,75 @@ a {
 
 a:hover {
     text-decoration: underline;
-}/* ============ main.css 本体 ============ */
+}
+
+/* ============ 全站基础可访问性 ============ */
+
+/* 焦点可见（WCAG 2.4.7 AA）：键盘 Tab 到的位置必须看得出来。
+   鼠标点按不显示焦点环（:focus-visible 的默认行为），不干扰视觉。 */
+:where(a, button, [tabindex]:not([tabindex='-1']), input, select, textarea):focus-visible {
+    outline: 2px solid var(--primary-ink);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+}
+
+/* 标题折行：尽量均衡，不让最后一个字单独掉一行 */
+h1,
+h2,
+h3,
+h4 {
+    text-wrap: balance;
+}
+
+/* 数字列：等宽数字锁死宽度，计时器 / 统计值跳动时不会左右抖 */
+.tnum,
+[data-num] {
+    font-variant-numeric: tabular-nums;
+}
+
+/* 跳转链接：键盘用户按 Tab 第一下就能跳过整条导航 */
+.skip-link {
+    position: absolute;
+    top: .5rem;
+    left: .5rem;
+    z-index: 1000;
+    padding: .55rem .9rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    font-size: var(--text-body);
+    font-weight: 600;
+    text-decoration: none;
+    transform: translateY(-200%);
+    transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.skip-link:focus-visible {
+    transform: translateY(0);
+    outline: 2px solid var(--primary-ink);
+    outline-offset: 2px;
+}
+
+/* ============ main.css 本体 ============ */
 
 /* Generic hidden class */
 .hidden {
     display: none !important;
+}
+
+/* 视觉隐藏但保留给读屏 / 键盘用户（区块标题等结构信息） */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
 }
 
 /*
@@ -702,15 +838,33 @@ a:hover {
     --font-family: "Circular Std", "Circular", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
     --font-mono: "SF Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", "Courier New", monospace;
 
-    /* Spotify 阴影：更实、更克制，强调卡片浮出而非大弥散 */
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
-    --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.34);
-    --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.42);
-    --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.50);
-    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.58);
-    --shadow-focus: 0 0 0 3px rgba(29, 185, 84, 0.45);
+    /* 排版尺度：一页最多 4 档 —— 大数字 44 / 标题 22 / 正文 15 / 辅助 12。
+       相邻档位差 ≥3px，保证「一眼看得出谁大谁小」；新页面不要再引入第 5 档。 */
+    --text-display: 2.75rem;  /* 44px：首屏主标题、统计大数字 */
+    --text-title: 1.375rem;   /* 22px：区块 / 卡片 / 弹窗标题 */
+    --text-body: .9375rem;    /* 15px：正文、按钮、输入框 */
+    --text-caption: .75rem;   /* 12px：辅助说明、标签、页脚 */
+    --leading-display: 1.1;
+    --leading-title: 1.35;
+    --leading-body: 1.6;
+    --leading-caption: 1.5;
 
-    /* Spotify 圆角：中等偏小，卡片 ~8px、控件 ~4px、胶囊 500px */
+    /* 触控热区：眼睛看到的可以小，手指摸到的不能小（≥40×40，主操作 44） */
+    --touch-target: 2.5rem;
+    --touch-target-lg: 2.75rem;
+
+    /* 阴影：看得见「浮着」就够。重阴影只留给真正浮在页面之上的浮层（--shadow-lg / -xl），
+       卡片用 -xs / -sm，避免满屏都在发光反而谁都不显眼。 */
+    --shadow-xs: 0 1px 2px rgba(16, 16, 14, 0.05);
+    --shadow-sm: 0 2px 6px rgba(16, 16, 14, 0.06);
+    --shadow-md: 0 8px 20px rgba(16, 16, 14, 0.08);
+    --shadow-lg: 0 14px 32px rgba(16, 16, 14, 0.10);
+    --shadow-xl: 0 24px 56px rgba(16, 16, 14, 0.16);
+    --shadow-focus: 0 0 0 3px rgba(29, 185, 84, 0.40);
+
+    /* 圆角：卡片 ~8px、控件 ~4px、胶囊 500px。
+       卡片类元素另加 corner-shape: squircle —— 连续曲率的「苹果圆角」，
+       不支持的浏览器自动退回普通圆角，不会坏版。 */
     --radius-xs: .25rem;
     --radius-sm: .5rem;
     --radius-md: .5rem;
@@ -729,10 +883,31 @@ a:hover {
     font-size: 16px;
 }
 
+/* 深色主题的阴影：浅色阴影在深底上不可见，改成更实的黑投影（仍只给足浮层） */
+[data-theme="dark"] {
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.32);
+    --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.36);
+    --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.42);
+    --shadow-lg: 0 14px 32px rgba(0, 0, 0, 0.48);
+    --shadow-xl: 0 24px 56px rgba(0, 0, 0, 0.56);
+}
+
+@media(prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+        --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.32);
+        --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.36);
+        --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.42);
+        --shadow-lg: 0 14px 32px rgba(0, 0, 0, 0.48);
+        --shadow-xl: 0 24px 56px rgba(0, 0, 0, 0.56);
+    }
+}
+
 body {
     font-family: var(--font-family);
     background: var(--bg-page);
     color: var(--text-primary);
+    /* 深色模式下调一档字重：黑底白字自带光晕，看起来比实际粗 */
+    font-weight: var(--font-weight-body);
     line-height: 1.5;
     letter-spacing: -0.005em;
     min-height: 100vh;
@@ -740,6 +915,8 @@ body {
     flex-direction: column;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* 不让段落的最后一个词孤零零掉到下一行（不支持的浏览器保持常规折行） */
+    text-wrap: pretty;
 }
 
 @media (max-width: 480px) {
@@ -767,29 +944,29 @@ html {
     display: flex;
     align-items: center;
     gap: .5rem;
-    font-size: 1rem;
+    font-size: var(--text-body);
 
     & strong {
-        font-size: 1rem;
+        font-size: var(--text-body);
     }
 }
 
 @media(max-width: 768px) {
     #headerAuthArea {
-        font-size: .9rem;
+        font-size: var(--text-body);
 
         & strong {
-            font-size: .9rem;
+            font-size: var(--text-body);
         }
     }
 }
 
 @media(max-width: 480px) {
     #headerAuthArea {
-        font-size: .8rem;
+        font-size: var(--text-caption);
 
         & strong {
-            font-size: .75rem;
+            font-size: var(--text-caption);
         }
     }
 }
@@ -836,8 +1013,8 @@ html {
 
 /* ========== 主题切换按钮（Apple 导航栏内圆形按钮） ========== */
 #themeToggleBtn {
-    width: 2.4rem;
-    height: 2.4rem;
+    width: var(--touch-target-lg);
+    height: var(--touch-target-lg);
     padding: 0;
     display: flex;
     align-items: center;
@@ -925,10 +1102,10 @@ html {
 }
 
 .input-group label {
-    font-size: 0.82rem;
-    font-weight: 500;
+    font-size: var(--text-caption);
+    font-weight: 600;
     color: var(--text-secondary);
-    letter-spacing: -0.005em;
+    letter-spacing: .01em;
 }
 
 /* ============ Cookie / 本地存储告知横幅（由 src/consent.js 动态插入） ============ */
@@ -951,8 +1128,8 @@ html {
     color: var(--text-primary);
     border: 1px solid var(--border-light);
     box-shadow: var(--shadow-lg);
-    font-size: .82rem;
-    line-height: 1.55;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     animation: general_fadeIn_fixed_noreplace_dontrestore var(--transition-normal) 0s 1 forwards;
 }
 
@@ -965,7 +1142,7 @@ html {
 }
 
 .consent-banner-text strong {
-    font-size: .85rem;
+    font-size: var(--text-body);
     color: var(--text-primary);
 }
 
@@ -1000,8 +1177,8 @@ html {
 
 /* ============ 登录弹窗内的同意提示（由 src/consent.js 动态插入） ============ */
 .consent-login-notice {
-    font-size: .74rem;
-    line-height: 1.55;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     color: var(--text-muted);
     text-align: center;
     margin-top: .2rem;
@@ -1042,7 +1219,7 @@ html {
 
 .city-chooser:has(.city-chooser-list:not([hidden])) .city-chooser-arrow {
     transform: rotate(-135deg);
-    border-color: var(--primary);
+    border-color: var(--primary-ink);
 }
 
 /* 下拉列表：绝对定位浮在内容之上，不推挤布局
@@ -1057,9 +1234,10 @@ html {
     margin: 0;
     padding: 6px;
     list-style: none;
-    /* 默认最多 10 条候选（.88rem 行高约 36px/条）——按 10 条留高；
-       屏幕不够高时按视口收窄，列表内部滚动 */
-    max-height: min(384px, 55vh);
+    /* 下拉面板最高 264px ≈ 8 行（超出出滚动条）；输入框本身就是搜索框，
+       候选超过 10 条由 city-chooser.mjs 的过滤逻辑收敛，不再额外塞搜索框。
+       屏幕不够高时按视口再收窄，列表内部滚动。 */
+    max-height: min(16.5rem, 55vh);
     overflow-y: auto;
     font-family: var(--font-family);
     color: var(--text-primary);
@@ -1080,8 +1258,9 @@ html {
 
 .city-chooser-list > li {
     display: block;
-    padding: 9px 12px;
-    font-size: .88rem;
+    /* 行高压到 ~32px：264px 正好露出 8 行，扫读节奏和桌面下拉一致 */
+    padding: 6px 12px;
+    font-size: var(--text-body);
     line-height: 1.3;
     color: var(--text-primary);
     border-radius: var(--radius-xs);
@@ -1117,18 +1296,19 @@ html {
    且这些页面不加载 timetable.css，故上提到基础样式表 */
 .notification-popup {
     position: fixed;
-    top: 20px;
+    /* 顶部留出刘海/状态栏的安全距离 */
+    top: calc(env(safe-area-inset-top, 0px) + 20px);
     left: 50%;
     transform: translateX(-50%);
     padding: 12px 24px;
     border-radius: var(--radius-md);
     z-index: 9999;
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: var(--text-body);
+    font-weight: 600;
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     box-shadow: var(--shadow-md);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     animation: notificationSlide 2.5s ease forwards;
     pointer-events: none;
     text-align: center;
@@ -1177,7 +1357,7 @@ html {
     .notification-popup {
         top: 12px;
         padding: 10px 16px;
-        font-size: 0.8rem;
+        font-size: var(--text-body);
         max-width: 95vw;
     }
 }
@@ -1212,8 +1392,8 @@ hcw-body-header:has(> #navToggleBtn),
     top: 50%;
     left: 1.1rem;
     transform: translateY(-50%);
-    width: 2.4rem;
-    height: 2.4rem;
+    width: var(--touch-target-lg);
+    height: var(--touch-target-lg);
     padding: 0;
     display: flex;
     align-items: center;
@@ -1238,7 +1418,7 @@ hcw-body-header:has(> #navToggleBtn),
 }
 
 .nav-toggle:focus-visible {
-    outline: 2px solid var(--primary-light);
+    outline: 2px solid var(--primary-ink);
     outline-offset: 2px;
 }
 
@@ -1263,15 +1443,15 @@ hcw-body-header:has(> #navToggleBtn),
 
 /* 抽屉标题：不受页头 .logo-text 的窄屏缩小规则影响 */
 .nav-drawer-head .logo-text {
-    font-size: 1.05rem;
+    font-size: var(--text-body);
     font-weight: 600;
     color: var(--nav-text);
 }
 
 /* 抽屉标题下的当前页面名（页头副标题精简后，页面名在这里保留） */
 .nav-drawer-sub {
-    font-size: .7rem;
-    line-height: 1.4;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     color: var(--nav-text);
     opacity: .6;
     margin-top: .1rem;
@@ -1337,8 +1517,8 @@ hcw-body-header:has(> #navToggleBtn),
 .nav-close {
     appearance: none;
     border: none;
-    width: 2.2rem;
-    height: 2.2rem;
+    width: var(--touch-target);
+    height: var(--touch-target);
     padding: 0;
     display: flex;
     align-items: center;
@@ -1379,7 +1559,7 @@ hcw-body-header:has(> #navToggleBtn),
 
 .nav-section-title {
     padding: .45rem .7rem .3rem;
-    font-size: .68rem;
+    font-size: var(--text-caption);
     font-weight: 600;
     letter-spacing: .06em;
     text-transform: uppercase;
@@ -1395,11 +1575,13 @@ hcw-body-header:has(> #navToggleBtn),
     align-items: center;
     gap: .6rem;
     box-sizing: border-box;
-    padding: .5rem .7rem;
+    /* 行高 + 内距撑到 40px 以上：手机上一行就是一根手指的宽度 */
+    padding: .55rem .7rem;
+    min-height: var(--touch-target);
     border-radius: var(--radius-sm);
     color: var(--glass-text);
-    font-size: .88rem;
-    line-height: 1.3;
+    font-size: var(--text-body);
+    line-height: 1.4;
     text-decoration: none;
     cursor: pointer;
     transition: var(--transition-fast);
@@ -1423,6 +1605,13 @@ hcw-body-header:has(> #navToggleBtn),
     color: var(--on-primary-hl);
 }
 
+/* 退出登录等会发请求的导航项：执行期间变淡并锁住，避免连点发出多次请求 */
+.nav-item[loading] {
+    opacity: .6;
+    pointer-events: none;
+    cursor: progress;
+}
+
 .nav-item-label {
     min-width: 0;
     overflow: hidden;
@@ -1433,7 +1622,11 @@ hcw-body-header:has(> #navToggleBtn),
 /* 子项：缩进以体现层级 */
 .nav-item--sub {
     padding-left: 1.55rem;
-    font-size: .84rem;
+    font-size: var(--text-body);
+}
+
+.nav-item--sub:not(.is-active) {
+    opacity: .82;
 }
 
 /* 底部退出登录 */
@@ -1464,8 +1657,8 @@ hcw-body-header:has(> #navToggleBtn),
 
 .account-actions-desc {
     margin: 0;
-    font-size: .75rem;
-    line-height: 1.5;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     color: var(--text-muted);
 }
 
@@ -1478,8 +1671,8 @@ body.nav-open {
 @media (max-width: 768px) {
     .nav-toggle {
         left: .6rem;
-        width: 2.2rem;
-        height: 2.2rem;
+        width: var(--touch-target);
+        height: var(--touch-target);
     }
 
     hcw-body-header:has(> #navToggleBtn),
@@ -1499,21 +1692,21 @@ body.nav-open {
 @media (max-width: 480px) {
     .nav-toggle {
         left: .35rem;
-        width: 2.1rem;
-        height: 2.1rem;
+        width: var(--touch-target);
+        height: var(--touch-target);
     }
 
     hcw-body-header:has(> #navToggleBtn),
     [hcw-body-header]:has(> #navToggleBtn) {
-        padding-left: 2.75rem;
+        padding-left: 3rem;
     }
 
     #headerAuthArea.game-auth-header:has(#navToggleBtn) {
-        padding-left: 2.6rem;
+        padding-left: 2.9rem;
     }
 
     .nav-item {
-        font-size: .85rem;
+        font-size: var(--text-body);
     }
 }
 
@@ -1643,7 +1836,8 @@ body.nav-open {
     flex-direction: column;
     gap: .45rem;
     padding: .7rem .85rem;
-    border: 1px solid var(--border-light);
+    /* 弹窗已经是一层框，里面的同意区只用一个浅底分组，不再套第二层边框 */
+    border: 1px solid transparent;
     border-radius: var(--radius-sm);
     background: var(--bg-hover);
 }
@@ -1658,16 +1852,20 @@ body.nav-open {
     align-items: flex-start;
     gap: .5rem;
     margin: 0;
-    font-size: .76rem;
-    line-height: 1.55;
+    /* 整行都是勾选热区：点文字也能勾上，不必瞄准 16px 的小方框 */
+    min-height: var(--touch-target);
+    padding-block: .2rem;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     color: var(--text-secondary);
     cursor: pointer;
 }
 
 #globalLoginModal .auth-check input[type="checkbox"] {
     flex-shrink: 0;
-    width: .95rem;
-    height: .95rem;
+    /* 眼睛看到 16px 的小方框，点击热区由整行 label 承担（≥40px 行高） */
+    width: 1rem;
+    height: 1rem;
     margin-top: .18rem;
     accent-color: var(--primary);
     cursor: pointer;
@@ -1694,7 +1892,7 @@ body.nav-open {
     gap: .6rem;
     margin: .35rem 0 .1rem;
     color: var(--text-muted);
-    font-size: .75rem;
+    font-size: var(--text-caption);
 }
 
 #globalLoginModal .auth-divider::before,
@@ -1708,7 +1906,7 @@ body.nav-open {
 #globalLoginModal .auth-github-btn {
     width: 100%;
     min-width: 0;
-    font-size: .85rem;
+    font-size: var(--text-body);
     /* 与注册页一致：靠边框区分次级动作，不抢主登录按钮的绿色 */
     border: 1px solid var(--border);
     background-color: var(--bg-hover);
@@ -1848,16 +2046,16 @@ body.nav-open {
    避免与卡片内按钮、[primary] 等既有阴影规则互相覆盖；不删除任何既有焦点样式。 */
 hcw-button:focus-visible,
 [hcw-button]:focus-visible {
-    outline: 2px solid var(--primary);
+    outline: 2px solid var(--primary-ink);
     outline-offset: 2px;
     /* 让焦点环跟随胶囊圆角走（宿主自身没有圆角声明） */
     border-radius: var(--hcw-button-radius, var(--radius-full));
 }
 
-/* 属性写法按钮的按下：保留轻微下压，过渡收敛到 --dur-fast + --ease-standard。
-   hcw-button 自定义元素的按下反馈（scale .97）在 shadow 内部，页面层不重复叠加。 */
-[hcw-button]:not([disabled]):active {
-    transform: scale(0.98);
+/* 属性写法按钮的按下：往下沉 1px + 轻微收缩，手指拿得准「点到了」。
+   hcw-button 自定义元素的按下反馈在 shadow 内部，页面层不重复叠加。 */
+[hcw-button]:not([disabled], [loading]):active {
+    transform: translateY(1px) scale(0.98);
     transition-duration: var(--dur-fast);
     transition-timing-function: var(--ease-standard);
 }
@@ -1876,6 +2074,11 @@ textarea {
    的元素（如 .result-item），一刀切会让它们停在不可见状态。上方既有的 0.01ms 兜底规则保持不动。 */
 @media (prefers-reduced-motion: reduce) {
 
+    /* 平滑滚动也是动效：系统要求减少动态时改为直接跳转 */
+    html {
+        scroll-behavior: auto;
+    }
+
     /* 骨架屏：停掉流光，只留静态底色 */
     .sk,
     .sk-line,
@@ -1889,5 +2092,12 @@ textarea {
     .anim-fade-up,
     .anim-fade-in {
         animation: none;
+    }
+
+    /* 浮动提示：全局 0.01ms 兜底会让 notificationSlide 直接落到 opacity:0，
+       提示还没看清就消失；这里改为静态显示，由 message.mjs 的 2.5s 计时负责移除。 */
+    .notification-popup {
+        animation: none;
+        opacity: 1;
     }
 }
