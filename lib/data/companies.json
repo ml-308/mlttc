@@ -1,0 +1,40 @@
+{
+  "updatedAt": "2026-11-21",
+  "verified": false,
+  "note": "试点数据：海南 / 江苏两省。公司名按公开资料整理，正式启用前请与业务方核对；新增省份只需在 companies 里追加，不必改代码。",
+  "sources": [
+    "各市公交集团官网 / 公开报道",
+    "海南省、江苏省交通运输主管部门公开信息"
+  ],
+  "fleetSuggestions": [
+    "第一分公司",
+    "第二分公司",
+    "第三分公司",
+    "第四分公司",
+    "第五分公司",
+    "第一车队",
+    "第二车队",
+    "第三车队",
+    "第四车队",
+    "第五车队"
+  ],
+  "companies": [
+    { "name": "海口市公共交通集团有限公司", "short": "海口公交", "province": "海南省", "city": "海口市", "fleets": [] },
+    { "name": "三亚市公共交通集团有限公司", "short": "三亚公交", "province": "海南省", "city": "三亚市", "fleets": [] },
+    { "name": "海南海汽运输集团股份有限公司", "short": "海汽集团", "province": "海南省", "city": "海口市", "fleets": [] },
+
+    { "name": "南京市公共交通（集团）有限公司", "short": "南京公交", "province": "江苏省", "city": "南京市", "fleets": [] },
+    { "name": "无锡市公共交通集团有限公司", "short": "无锡公交", "province": "江苏省", "city": "无锡市", "fleets": [] },
+    { "name": "徐州市公共交通集团有限公司", "short": "徐州公交", "province": "江苏省", "city": "徐州市", "fleets": [] },
+    { "name": "常州市公共交通集团有限责任公司", "short": "常州公交", "province": "江苏省", "city": "常州市", "fleets": [] },
+    { "name": "苏州市公共交通有限公司", "short": "苏州公交", "province": "江苏省", "city": "苏州市", "fleets": [] },
+    { "name": "南通市公共交通有限公司", "short": "南通公交", "province": "江苏省", "city": "南通市", "fleets": [] },
+    { "name": "连云港市公共交通集团有限公司", "short": "连云港公交", "province": "江苏省", "city": "连云港市", "fleets": [] },
+    { "name": "淮安市公共交通有限公司", "short": "淮安公交", "province": "江苏省", "city": "淮安市", "fleets": [] },
+    { "name": "盐城市公共交通有限公司", "short": "盐城公交", "province": "江苏省", "city": "盐城市", "fleets": [] },
+    { "name": "扬州市公共交通集团有限责任公司", "short": "扬州公交", "province": "江苏省", "city": "扬州市", "fleets": [] },
+    { "name": "镇江市公共交通有限公司", "short": "镇江公交", "province": "江苏省", "city": "镇江市", "fleets": [] },
+    { "name": "泰州市公共交通有限公司", "short": "泰州公交", "province": "江苏省", "city": "泰州市", "fleets": [] },
+    { "name": "宿迁市公共交通有限公司", "short": "宿迁公交", "province": "江苏省", "city": "宿迁市", "fleets": [] }
+  ]
+}

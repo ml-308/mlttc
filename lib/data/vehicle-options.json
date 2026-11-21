@@ -1,0 +1,158 @@
+{
+  "updatedAt": "2026-11-21",
+  "note": "车辆信息页的候选值。fields 的键与 information.html 里控件的 id 一一对应；值为字符串数组或 { value, aliases } 对象数组。",
+  "sources": [
+    "GB/T 19596-2017《电动汽车术语》",
+    "GA 802-2019《机动车类型 术语和定义》",
+    "机动车登记信息代码（燃料种类）",
+    "主要客车厂与零部件品牌公开产品页（仅取品牌 / 系列级）"
+  ],
+  "fields": {
+    "operation-status": [
+      "待上线",
+      "运营中",
+      "停驶",
+      "维修中",
+      "停运",
+      "封存",
+      "报废"
+    ],
+    "fuel-type": [
+      "纯电动",
+      "插电式混合动力",
+      "油电混合",
+      "增程式电动",
+      "燃料电池",
+      "氢燃料",
+      "汽油",
+      "柴油",
+      "天然气",
+      "液化石油气",
+      "甲醇",
+      "太阳能",
+      "其他"
+    ],
+    "vehicle-type": [
+      "大型客车",
+      "中型客车",
+      "小型客车",
+      "微型客车",
+      "城市客车",
+      "公路客车",
+      "铰接客车",
+      "双层客车",
+      "无轨电车"
+    ],
+    "vehicle-model": [
+      { "value": "宇通", "aliases": ["宇通客车", "YUTONG", "ZK"] },
+      { "value": "金龙", "aliases": ["厦门金龙", "KING LONG", "XMQ"] },
+      { "value": "金旅", "aliases": ["厦门金旅", "GOLDEN DRAGON", "XML"] },
+      { "value": "海格", "aliases": ["苏州金龙", "HIGER", "KLQ"] },
+      { "value": "中通", "aliases": ["中通客车", "ZHONGTONG", "LCK"] },
+      { "value": "安凯", "aliases": ["安凯客车", "ANKAI", "HFF"] },
+      { "value": "亚星", "aliases": ["扬州亚星", "YAXING", "JS"] },
+      { "value": "申沃", "aliases": ["上海申沃", "SUNWIN", "SWB"] },
+      { "value": "比亚迪", "aliases": ["BYD", "K9"] },
+      { "value": "福田欧辉", "aliases": ["欧辉", "FOTON"] },
+      { "value": "中车电动", "aliases": ["中车时代电动", "CRRC"] },
+      { "value": "开沃", "aliases": ["南京金龙", "SKYWORTH"] },
+      { "value": "远程", "aliases": ["远程汽车", "吉利远程"] },
+      { "value": "东风超龙", "aliases": ["东风客车", "DFAC"] },
+      { "value": "五菱", "aliases": ["五菱客车", "WULING"] },
+      { "value": "依维柯", "aliases": ["IVECO"] }
+    ],
+    "engine": [
+      { "value": "潍柴", "aliases": ["WEICHAI", "WP"] },
+      { "value": "玉柴", "aliases": ["YUCHAI", "YC"] },
+      { "value": "锡柴", "aliases": ["一汽解放", "FAW"] },
+      { "value": "上柴", "aliases": ["上海柴油机"] },
+      { "value": "康明斯", "aliases": ["CUMMINS"] },
+      { "value": "云内", "aliases": ["云内动力"] },
+      { "value": "全柴", "aliases": ["全柴动力"] },
+      { "value": "大柴", "aliases": ["大连柴油机"] }
+    ],
+    "motor": [
+      { "value": "精进电动", "aliases": ["JJE"] },
+      { "value": "大洋电机", "aliases": ["OCEAN"] },
+      { "value": "中车时代电气", "aliases": ["时代电气", "CRRC"] },
+      { "value": "汇川技术", "aliases": ["INOVANCE"] },
+      { "value": "卧龙电驱", "aliases": ["WOLONG"] },
+      { "value": "宇通电机", "aliases": ["宇通自制"] }
+    ],
+    "battery": [
+      { "value": "宁德时代", "aliases": ["CATL"] },
+      { "value": "比亚迪", "aliases": ["BYD"] },
+      { "value": "亿纬锂能", "aliases": ["EVE"] },
+      { "value": "国轩高科", "aliases": ["GUOXUAN"] },
+      { "value": "中创新航", "aliases": ["CALB", "中航锂电"] },
+      { "value": "力神", "aliases": ["LISHEN"] },
+      { "value": "微宏动力", "aliases": ["MICROVAST"] },
+      { "value": "盟固利", "aliases": ["MGL"] }
+    ],
+    "transmission": [
+      { "value": "采埃孚", "aliases": ["ZF"] },
+      { "value": "法士特", "aliases": ["FAST"] },
+      { "value": "綦江齿轮", "aliases": ["綦齿", "QJ"] },
+      { "value": "伊顿", "aliases": ["EATON"] },
+      { "value": "艾里逊", "aliases": ["ALLISON"] },
+      { "value": "大齿", "aliases": ["大同齿轮"] }
+    ],
+    "axle": [
+      { "value": "东风德纳", "aliases": ["DANA"] },
+      { "value": "汉德车桥", "aliases": ["HANDE"] },
+      { "value": "方盛车桥", "aliases": ["FANGSHENG"] },
+      { "value": "青特车桥", "aliases": ["QINGTE"] }
+    ],
+    "chassis": [
+      { "value": "一汽解放", "aliases": ["FAW"] },
+      { "value": "东风商用车", "aliases": ["东风"] },
+      { "value": "陕汽", "aliases": ["SHACMAN"] },
+      { "value": "中国重汽", "aliases": ["SINOTRUK"] },
+      { "value": "福田", "aliases": ["FOTON"] }
+    ],
+    "tire": [
+      { "value": "米其林", "aliases": ["MICHELIN"] },
+      { "value": "普利司通", "aliases": ["BRIDGESTONE"] },
+      { "value": "固特异", "aliases": ["GOODYEAR"] },
+      { "value": "马牌", "aliases": ["大陆", "CONTINENTAL"] },
+      { "value": "朝阳", "aliases": ["中策", "CHAOYANG"] },
+      { "value": "玲珑", "aliases": ["LINGLONG"] },
+      { "value": "双钱", "aliases": ["DOUBLE COIN"] },
+      { "value": "正新", "aliases": ["MAXXIS"] },
+      { "value": "韩泰", "aliases": ["HANKOOK"] },
+      { "value": "佳通", "aliases": ["GITI"] }
+    ],
+    "suspension": [
+      "空气悬架",
+      "钢板弹簧",
+      "少片簧",
+      "独立悬架",
+      "气囊悬挂",
+      "扭杆弹簧"
+    ],
+    "step": [
+      "一级踏步",
+      "二级踏步",
+      "三级踏步",
+      "低地板",
+      "低入口"
+    ],
+    "air-conditioner": [
+      { "value": "开利", "aliases": ["CARRIER"] },
+      { "value": "冷王", "aliases": ["THERMO KING"] },
+      { "value": "电装", "aliases": ["DENSO"] },
+      { "value": "三电", "aliases": ["SANDEN"] },
+      { "value": "松芝", "aliases": ["SONGZ"] },
+      { "value": "科林", "aliases": ["KELIN"] },
+      { "value": "豫新", "aliases": ["YUXIN"] }
+    ],
+    "door": [
+      "内摆门",
+      "外摆门",
+      "折叠门",
+      "平移门",
+      "塞拉门",
+      "双内摆门"
+    ]
+  }
+}

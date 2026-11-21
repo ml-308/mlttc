@@ -108,54 +108,6 @@
     border-top: 1px solid var(--border-light);
 }
 
-/* ---------- 搜索输入框 ---------- */
-/* 只做视觉标识：搜索联想 / 下拉候选留空，由后续数据源接入时再补 */
-.search-field {
-    position: relative;
-    min-width: 0;
-}
-
-.search-field::before,
-.search-field::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    pointer-events: none;
-    color: var(--text-muted);
-}
-
-/* 放大镜的圆 */
-.search-field::before {
-    left: 1rem;
-    width: .55rem;
-    height: .55rem;
-    margin-top: -.36rem;
-    border: 2px solid currentColor;
-    border-radius: 50%;
-}
-
-/* 放大镜的柄 */
-.search-field::after {
-    left: calc(1rem + .52rem);
-    width: .38rem;
-    height: 2px;
-    margin-top: .12rem;
-    border-radius: var(--radius-full);
-    background: currentColor;
-    transform: rotate(45deg);
-    transform-origin: left center;
-}
-
-.search-field [hcw-input] {
-    padding-left: 2.4rem;
-}
-
-/* 输入框获得焦点时放大镜跟随主色，和 hcw-input 的绿色焦点框同一节奏 */
-.search-field:focus-within::before,
-.search-field:focus-within::after {
-    color: var(--primary);
-}
-
 /* ---------- 下拉框 ---------- */
 .form-select,
 .date-select {
@@ -244,6 +196,47 @@
 .form-group :is(input, select, textarea).is-invalid:focus {
     border-color: var(--danger);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.form-group :is(input, select, textarea).is-valid,
+.form-group :is(input, select, textarea).is-valid:focus {
+    border-color: var(--success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 16%, transparent);
+}
+
+/* 匹配下拉里的补充说明（如车牌前缀后面的城市名、代号的含义） */
+.city-chooser-list > li .match-desc {
+    margin-left: .5em;
+    font-size: var(--text-caption);
+    color: var(--text-muted);
+}
+
+/* 代号与含义之间加分隔符，读起来是「UNKN · 信息未知（暂留空）」 */
+.city-chooser-list > li .match-desc::before {
+    content: "·";
+    margin-right: .45em;
+}
+
+.city-chooser-list > li:hover .match-desc,
+.city-chooser-list > li.is-active .match-desc {
+    color: inherit;
+    opacity: .85;
+}
+
+/* 代号说明（UNKN 等占位代号的含义） */
+.code-note {
+    margin: .35rem 0 0;
+    font-size: var(--text-caption);
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.code-note code {
+    padding: 0 .35em;
+    border-radius: var(--radius-xs);
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    font-family: var(--font-mono, ui-monospace, monospace);
+    color: var(--text-primary);
 }
 
 /* ---------- 响应式 ---------- */
