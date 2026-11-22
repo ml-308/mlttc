@@ -1,8 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MLTTC">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MLTTC 公交时刻表">
   <!--
     MLTTC apple-touch-icon 源文件（180×180 输出）。
     iOS 会给图标自己加圆角遮罩，所以底色铺满整块、不留透明边；
-    字形与 icon.svg 完全同一套几何。
+    车身与 icon.svg 同一套几何，整体放大 1.12 倍（坐标已手工换算，
+    因为 build.mjs 的解析器不支持 transform），满铺时不显空。
   -->
   <defs>
     <linearGradient id="tile" x1="6" y1="0" x2="58" y2="64" gradientUnits="userSpaceOnUse">
@@ -15,16 +16,27 @@
       <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.04"/>
       <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="shade" x1="32" y1="40" x2="32" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="shade" x1="32" y1="38" x2="32" y2="64" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#002d0e" stop-opacity="0"/>
       <stop offset="1" stop-color="#002d0e" stop-opacity="0.1"/>
     </linearGradient>
   </defs>
 
   <rect x="0" y="0" width="64" height="64" fill="url(#tile)"/>
-  <rect x="0" y="0" width="64" height="40" fill="url(#sheen)"/>
-  <rect x="0" y="40" width="64" height="24" fill="url(#shade)"/>
 
-  <path d="M16 44V21.5L32 35 48 21.5V44" fill="none" stroke="#ffffff"
-        stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 车身 -->
+  <rect x="2.6" y="12.6" width="58.8" height="31.5" rx="6.4" fill="#ffffff"/>
+
+  <!-- 轮子：轮心在车身内，只有底部露出 -->
+  <circle cx="16.3" cy="41" r="7.3" fill="#ffffff"/>
+  <circle cx="46.5" cy="41" r="7.3" fill="#ffffff"/>
+  <circle cx="16.3" cy="41" r="2.5" fill="url(#tile)"/>
+  <circle cx="46.5" cy="41" r="2.5" fill="url(#tile)"/>
+
+  <!-- 横向车窗 -->
+  <rect x="7.9" y="17.9" width="22" height="11" rx="2.4" fill="url(#tile)"/>
+  <rect x="34.1" y="17.9" width="22" height="11" rx="2.4" fill="url(#tile)"/>
+
+  <rect x="0" y="0" width="64" height="40" fill="url(#sheen)"/>
+  <rect x="0" y="38" width="64" height="26" fill="url(#shade)"/>
 </svg>
