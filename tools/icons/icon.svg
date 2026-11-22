@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MLTTC">
+  <!--
+    MLTTC 站点图标 —— 精细版，32px 及以上使用；也是 favicon.ico 的唯一设计源。
+    （16/24px 见 icon-small.svg，满铺版见 apple-touch.svg）
+
+    设计：品牌绿渐变圆角方块 + 白色「M」路线字形，M 的两条竖线端点即线路两端。
+    绿色取自 style/main.css 的变量「primary」（#1ed760），白字与底色对比度 ≥ 4.5。
+
+    只用了「圆角矩形 + 折线 + 线性渐变 + 圆角裁剪」这几样，tools/icons/build.mjs
+    里那一百多行 SVG 子集解析器就够了，不需要任何原生渲染库。
+    改形状改这份文件，重跑脚本即可。
+  -->
+  <defs>
+    <linearGradient id="tile" x1="10" y1="4" x2="54" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2ee074"/>
+      <stop offset="0.5" stop-color="#1ed760"/>
+      <stop offset="1" stop-color="#12a34c"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="32" y1="2" x2="32" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="shade" x1="32" y1="40" x2="32" y2="62" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#002d0e" stop-opacity="0"/>
+      <stop offset="1" stop-color="#002d0e" stop-opacity="0.12"/>
+    </linearGradient>
+    <clipPath id="tileClip">
+      <rect x="2" y="2" width="60" height="60" rx="15"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#tileClip)">
+    <rect x="2" y="2" width="60" height="60" fill="url(#tile)"/>
+    <rect x="2" y="2" width="60" height="38" fill="url(#sheen)"/>
+    <rect x="2" y="40" width="60" height="22" fill="url(#shade)"/>
+  </g>
+
+  <!-- 细内描边：让边缘在深色标签栏里收得住，不靠加粗 -->
+  <rect x="2.6" y="2.6" width="58.8" height="58.8" rx="14.4"
+        fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="1.2"/>
+
+  <!-- M 路线：一条折线，圆头笔画，两端就是线路的两头 -->
+  <path d="M16 44V21.5L32 35 48 21.5V44" fill="none" stroke="#ffffff"
+        stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

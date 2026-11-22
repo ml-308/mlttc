@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MLTTC">
+  <!--
+    MLTTC 站点图标 —— 16 / 24px 简化版。
+    小尺寸下渐变、内描边只会变成噪点，所以只留实心圆角底 + 加粗的 M。
+    M 比精细版更宽、笔画略收、顶点略抬：16px 上笔画 9/64 ≈ 2.25px，
+    再粗中间两道缝就并起来了，再细则笔画会断。
+  -->
+  <rect x="1.5" y="1.5" width="61" height="61" rx="15.5" fill="#1ed760"/>
+  <path d="M14 45V20L32 35.5 50 20V45" fill="none" stroke="#ffffff"
+        stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

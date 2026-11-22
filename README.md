@@ -30,6 +30,31 @@
 
 更新日志见 [`CHANGELOG.md`](CHANGELOG.md)，网页版在 `/changelog.html`。
 
+## 站点图标
+
+标签页 / 收藏夹 / 主屏图标都在仓库根目录，24 个页面统一在 `<head>` 里声明三条 `<link>`：
+
+| 文件 | 用途 |
+| --- | --- |
+| `favicon.ico` | 16 / 24 / 32 / 48 / 64 / 128 / 256 七档打包，浏览器与 Windows 快捷方式 |
+| `favicon.svg` | 矢量版，现代浏览器优先使用 |
+| `apple-touch-icon.png` | 180×180 满铺，iOS 主屏（系统自己加圆角） |
+
+设计源是 `tools/icons/` 下的 `icon.svg`（精细版，也是 `favicon.svg` 本身）、
+`icon-small.svg`（16 / 24px 简化版：去渐变、笔画加粗）、`apple-touch.svg`（满铺版）。
+**改图标只改这三份 SVG，然后重跑**：
+
+```bash
+node tools/icons/build.mjs
+```
+
+脚本零依赖：自己解析这三份 SVG 里用到的几何（圆角矩形 / 折线 / 圆 / 线性渐变 / 圆角裁剪），
+每像素超采样后按 premultiplied alpha 合成，再按 ICO 规范把 PNG 打进容器。
+16 / 24px 走简化版、其余走精细版 —— 直接把大图缩小到 16px 会糊成一团。
+
+预览拼图写到 `.workbuddy/icon-preview.png`（6×，全部尺寸）与
+`.workbuddy/icon-preview-small.png`（14×，16 / 24 / 32px），都不入库。
+
 ## 请求频率限制（Rate limiting）
 
 防「请求过多」分两层：应用层在本仓库代码里（随代码生效），边缘层需要在 Cloudflare

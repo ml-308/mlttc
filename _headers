@@ -17,3 +17,14 @@
 
 /lib/*
   Cache-Control: public, max-age=0, must-revalidate
+
+# 站点图标：新图标上线后不该被浏览器长期钉在缓存里，但也没必要每次重校验
+# （标签页图标动辄被启发式缓存几个月，这里给个 1 小时的上限）。
+/favicon.ico
+  Cache-Control: public, max-age=3600
+
+/favicon.svg
+  Cache-Control: public, max-age=3600
+
+/apple-touch-icon.png
+  Cache-Control: public, max-age=3600
