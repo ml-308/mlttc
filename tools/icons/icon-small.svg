@@ -1,11 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MLTTC">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MLTTC 公交时刻表">
   <!--
     MLTTC 站点图标 —— 16 / 24px 简化版。
-    小尺寸下渐变、内描边只会变成噪点，所以只留实心圆角底 + 加粗的 M。
-    M 比精细版更宽、笔画略收、顶点略抬：16px 上笔画 9/64 ≈ 2.25px，
-    再粗中间两道缝就并起来了，再细则笔画会断。
+    小尺寸下渐变、内描边、轮心镂空都会变成噪点，所以只留四件东西：
+    实心圆角底、白色车身、两扇横向车窗、两只只露出底部的轮子。
+    轮心 41 落在车身内（底 43.5），轮子只探出约 5/64，16px 上约 1.2px ——
+    够让人读出「车」，又不至于变成挂件。
   -->
   <rect x="1.5" y="1.5" width="61" height="61" rx="15.5" fill="#1ed760"/>
-  <path d="M14 45V20L32 35.5 50 20V45" fill="none" stroke="#ffffff"
-        stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="6" y="15.5" width="52" height="28.5" rx="6" fill="#ffffff"/>
+  <circle cx="18.5" cy="41" r="7.5" fill="#ffffff"/>
+  <circle cx="45.5" cy="41" r="7.5" fill="#ffffff"/>
+  <circle cx="18.5" cy="41" r="2.6" fill="#1ed760"/>
+  <circle cx="45.5" cy="41" r="2.6" fill="#1ed760"/>
+  <rect x="10.5" y="20.5" width="20" height="10.5" rx="2.5" fill="#1ed760"/>
+  <rect x="33.5" y="20.5" width="20" height="10.5" rx="2.5" fill="#1ed760"/>
 </svg>

@@ -1,14 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MLTTC">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MLTTC 公交时刻表">
   <!--
     MLTTC 站点图标 —— 精细版，32px 及以上使用；也是 favicon.ico 的唯一设计源。
     （16/24px 见 icon-small.svg，满铺版见 apple-touch.svg）
 
-    设计：品牌绿渐变圆角方块 + 白色「M」路线字形，M 的两条竖线端点即线路两端。
-    绿色取自 style/main.css 的变量「primary」（#1ed760），白字与底色对比度 ≥ 4.5。
+    图形是公交侧视剪影。让它读成「公交」而不是「房车」的关键在于轮子：
+    轮心（41）落在车身内部，车身下沿（43.5）压过轮心，轮子只有底部 1/3
+    露在车身外。轮子整个挂在车身下方、或者露出半截以上，轮廓立刻变成房车。
 
-    只用了「圆角矩形 + 折线 + 线性渐变 + 圆角裁剪」这几样，tools/icons/build.mjs
-    里那一百多行 SVG 子集解析器就够了，不需要任何原生渲染库。
-    改形状改这份文件，重跑脚本即可。
+    车窗与轮心的「镂空」不是擦除，而是用与底色完全相同的渐变 url(#tile) 填充，
+    并且与底色同处一层（clip 组内、光影覆盖层之下），所以挖出来的绿色与车身
+    周围一像素不差。浏览器和 tools/icons/build.mjs 都能正确渲染，不需要遮罩、
+    混合模式或复合路径。
+
+    配色取自 style/main.css 的变量 primary（#1ed760）。只用圆角矩形 / 圆 /
+    线性渐变 / 圆角裁剪，够 build.mjs 里那套小解析器用；改形状直接改这份，
+    重跑 node tools/icons/build.mjs。
   -->
   <defs>
     <linearGradient id="tile" x1="10" y1="4" x2="54" y2="60" gradientUnits="userSpaceOnUse">
@@ -21,7 +27,7 @@
       <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.04"/>
       <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="shade" x1="32" y1="40" x2="32" y2="62" gradientUnits="userSpaceOnUse">
+    <linearGradient id="shade" x1="32" y1="38" x2="32" y2="62" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#002d0e" stop-opacity="0"/>
       <stop offset="1" stop-color="#002d0e" stop-opacity="0.12"/>
     </linearGradient>
@@ -32,15 +38,26 @@
 
   <g clip-path="url(#tileClip)">
     <rect x="2" y="2" width="60" height="60" fill="url(#tile)"/>
+
+    <!-- 车身：50 × 27，顶 16.5、底 43.5；下沿压过轮心 -->
+    <rect x="7" y="16.5" width="50" height="27" rx="5.5" fill="#ffffff"/>
+
+    <!-- 轮子：轮心 41 在车身内部，只有底部露出车身外 -->
+    <circle cx="18.5" cy="41" r="6.5" fill="#ffffff"/>
+    <circle cx="45.5" cy="41" r="6.5" fill="#ffffff"/>
+    <circle cx="18.5" cy="41" r="2.2" fill="url(#tile)"/>
+    <circle cx="45.5" cy="41" r="2.2" fill="url(#tile)"/>
+
+    <!-- 横向车窗：填底色渐变，等价于在车身上开窗 -->
+    <rect x="11.5" y="21" width="19" height="9.5" rx="2" fill="url(#tile)"/>
+    <rect x="34.5" y="21" width="19" height="9.5" rx="2" fill="url(#tile)"/>
+
+    <!-- 上下各一层很轻的光影：同时作用在车身与底色上，车身才不像贴纸 -->
     <rect x="2" y="2" width="60" height="38" fill="url(#sheen)"/>
-    <rect x="2" y="40" width="60" height="22" fill="url(#shade)"/>
+    <rect x="2" y="38" width="60" height="24" fill="url(#shade)"/>
   </g>
 
-  <!-- 细内描边：让边缘在深色标签栏里收得住，不靠加粗 -->
+  <!-- 细内描边：让边缘在深色标签栏里收得住 -->
   <rect x="2.6" y="2.6" width="58.8" height="58.8" rx="14.4"
         fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="1.2"/>
-
-  <!-- M 路线：一条折线，圆头笔画，两端就是线路的两头 -->
-  <path d="M16 44V21.5L32 35 48 21.5V44" fill="none" stroke="#ffffff"
-        stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
