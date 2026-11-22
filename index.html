@@ -54,7 +54,7 @@
                 <p>版本检查、界面重做、新增工具……站点每一次功能性改动都记在这里</p>
                 <hcw-button primary href="changelog.html">查看更新日志</hcw-button>
             </div>
-            <p class="hero-meta">管理员页面：https://admin.mlttc.bond　·　Version:<span id="appVersion" data-num>1.6.27</span></p>
+            <p class="hero-meta">管理员页面：https://admin.mlttc.bond　·　Version:<span id="appVersion" data-num>1.6.30</span></p>
         </hcw-hero>
 
         <!-- 数据速览：真实接口统计 -->
@@ -80,27 +80,34 @@
         <!-- 核心功能卡片墙 -->
         <h2 class="visually-hidden">核心功能</h2>
         <section class="feature-grid" id="buttonGridContainer">
-            <!-- 第一行：时刻表相关功能（查询 / 我的时刻表） -->
+            <!-- 第一行：时刻表查询 / 车辆信息 -->
             <hcw-card data-action="timetable" data-idx="1">
                 <h3 hcw-card-title>时刻表查询</h3>
                 <p>按城市、线路、起点终点检索已收录的公交与班车时刻</p>
                 <hcw-button primary href="timetable.html">立即使用</hcw-button>
             </hcw-card>
-            <hcw-card data-action="my-timetable" data-idx="2">
+            <!-- 车辆信息：页面与交互已就绪，写入 / 查询接口尚未接入，
+                 所以入口先放出来，点击只提示「暂未开放」（见页面底部的 data-coming-soon 处理）。 -->
+            <hcw-card data-action="information" data-idx="2">
+                <h3 hcw-card-title>车辆信息</h3>
+                <p>录入车辆基础信息、车牌、动力与车身配置，形成完整的车辆档案</p>
+                <hcw-button primary data-coming-soon="车辆信息功能">立即录入</hcw-button>
+            </hcw-card>
+            <!-- 第二行：我的时刻表 / 游戏与工具，第三行为关于我们。换行由 CSS 的 data-idx="3" 规则触发，
+                 这里不加包装元素 —— style/index.css 里有大量 `.feature-grid > hcw-card` 直接子代选择器，
+                 加一层 wrapper 会让入场动画与 hover 全部失效。 -->
+            <hcw-card data-action="my-timetable" data-idx="3">
                 <h3 hcw-card-title>我的时刻表</h3>
                 <p>登录后查看、修改、删除自己提交的时刻表</p>
                 <hcw-button primary href="my-timetable.html">立即使用</hcw-button>
             </hcw-card>
-            <!-- 第二行：非时刻表功能的入口（游戏与工具 / 关于我们）。换行由 CSS 的 data-idx="3" 规则触发，
-                 这里不加包装元素 —— style/index.css 里有大量 `.feature-grid > hcw-card` 直接子代选择器，
-                 加一层 wrapper 会让入场动画与 hover 全部失效。 -->
-            <hcw-card data-action="tools" data-idx="3">
+            <hcw-card data-action="tools" data-idx="4">
                 <h3 hcw-card-title>游戏与工具</h3>
                 <p>贪吃蛇、走迷宫两个小游戏，以及文本、随机、时间、计算等实用工具</p>
                 <hcw-button primary href="tools.html">立即使用</hcw-button>
             </hcw-card>
-            <hcw-card data-action="about" data-idx="4">
-                <h3 hcw-card-title>关于我们</h3>qq
+            <hcw-card data-action="about" data-idx="5">
+                <h3 hcw-card-title>关于我们</h3>
                 <p>了解这个公益时刻表项目，以及如何参与共建</p>
                 <hcw-button primary href="about.html">了解更多</hcw-button>
             </hcw-card>
@@ -132,6 +139,18 @@
         </div>
     </div>
 
+
+    <!-- 未开放入口：统一拦截点击并提示，避免跳到尚未接入接口的页面 -->
+    <script type="module">
+        import { showMessage } from '/lib/ui/message.mjs';
+
+        document.querySelectorAll('[data-coming-soon]').forEach((node) => {
+            node.addEventListener('click', () => {
+                const name = node.getAttribute('data-coming-soon') || '该功能';
+                showMessage(name + '暂未开放，敬请期待', false, { type: 'info' });
+            });
+        });
+    </script>
 
 </body>
 
