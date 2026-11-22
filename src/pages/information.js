@@ -134,14 +134,24 @@ function setDisabled(node, disabled) {
  * @example
  * const header = `<th>${escapeHtml(label)}</th>`;
  */
+/** HTML 特殊字符 → 实体（对照表，不用正则） */
+const HTML_ESCAPES = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+};
+
 function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[ch]));
+    const text = String(value ?? '');
+    let out = '';
+
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        out += HTML_ESCAPES[ch] ?? ch;
+    }
+    return out;
 }
 
 /**
@@ -309,29 +319,117 @@ function controlHint(el) {
 /** 控件名称：取关联 label 的文案，去掉「(可选)」这类括号说明 */
 function controlLabel(el) {
     const label = el.id ? document.querySelector(`label[for="${el.id}"]`) : null;
-    const text = label ? label.textContent.replace(/（可选）|\(可选\)/g, '').trim() : '';
+    const text = label
+        ? label.textContent.split('（可选）').join('').split('(可选)').join('').trim()
+        : '';
     return text || el.name || el.id || '该字段';
+}
+
+/* ---------- 格式判断小工具 ---------- */
+/*
+ * 全部用逐字符判断，不使用正则：
+ * 规则改动时只需要改这些具名函数，读起来也是「长度 + 字符集」两件事。
+ */
+
+/** 0–9 */
+function isDigitChar(ch) {
+    const code = ch.charCodeAt(0);
+    return code >= 48 && code <= 57;
+}
+
+/** A–Z（忽略大小写） */
+function isLetter(ch) {
+    const code = ch.charCodeAt(0);
+    const upper = code >= 97 && code <= 122 ? code - 32 : code;
+    return upper >= 65 && upper <= 90;
+}
+
+/** 整串都是数字 */
+function isAllDigits(text) {
+    if (!text) return false;
+    for (let i = 0; i < text.length; i += 1) {
+        if (!isDigitChar(text[i])) return false;
+    }
+    return true;
+}
+
+/** 恰好 n 位数字 */
+function isFixedDigits(text, n) {
+    return text.length === n && isAllDigits(text);
+}
+
+/** 整串都是字母或数字（车牌后缀用） */
+function isLetterOrDigits(text) {
+    if (!text) return false;
+    for (let i = 0; i < text.length; i += 1) {
+        if (!isDigitChar(text[i]) && !isLetter(text[i])) return false;
+    }
+    return true;
 }
 
 /* ---------- 字段格式规则 ---------- */
 /** 车牌首位的省级行政区简称（不含港澳台） */
 const PLATE_PROVINCES = '京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼';
 
+/** VIN 禁用字母：与数字 1 / 0 易混 */
+const VIN_EXCLUDED_LETTERS = ['I', 'O', 'Q'];
+
 /** 日期字段（失焦时会把 2024/5/1 补成 2024-05-01） */
 const DATE_FIELDS = new Set(['factoryDate', 'onlineDate', 'scrapDate']);
 
+/** 日期分隔符：`-` 与 `/` 都认 */
+function isDateSeparator(ch) {
+    return ch === '-' || ch === '/';
+}
+
+/** 首个日期分隔符的下标；没有分隔符时返回 -1 */
+function firstSeparatorIndex(text) {
+    for (let i = 0; i < text.length; i += 1) {
+        if (isDateSeparator(text[i])) return i;
+    }
+    return -1;
+}
+
+/** 按 `-` 或 `/` 把日期拆成若干段（空段保留，交给后面的数字判断挡掉） */
+function splitDateParts(text) {
+    const parts = [];
+    let current = '';
+
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        if (isDateSeparator(ch)) {
+            parts.push(current);
+            current = '';
+        } else {
+            current += ch;
+        }
+    }
+    parts.push(current);
+    return parts;
+}
+
 /** 日期文本半角化：全角数字 / ／ / － 转半角，便于统一解析与判断 */
 function toHalfWidthDate(value) {
-    return String(value ?? '')
-        .replace(/[\uFF10-\uFF19]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
-        .replace(/\uFF0F/g, '/')
-        .replace(/\uFF0D/g, '-')
-        .trim();
+    const text = String(value ?? '');
+    let out = '';
+
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        const code = ch.charCodeAt(0);
+
+        if (code >= 0xFF10 && code <= 0xFF19) out += String.fromCharCode(code - 0xFEE0);
+        else if (ch === '／') out += '/';
+        else if (ch === '－') out += '-';
+        else out += ch;
+    }
+
+    return out.trim();
 }
 
 /**
  * 解析日期文本。
- * 支持 `-` 与 `/` 分隔、月/日不补零、全角数字；返回规范化的 YYYY-MM-DD。
+ * 支持 `-` 与 `/` 分隔、月/日不补零、两位年份、全角数字；
+ * 返回规范化的 YYYY-MM-DD。
  *
  * @param {string} value 输入文本
  * @returns {string|null} 规范化日期；非法返回 null
@@ -341,15 +439,18 @@ function toHalfWidthDate(value) {
  * parseDateText('2024-13-1'); // null
  */
 function parseDateText(value) {
-    const text = toHalfWidthDate(value);
+    const parts = splitDateParts(toHalfWidthDate(value));
+    if (parts.length !== 3) return null;
 
-    const match = /^(\d{4}|\d{2})[-/](\d{1,2})[-/](\d{1,2})$/.exec(text);
-    if (!match) return null;
+    const [yearText, monthText, dayText] = parts;
+    const yearOk = isAllDigits(yearText) && (yearText.length === 4 || yearText.length === 2);
+    if (!yearOk || !isAllDigits(monthText) || !isAllDigits(dayText)) return null;
+    if (monthText.length > 2 || dayText.length > 2) return null;
 
     // 两位年份统一按 20xx 解释（24 → 2024）
-    const year = match[1].length === 2 ? 2000 + Number(match[1]) : Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
+    const year = yearText.length === 2 ? 2000 + Number(yearText) : Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
     if (month < 1 || month > 12 || day < 1) return null;
 
     // 用 Date 回算一次，挡掉 2 月 30 日、非闰年 2 月 29 日这类
@@ -383,7 +484,7 @@ function normalizeDateField(el) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
 
     // 两位年份（24/5/1）被补成 20xx 时，在这一条输入框下方说明一次
-    if (/^\d{2}[-/]/.test(raw)) {
+    if (firstSeparatorIndex(raw) === 2) {
         const hint = controlHint(el);
         if (hint) {
             hint.textContent = `“${normalized}” 符合格式要求（年份 ${raw.slice(0, 2)} 已识别为 ${normalized.slice(0, 4)}）`;
@@ -404,32 +505,46 @@ const DATE_FORMAT = {
     message: '日期格式应为 YYYY-MM-DD 或 YYYY/MM/DD（例：2024-05-01，年份可简写为 24）',
 };
 
+/** VIN：17 位字母或数字，排除 I / O / Q */
+function isVin(value) {
+    if (value.length !== 17) return false;
+
+    for (let i = 0; i < value.length; i += 1) {
+        const ch = value[i];
+        if (isDigitChar(ch)) continue;
+        if (!isLetter(ch)) return false;
+        if (VIN_EXCLUDED_LETTERS.includes(ch.toUpperCase())) return false;
+    }
+    return true;
+}
+
+/** 车牌号前缀：省份简称 + 1 位字母（中国香港不做限制） */
+function isPlatePrefix(value) {
+    if (isHongKongRegion()) return true;
+    if (value.length !== 2) return false;
+    if (!PLATE_PROVINCES.includes(value[0])) return false;
+    return isLetter(value[1]);
+}
+
+/** 车牌号后缀：5–6 位字母或数字（中国香港不做限制） */
+function isPlateSuffix(value) {
+    if (isHongKongRegion()) return true;
+    if (value.length < 5 || value.length > 6) return false;
+    return isLetterOrDigits(value);
+}
+
 /**
  * 字段格式规则，键为控件的 name / id。
  * 不在表里的字段只判空，不校验格式。
  */
 const FIELD_FORMATS = {
-    vin: {
-        test: (value) => /^[A-HJ-NPR-Z0-9]{17}$/i.test(value),
-        message: 'VIN 应为 17 位字母或数字（不含 I/O/Q）',
-    },
-    platePrefix: {
-        test: (value) => (isHongKongRegion()
-            ? true
-            : new RegExp(`^[${PLATE_PROVINCES}][A-Z]$`, 'i').test(value)),
-        message: '格式应为「省份简称 + 字母」，例：琼A',
-    },
-    plateSuffix: {
-        test: (value) => (isHongKongRegion() ? true : /^[A-Z0-9]{5,6}$/i.test(value)),
-        message: '格式应为 5–6 位字母或数字',
-    },
+    vin: { test: isVin, message: 'VIN 应为 17 位字母或数字（不含 I/O/Q）' },
+    platePrefix: { test: isPlatePrefix, message: '格式应为「省份简称 + 字母」，例：琼A' },
+    plateSuffix: { test: isPlateSuffix, message: '格式应为 5–6 位字母或数字' },
     factoryDate: DATE_FORMAT,
     onlineDate: DATE_FORMAT,
     scrapDate: DATE_FORMAT,
-    searchId: {
-        test: (value) => /^\d{12}$/.test(value),
-        message: '车辆ID应为 12 位数字',
-    },
+    searchId: { test: (value) => isFixedDigits(value, 12), message: '车辆ID应为 12 位数字' },
 };
 
 /** 把控件恢复成「未判断」的中性态（清空表单、切换面板后使用） */
@@ -571,7 +686,7 @@ function handleSearch() {
     const id = searchIdInput.value.trim();
 
     // 车辆ID 固定 12 位数字：格式不对直接止步，避免把脏条件发给后端
-    if (id && !/^\d{12}$/.test(id)) {
+    if (id && !isFixedDigits(id, 12)) {
         searchIdInput.classList.remove('is-valid');
         searchIdInput.classList.add('is-invalid');
         const hint = controlHint(searchIdInput);
@@ -1384,7 +1499,8 @@ initPickers();
 // 解码失败时按「没有 hash」处理
 let hashTarget = null;
 try {
-    const hash = decodeURIComponent(window.location.hash.replace(/^#/, ''));
+    const rawHash = window.location.hash;
+    const hash = decodeURIComponent(rawHash.startsWith('#') ? rawHash.slice(1) : rawHash);
     if (hash) hashTarget = document.getElementById(hash);
 } catch {
     hashTarget = null;
