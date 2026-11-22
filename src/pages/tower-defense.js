@@ -524,7 +524,6 @@ const palette = {
   muted: '#535353', card: '#ffffff', primary: '#1db954', danger: '#d93025', warning: '#e8900a',
   ok: 'rgba(29,185,84,.18)', bad: 'rgba(217,48,37,.16)',
 };
-
 /* ===================== 5. 局内流程 ===================== */
 /**
  * 开局 / 重开：清空一切，回到「准备第 1 波」。
@@ -1857,6 +1856,34 @@ function readPalette() {
   palette.primary = pick('--primary', '#1db954');
   palette.danger = pick('--danger', '#d93025');
   palette.warning = pick('--warning', '#e8900a');
+  palette.ok = withAlpha(palette.primary, 0.18);
+  palette.bad = withAlpha(palette.danger, 0.16);
+
+  // 箭塔用的是站点主色（图标、塔身、统计表、按钮上的色块都取这里）；
+  // 其余塔的配色是玩法语义色（炮塔橙 / 冰塔蓝 / 光环紫 / 毒塔绿），不跟主题走
+  if (ALL_TOWER_TYPES.arrow) ALL_TOWER_TYPES.arrow.color = palette.primary;
+}
+
+/**
+ * 给颜色加透明度（canvas 只认具体颜色值，不能直接用 color-mix / CSS 变量）
+ * @param {string} color #rrggbb / rgb() / rgba()
+ * @param {number} alpha 0–1
+ */
+function withAlpha(color, alpha) {
+  const text = String(color || '').trim();
+  const hex = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text);
+  if (hex) {
+    let n = hex[1];
+    if (n.length === 3) n = n.split('').map((c) => c + c).join('');
+    const v = parseInt(n, 16);
+    return `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${alpha})`;
+  }
+  const rgb = /^rgba?\(([^)]+)\)$/i.exec(text);
+  if (rgb) {
+    const [r, g, b] = rgb[1].split(',').map((v) => Number(v.trim()));
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  return text;
 }
 
 /** 整帧重绘（网格只有 24×14，全量重绘开销可忽略） */
@@ -3442,8 +3469,13 @@ function bindEvents() {
     acc = 0;
   });
 
-  // 主题切换（auth-header.js 改的是 html[data-theme]）→ 重读调色板
-  new MutationObserver(readPalette).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  // 主题切换（auth-header.js 改的是 html[data-theme] 与自定义主色的内联 style）→ 重读调色板，
+  // 并把塔色块 / 数值表按新配色重画一遍
+  new MutationObserver(() => {
+    readPalette();
+    buildTowerStats();
+    syncTowerButtons();
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
 
   // 减少动效偏好变化时实时生效
   const mq = window.matchMedia('(prefers-reduced-motion: reduce)');

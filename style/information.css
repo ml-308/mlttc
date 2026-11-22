@@ -29,23 +29,53 @@
     line-height: 1;
 }
 
-/* ---------- 页内分区跳转 ---------- */
-/* 长表单的分区入口：原生锚点，点击后滚到对应 section；不依赖脚本 */
+/* ---------- 页内分区跳转（吸顶导航条） ---------- */
+/* 长表单的分区入口：原生锚点跳转；下滑时贴在页头下方，变成一条方形导航栏，
+   当前板块用下方绿条标出，并显示该板块「已填 / 可填」条目数。
+   吸顶依赖祖先链不是滚动容器，见下方 hcw-article 的 overflow: clip 覆盖。 */
 .section-nav {
+    position: sticky;
+    /* 页头高度由脚本量出来写进变量，页头换行变高时不会错位 */
+    top: var(--info-nav-top, 3.75rem);
+    z-index: 40;
     display: flex;
-    flex-wrap: wrap;
-    gap: .4rem;
+    flex-wrap: nowrap;
+    gap: .35rem;
+    /* 窄屏横向滚动而不是换行：高度稳定，吸顶时才不会抖 */
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: .35rem;
     margin: 0 0 1.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    transition: var(--transition-fast);
+    transition-property: background-color, border-color, box-shadow;
+}
+
+.section-nav::-webkit-scrollbar {
+    display: none;
+}
+
+/* 贴住页头之后浮在表单上方：给不透明底色，避免字段从字缝里透出来 */
+.section-nav.is-stuck {
+    border-color: var(--border-light);
+    background: var(--bg-card);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--text-primary) 12%, transparent);
 }
 
 .section-jump {
+    position: relative;
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
+    gap: .4rem;
     min-height: var(--touch-target);
-    padding: 0 .85rem;
+    padding: 0 .7rem;
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-xs);
     background: var(--bg-hover);
     color: var(--text-secondary);
     font-size: var(--text-caption);
@@ -69,10 +99,47 @@
     box-shadow: var(--shadow-focus);
 }
 
+/* 当前所在板块：文字提亮 + 按钮下方一条绿条 */
+.section-jump.is-current {
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+    background: var(--primary-bg);
+}
+
+.section-jump.is-current::after {
+    content: "";
+    position: absolute;
+    left: 22%;
+    right: 22%;
+    bottom: 3px;
+    height: 2px;
+    border-radius: var(--radius-full);
+    background: var(--primary);
+}
+
+/* 板块完成度：已填 / 可填（禁用字段不计入总数） */
+.section-jump-count {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.section-jump-count.is-done {
+    color: var(--success);
+}
+
+/* 吸顶导航要跟着滚动：hcw-article 默认 overflow: hidden 会创建滚动容器让 sticky 失效。
+   hidden 仅作旧浏览器回退；clip 不创建滚动容器，横向溢出的裁剪交给 body 的 overflow-x。 */
+hcw-article,
+[hcw-article] {
+    overflow: hidden;
+    overflow: clip;
+}
+
 /* ---------- 表单分组 ---------- */
 .form-section {
-    /* 页头是 sticky 的：锚点跳转后给标题让出页头高度，避免被盖住 */
-    scroll-margin-top: 5.5rem;
+    /* 锚点跳转后要给页头 + 吸顶导航条让出高度，标题才不会被盖住 */
+    scroll-margin-top: calc(var(--info-nav-top, 3.75rem) + var(--info-nav-height, 3rem) + .75rem);
 }
 
 .form-section + .form-section {
@@ -204,6 +271,19 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 16%, transparent);
 }
 
+/* 动力系统联动：燃料类型不适用的字段（禁用态 + 灰色说明） */
+.form-group :is(input, select, textarea):disabled {
+    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+/* 提示行改由联动说明占用时，用中性灰而不是红 / 绿 / 黄 */
+.lp.lp-na {
+    color: var(--text-secondary) !important;
+    display: block !important;
+}
+
 /* 匹配下拉里的补充说明（如车牌前缀后面的城市名、代号的含义） */
 .city-chooser-list > li .match-desc {
     margin-left: .5em;
@@ -223,6 +303,60 @@
     opacity: .85;
 }
 
+/* ---------- 匹配下拉 +「全部」按钮 ---------- */
+/* 结构：.match-row > .city-chooser（输入框+下拉） + button.match-all-btn */
+.match-row {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+}
+
+.match-row > .city-chooser {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.match-all-btn {
+    flex: 0 0 auto;
+    padding: .5rem .7rem;
+    font-size: var(--text-caption);
+    font-family: inherit;
+    line-height: 1.2;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition:
+        color var(--transition-fast),
+        border-color var(--transition-fast),
+        background-color var(--transition-fast);
+}
+
+.match-all-btn:hover {
+    color: var(--primary-ink);
+    border-color: currentColor;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.match-all-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* 动力系统联动：整行不可用（燃料类型不适用的字段） */
+.match-all-btn:disabled {
+    color: var(--text-muted);
+    border-color: var(--border);
+    background: transparent;
+    cursor: not-allowed;
+}
+
+.match-row.is-na .city-chooser {
+    opacity: .7;
+}
+
 /* 代号说明（UNKN 等占位代号的含义） */
 .code-note {
     margin: .35rem 0 0;
@@ -236,6 +370,59 @@
     border-radius: var(--radius-xs);
     background: color-mix(in srgb, var(--text-primary) 10%, transparent);
     font-family: var(--font-mono, ui-monospace, monospace);
+    color: var(--text-primary);
+}
+
+/* ---------- 填写说明（可折叠） ---------- */
+/* 原生 <details>：不依赖脚本，键盘与读屏都能展开 / 收起 */
+.help-box {
+    margin: 0 0 1.1rem;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+    font-size: var(--text-caption);
+}
+
+.help-box-summary {
+    padding: .65rem .85rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    list-style-position: inside;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.help-box-summary:hover {
+    color: var(--primary-ink);
+}
+
+.help-box-summary:focus-visible {
+    outline: none;
+    border-radius: inherit;
+    box-shadow: var(--shadow-focus);
+}
+
+.help-box[open] > .help-box-summary {
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-primary);
+}
+
+.help-box-body {
+    padding: .75rem .85rem .8rem;
+}
+
+/* 说明之间的间距交给父级 padding + 相邻选择器，不再用 .code-note 的上外边距 */
+.help-box-body .code-note {
+    margin: 0;
+}
+
+.help-box-body .code-note + .code-note {
+    margin-top: .5rem;
+}
+
+.help-box-body strong {
+    font-weight: 600;
     color: var(--text-primary);
 }
 

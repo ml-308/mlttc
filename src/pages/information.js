@@ -83,6 +83,13 @@ function switchPanel(name) {
         button.classList.toggle('is-active', active);
         button.setAttribute('aria-selected', active ? 'true' : 'false');
     });
+
+    // 切回「添加」时重新量一次导航条（隐藏期间高度为 0，锚点留白会算错）
+    if (name === 'add') {
+        measureSectionNav();
+        updateSectionCounts();
+        scheduleSectionNav();
+    }
 }
 
 // 点击菜单即切换面板；aria-selected 由 switchPanel 统一维护
@@ -306,9 +313,12 @@ function controlHint(el) {
     hint.setAttribute('role', 'status');
     hint.setAttribute('aria-live', 'polite');
 
-    // .city-chooser（匹配下拉外壳）要跳过，提示行挂到它外面，避免挤进下拉容器里
+    // .city-chooser（匹配下拉外壳）与 .match-row（含「全部」按钮的整行）都要跳过，
+    // 提示行挂到整行外面，避免挤进 flex 行里
     let anchor = el;
-    while (anchor.parentElement && anchor.parentElement.classList.contains('city-chooser')) {
+    while (anchor.parentElement
+        && (anchor.parentElement.classList.contains('city-chooser')
+            || anchor.parentElement.classList.contains('match-row'))) {
         anchor = anchor.parentElement;
     }
     anchor.insertAdjacentElement('afterend', hint);
@@ -869,6 +879,18 @@ const STRICT_PICKER_IDS = ['operation-status', 'fuel-type', 'vehicle-type'];
 /** 控件 id → 选择器实例，清空表单时统一复位 */
 const pickers = new Map();
 
+/**
+ * 动力系统字段：候选按燃料类型过滤，不适用的会被禁用。
+ * （发动机 / 电机 / 电池 / 变速器，顺序即下方联动时的处理顺序）
+ */
+const POWERTRAIN_IDS = ['engine', 'motor', 'battery', 'transmission'];
+
+/** 动力系统各字段的完整候选（含 UNKN）；联动时在这份数据上过滤，不动原始候选 */
+const powertrainItems = new Map();
+
+/** 联动配置，来自 vehicle-options.json 的 powertrain；缺失时为 null（不联动） */
+let powertrainConfig = null;
+
 /** 取某个控件的候选（字典类字段直接按控件 id 索引，「未知」代号排在最前） */
 function pickerItems(id, data) {
     return withUnknown(fieldItems(data, id));
@@ -898,17 +920,24 @@ async function initPickers() {
     // 拼音表复用城市数据；字不在表里时自动退化为字面匹配
     const pinyin = cityData ? { map: cityData.pinyin, exceptions: cityData.exceptions } : null;
 
+    // 燃料类型 → 动力系统字段的联动表，数据里没配就整块跳过
+    powertrainConfig = data.powertrain || null;
+
     PICKER_IDS.forEach((id) => {
         const input = $(id);
         if (!input) return;
 
+        const items = pickerItems(id, data);
         const picker = attachMatchPicker(input, {
-            items: pickerItems(id, data),
+            items,
             strict: STRICT_PICKER_IDS.includes(id),
             pinyin,
+            // 车门类型可能同时有多种（如「双内摆门、外摆门」），支持多选
+            multi: id === 'door',
         });
 
         pickers.set(id, picker);
+        if (POWERTRAIN_IDS.includes(id)) powertrainItems.set(id, items);
     });
 
     // 车牌号前缀：输入城市名（海口）或前缀（琼A）都能匹配
@@ -921,6 +950,285 @@ async function initPickers() {
             ariaLabel: '可选车牌号前缀',
         }));
     }
+
+    // 燃料类型一变，动力系统跟着换（禁用不该填的字段 + 过滤候选）
+    const fuelInput = $('fuel-type');
+    if (fuelInput) {
+        ['input', 'change'].forEach((type) => {
+            fuelInput.addEventListener(type, applyPowertrainProfile);
+        });
+    }
+    applyPowertrainProfile();
+}
+
+/* ─── 动力系统联动：按燃料类型匹配字段与候选 ───────────── */
+/*
+ * 燃料类型决定动力系统该填什么：
+ *   柴油 / 汽油 / 天然气 / 醇醚 / 双燃料 → 发动机（+ 变速器）
+ *   纯电动 / 换电 / 快充 / 燃料电池       → 电机 + 电池（+ 变速器）
+ *   无轨电车 / 超级电容                   → 电机（+ 变速器）
+ *   混合动力 / 增程式                     → 发动机 + 电机 + 电池（+ 变速器）
+ * 规则写在 vehicle-options.json 的 powertrain 里，改口径只改数据。
+ */
+
+/**
+ * 燃料文本 → 档案键（不在映射表里返回空串）。
+ * @example
+ * fuelProfileKey('纯电动'); // 'ev'
+ */
+function fuelProfileKey(text) {
+    const byFuel = (powertrainConfig && powertrainConfig.byFuel) || {};
+    return byFuel[String(text ?? '').trim()] || '';
+}
+
+/**
+ * 档案键 → 档案；未知键退回 any（等于不限制）。
+ * @param {string} key 档案键，如 'ev'
+ */
+function powertrainProfile(key) {
+    const profiles = (powertrainConfig && powertrainConfig.profiles) || {};
+    return profiles[key] || profiles.any || null;
+}
+
+/**
+ * 按 drive 过滤候选：条目没写 drive 视为通用，UNKN 因此始终保留。
+ * @param {Array} items 候选
+ * @param {string} drive 'ev' / 'ice' / 'both' / 'all'
+ */
+function filterByDrive(items, drive) {
+    // 'all' / 'both' 都表示该燃料类型不限制变速器类别（混动两套都能配）
+    if (!drive || drive === 'all' || drive === 'both') return items;
+    return items.filter((item) => !item.drive || item.drive === 'both' || item.drive === drive);
+}
+
+/** 候选数量变了，同步「全部」按钮的悬浮说明 */
+function syncAllCount(picker, count) {
+    if (!picker || !picker.allBtn) return;
+    picker.allBtn.title = count > 0 ? `查看全部候选（${count} 条）` : '查看全部候选';
+}
+
+/**
+ * 设置单个动力系统字段的适用状态。
+ * 不适用时：禁用输入框与「全部」按钮、清空已填内容、提示行说明原因。
+ *
+ * @param {string} id 控件 id
+ * @param {{disabled: boolean, items: Array, reason: string}} options
+ */
+function setPowertrainField(id, options) {
+    const input = $(id);
+    if (!input) return;
+
+    const picker = pickers.get(id) || null;
+    const hint = controlHint(input);
+    const { disabled, items, reason } = options;
+
+    if (disabled) {
+        if (picker) picker.reset();
+        else input.value = '';
+        // 清掉校验色，并把控件移出「已触碰」，恢复适用后不会一上来就标红
+        clearControlState(input);
+        recordControl(input);
+    }
+
+    setDisabled(input, disabled);
+    if (picker) {
+        picker.setItems(items);
+        syncAllCount(picker, items.length);
+        setDisabled(picker.allBtn, disabled);
+        picker.row.classList.toggle('is-na', disabled);
+    }
+
+    if (!hint) return;
+    hint.classList.remove('lp-invalid', 'lp-valid', 'lp-warning', 'lp-na');
+    hint.textContent = disabled ? reason : '';
+    if (disabled) hint.classList.add('lp-na');
+}
+
+/**
+ * 应用当前燃料类型对应的动力系统规则。
+ * 燃料还没输入成完整候选值时先不动，等失焦确认后再联动，避免打字过程中来回闪。
+ *
+ * @example
+ * fuelType.addEventListener('input', applyPowertrainProfile);
+ */
+function applyPowertrainProfile() {
+    if (!powertrainConfig) return;
+
+    const fuelInput = $('fuel-type');
+    const fuelText = fuelInput ? String(fuelInput.value || '').trim() : '';
+    // 空值与「未知」代号都当作不限制：不知道该填什么时，四个字段都留着
+    const unknown = !fuelText || isUnknownValue(fuelText);
+    const key = unknown ? 'any' : fuelProfileKey(fuelText);
+    // 还在打字（不是完整候选值）时先不动，等失焦确认后再联动
+    if (!unknown && !key) return;
+
+    const profile = powertrainProfile(key);
+    if (!profile) return;
+
+    const allowed = profile.fields.length > 0 ? profile.fields : POWERTRAIN_IDS;
+    const fuelLabel = fuelText || '未填写';
+
+    POWERTRAIN_IDS.forEach((id) => {
+        const base = powertrainItems.get(id);
+        if (!base) return;
+
+        const disabled = !allowed.includes(id);
+        setPowertrainField(id, {
+            disabled,
+            items: filterByDrive(base, profile.drive),
+            reason: disabled ? `燃料类型「${fuelLabel}」不适用${controlLabel($(id))}，已清空` : '',
+        });
+    });
+
+    // 字段被禁用 / 恢复会改变板块的「可填条目数」
+    updateSectionCounts();
+}
+
+/* ─── 分区导航：吸顶、当前位置、完成度 ─────────────────── */
+/*
+ * 导航条本身用 position: sticky 贴在页头下方（information.css 里把 hcw-article
+ * 的 overflow 换成 clip，祖先链才不是滚动容器）：
+ *   - 吸顶后加 .is-stuck，给不透明底色 + 阴影，避免表单从字缝里透出来
+ *   - 当前位置由滚动位置算出，落在「最后一块已越过导航条下沿」的板块上
+ *   - 每个板块右侧显示「已填 / 可填」，字段被燃料类型禁用时总数跟着减少
+ */
+const sectionNav = document.querySelector('.section-nav');
+
+/** 导航项 → 板块：{ link, section, count } */
+const sectionEntries = sectionNav
+    ? Array.from(sectionNav.querySelectorAll('.section-jump'))
+        .map((link) => {
+            const id = (link.getAttribute('href') || '').replace('#', '');
+            const section = id ? document.getElementById(id) : null;
+            if (!section) return null;
+
+            const count = document.createElement('span');
+            count.className = 'section-jump-count';
+            link.append(count);
+            return { link, section, count };
+        })
+        .filter(Boolean)
+    : [];
+
+/**
+ * 统计一个板块「已填 / 可填」的控件数。
+ * 禁用（燃料类型不适用）的字段不计入总数；隐藏字段与文件框不算条目。
+ */
+function sectionProgress(section) {
+    const list = Array.from(section.querySelectorAll('input, select, textarea')).filter((el) => (
+        el.type !== 'hidden' && el.type !== 'file' && !el.disabled
+    ));
+    const done = list.filter((el) => String(el.value || '').trim().length > 0).length;
+    return { done, total: list.length };
+}
+
+/** 刷新每个板块的完成度（输入、联动禁用字段、清空表单后调用） */
+function updateSectionCounts() {
+    sectionEntries.forEach(({ section, count }) => {
+        const { done, total } = sectionProgress(section);
+        count.textContent = `${done}/${total}`;
+        count.classList.toggle('is-done', total > 0 && done === total);
+    });
+}
+
+/** 页头高度 / 导航条高度写进 CSS 变量，sticky 偏移与锚点留白都跟着走 */
+function measureSectionNav() {
+    const header = document.querySelector('hcw-body-header');
+    const root = document.documentElement;
+    const headerHeight = header ? Math.round(header.getBoundingClientRect().height) : 0;
+    root.style.setProperty('--info-nav-top', `${headerHeight}px`);
+
+    if (!sectionNav) return;
+    root.style.setProperty('--info-nav-height', `${Math.round(sectionNav.getBoundingClientRect().height)}px`);
+}
+
+/** 当前是哪一块：最后一个「已滚到导航条下方」的板块；滚到底时锁定最后一块 */
+function currentSectionEntry(navBottom) {
+    if (!sectionEntries.length) return null;
+
+    // 锚点跳转会把板块标题停在导航条下方一点点，阈值要略大才不会差一格
+    const limit = navBottom + 24;
+    let current = sectionEntries[0];
+    sectionEntries.forEach((entry) => {
+        if (entry.section.getBoundingClientRect().top <= limit) current = entry;
+    });
+
+    const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    return atBottom ? sectionEntries[sectionEntries.length - 1] : current;
+}
+
+let navFrame = 0;
+/** 上一次高亮的导航项，只在「换人」时滚动导航条，避免和用户的手动横滑打架 */
+let currentLink = null;
+
+/**
+ * 把某个导航项滚进导航条的可视范围（横向，只动导航条自己的 scrollLeft）。
+ * @param {HTMLElement} link 目标导航项
+ */
+function revealNavLink(link) {
+    const linkRect = link.getBoundingClientRect();
+    const navRect = sectionNav.getBoundingClientRect();
+    const pad = 8;
+
+    if (linkRect.left < navRect.left + pad) {
+        sectionNav.scrollLeft -= navRect.left + pad - linkRect.left;
+    } else if (linkRect.right > navRect.right - pad) {
+        sectionNav.scrollLeft += linkRect.right - navRect.right + pad;
+    }
+}
+
+/** 滚动 / 尺寸变化时重算吸顶态与当前位置（一帧一次） */
+function updateSectionNav() {
+    navFrame = 0;
+    if (!sectionNav || !sectionEntries.length) return;
+    // 切到其它面板时导航条不可见，不做判断
+    if (!sectionNav.offsetParent) {
+        sectionNav.classList.remove('is-stuck');
+        return;
+    }
+
+    const navTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--info-nav-top')) || 0;
+    const rect = sectionNav.getBoundingClientRect();
+    const stuck = rect.top <= navTop + 1;
+    sectionNav.classList.toggle('is-stuck', stuck);
+
+    const current = currentSectionEntry(rect.bottom);
+    sectionEntries.forEach((entry) => {
+        const on = entry === current;
+        // 滚动每帧都会进来，状态没变就不动 DOM
+        if (entry.link.classList.contains('is-current') === on) return;
+        entry.link.classList.toggle('is-current', on);
+        if (on) entry.link.setAttribute('aria-current', 'true');
+        else entry.link.removeAttribute('aria-current');
+    });
+
+    // 窄屏导航条要横向滚动：当前位置换人时把它滚进可视区
+    if (current && current.link !== currentLink) {
+        currentLink = current.link;
+        revealNavLink(current.link);
+    }
+}
+
+function scheduleSectionNav() {
+    if (navFrame) return;
+    navFrame = requestAnimationFrame(updateSectionNav);
+}
+
+if (sectionNav && sectionEntries.length) {
+    window.addEventListener('scroll', scheduleSectionNav, { passive: true });
+    window.addEventListener('resize', () => {
+        measureSectionNav();
+        scheduleSectionNav();
+    });
+
+    // 输入 / 选择只影响完成度，不必每键都量位置
+    ['input', 'change'].forEach((type) => {
+        formRoot?.addEventListener(type, updateSectionCounts);
+    });
+
+    measureSectionNav();
+    updateSectionCounts();
+    updateSectionNav();
 }
 
 /* ─── 清空 / 提交 ─────────────────────────────────────── */
@@ -959,6 +1267,8 @@ function resetForm() {
     refreshFormValues();
     // 校验结果一并复位，避免清空后还留着绿色的「符合格式要求」
     resetValidation(formRoot);
+    // 燃料类型已清空 → 动力系统全部字段恢复可用
+    applyPowertrainProfile();
     setHidden(addResult, true);
     showMessage('已清空表单', false, { type: 'info' });
 }

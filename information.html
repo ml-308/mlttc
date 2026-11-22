@@ -72,14 +72,28 @@
 			<!-- ── 添加模块 ─────────────────────────────── -->
 			<div hcw-card id="add-form" class="form-card information-card hidden">
 				<div class="card-lead">
-					录入车辆基础信息、车牌与配置；所有字段均为选填，可按需填写。
+					录入车辆基础信息、车牌与配置
 				</div>
-				<p class="code-note">
-					代号说明：<code>UNKN</code> = 信息未知（暂留空）——不清楚具体取值时填它即可，不算填错；接入接口后按空值提交。
-				</p>
-				<p class="code-note">
-					格式要求：日期 <code>YYYY-MM-DD</code>（<code>/</code> 与 <code>-</code> 皆可，月日自动补 0，年份写两位按 <code>20xx</code> 识别）；VIN <code>17 位</code>字母数字（不含 I/O/Q）；车牌前缀 <code>琼A</code>、后缀 <code>5–6 位</code>字母数字（中国香港车牌不限）。
-				</p>
+				<details class="help-box" id="add-help">
+					<summary class="help-box-summary">填写说明：代号、格式要求、字段联动与「全部」按钮</summary>
+					<div class="help-box-body">
+						<p class="code-note">
+							代号说明：<code>UNKN</code> = 信息未知（暂留空）——不清楚具体取值时填它即可，不算填错；接入接口后按空值提交。
+						</p>
+						<p class="code-note">
+							格式要求：日期 <code>YYYY-MM-DD</code>（<code>/</code> 与 <code>-</code> 皆可，月日自动补 0，年份写两位按 <code>20xx</code> 识别）；VIN <code>17 位</code>字母数字（不含 I/O/Q）；车牌前缀 <code>琼A</code>、后缀 <code>5–6 位</code>字母数字（中国香港车牌不限）。
+						</p>
+						<p class="code-note">
+							联动说明：动力系统随<code>燃料类型</code>匹配——纯电动 / 燃料电池填「电机、电池」，柴油 / 汽油 / 天然气填「发动机」，混合动力 / 增程式三项都填；不适用的字段会自动禁用并清空，<code>变速器</code>候选也只保留匹配的类别。
+						</p>
+						<p class="code-note">
+							「全部」按钮：每个可检索字段右侧都有一个，点一下列出该字段的<strong>全部候选</strong>（不受输入关键词和显示条数限制），再点一次收起；按钮悬浮提示里的数字是候选总数。点候选项即可直接填入，字段被燃料类型禁用时该按钮同时不可用。<code>车门</code>支持多选，多次选择会用「、」依次追加。
+						</p>
+						<p class="code-note">
+							分区导航：下滑时固定在页头下方，点板块名直接跳转，当前所在板块下方有绿条；右侧的 <code>已填/可填</code> 是该板块的完成度——禁用字段（燃料类型不适用）不计入总数。
+						</p>
+					</div>
+				</details>
 				<nav class="section-nav" aria-label="页面分区导航">
 					<a class="section-jump" href="#basic">基本车辆信息</a>
 					<a class="section-jump" href="#plate">车牌号信息</a>
@@ -240,7 +254,7 @@
 							</div>
 							<div class="form-group">
 								<label for="door">车门</label>
-								<input hcw-input type="text" id="door" name="door" placeholder="搜索车门类型"
+								<input hcw-input type="text" id="door" name="door" placeholder="可多选：输入或选择车门类型"
 									autocomplete="off">
 							</div>
 						</div>

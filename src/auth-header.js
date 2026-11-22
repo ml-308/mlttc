@@ -76,6 +76,9 @@ function getEffectiveTheme() {
 
 const ACCENT_STORAGE_KEY = 'mlttc-accent';
 
+/** 当前生效的自定义主色（切主题时用它重算文字型主题色）；无自定义时为 null */
+let activeAccent = null;
+
 /**
  * 将 #rrggbb 转为 HSL，用于派生 hover（提亮）与 pressed（压暗）
  * @param {string} hex
@@ -123,10 +126,14 @@ function hslToHex(h, s, l) {
  */
 function applyAccentColor(hex) {
   const html = document.documentElement;
+  const ACCENT_KEYS = [
+    '--primary', '--primary-hl', '--primary-dark', '--primary-light',
+    '--primary-bg', '--primary-surface', '--primary-ink', '--on-primary',
+    '--on-primary-hl', '--link-color', '--shadow-focus',
+  ];
   const clear = () => {
-    ['--primary', '--primary-hl', '--primary-dark', '--primary-light',
-     '--primary-bg', '--primary-surface', '--link-color', '--shadow-focus']
-      .forEach((k) => html.style.removeProperty(k));
+    ACCENT_KEYS.forEach((k) => html.style.removeProperty(k));
+    activeAccent = null;
   };
 
   if (!hex) { clear(); return; }
@@ -138,6 +145,10 @@ function applyAccentColor(hex) {
   const pressed = hslToHex(hsl.h, hsl.s, Math.max(0, hsl.l - 0.08));
   const light = hslToHex(hsl.h, hsl.s, Math.min(1, hsl.l + 0.12));
 
+  // 文字型主题色 / 主色底上的文字都按当前深浅主题现算：换主题时要重新跑一遍
+  const theme = getEffectiveTheme();
+  const ink = accentInk(hex, theme);
+
   const set = (k, v) => html.style.setProperty(k, v);
   set('--primary', hex);
   set('--primary-hl', hover);
@@ -145,8 +156,94 @@ function applyAccentColor(hex) {
   set('--primary-light', light);
   set('--primary-bg', hexToRgba(hex, 0.14));
   set('--primary-surface', hexToRgba(hex, 0.08));
-  set('--link-color', hex);
+  set('--primary-ink', ink);
+  // 主色底上的文字：颜色偏亮配黑字、偏暗配白字，别让深色主色配黑字看不见
+  set('--on-primary', onAccentColor(hex));
+  set('--on-primary-hl', onAccentColor(hover));
+  set('--link-color', ink);
   set('--shadow-focus', hexToRgba(hex, 0.30));
+  activeAccent = hex;
+}
+
+/**
+ * sRGB 通道 → 线性光（WCAG 2.x 相对亮度用）
+ * @param {number} channel 0–255
+ */
+function linearChannel(channel) {
+  const s = channel / 255;
+  return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+}
+
+/**
+ * 相对亮度（0–1）
+ * @param {string} hex #rrggbb
+ */
+function relativeLuminance(hex) {
+  const c = parseHexColor(hex);
+  if (!c) return 0;
+  return 0.2126 * linearChannel(c.r) + 0.7152 * linearChannel(c.g) + 0.0722 * linearChannel(c.b);
+}
+
+/**
+ * 两色对比度（1–21）
+ * @param {string} a #rrggbb
+ * @param {string} b #rrggbb
+ */
+function contrastRatio(a, b) {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const hi = Math.max(la, lb);
+  const lo = Math.min(la, lb);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * 解析 #rrggbb
+ * @param {string} hex
+ * @returns {{r:number,g:number,b:number}|null}
+ */
+function parseHexColor(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex ?? '').trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+/** 「文字型主题色」要对比的背景：浅色主题是卡片白，深色主题是卡片深灰 */
+const INK_BACKGROUND = { light: '#ffffff', dark: '#151515' };
+
+/**
+ * 由主色派生「文字型主题色」（--primary-ink / --link-color）：
+ * 保持色相不变，往背景的反方向挪明度，直到对比度 ≥ 4.5:1。
+ * 这样浅黄、深蓝这类极端主色也不会出现读不清的绿字/黄字。
+ *
+ * @param {string} hex 主色
+ * @param {'light'|'dark'} theme 当前主题
+ * @returns {string} 可安全用作文字的 #rrggbb
+ */
+function accentInk(hex, theme) {
+  const hsl = hexToHsl(hex);
+  if (!hsl) return hex;
+  const bg = INK_BACKGROUND[theme] || INK_BACKGROUND.light;
+  const step = theme === 'dark' ? 0.02 : -0.02;
+
+  let l = hsl.l;
+  for (let i = 0; i < 50; i += 1) {
+    const candidate = hslToHex(hsl.h, hsl.s, Math.min(1, Math.max(0, l)));
+    if (contrastRatio(candidate, bg) >= 4.5) return candidate;
+    l += step;
+    if (l <= 0 || l >= 1) break;
+  }
+  return hslToHex(hsl.h, hsl.s, theme === 'dark' ? 1 : 0);
+}
+
+/**
+ * 主色底上该用黑字还是白字：取对比度更高的一方
+ * @param {string} hex 主色
+ * @returns {string} '#000000' 或 '#ffffff'
+ */
+function onAccentColor(hex) {
+  return contrastRatio(hex, '#000000') >= contrastRatio(hex, '#ffffff') ? '#000000' : '#ffffff';
 }
 
 /**
@@ -176,6 +273,8 @@ function applyTheme(theme) {
   const html = document.documentElement;
   html.setAttribute('data-theme', theme);
   localStorage.setItem('mlttc-theme', theme);
+  // 文字型主题色是按背景明暗算的，换主题必须重算一遍
+  if (activeAccent) applyAccentColor(activeAccent);
   updateToggleButtonIcon(theme);
 }
 

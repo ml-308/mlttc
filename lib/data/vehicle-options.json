@@ -1,158 +1,3755 @@
 {
-  "updatedAt": "2026-11-21",
-  "note": "车辆信息页的候选值。fields 的键与 information.html 里控件的 id 一一对应；值为字符串数组或 { value, aliases } 对象数组。",
+  "updatedAt": "2026-11-22",
+  "note": "车辆信息页的候选值。fields 的键与 information.html 里控件的 id 一一对应；值为字符串数组或 { value, aliases } 对象数组（aliases 参与匹配，不写入表单）。",
   "sources": [
-    "GB/T 19596-2017《电动汽车术语》",
-    "GA 802-2019《机动车类型 术语和定义》",
-    "机动车登记信息代码（燃料种类）",
-    "主要客车厂与零部件品牌公开产品页（仅取品牌 / 系列级）"
+    "客车网车型库与配套品牌库：https://www.chinabuses.com/product/ 、https://www.chinabuses.com/supply/",
+    "客车导购（buses.cn）品牌大全与整车配置页：https://www.buses.cn/brand/",
+    "GA 802-2019《道路交通管理 机动车类型》、GB/T 15089-2001《机动车辆及挂车分类》",
+    "GB/T 22484-2025《城市公共汽电车客运服务规范》、GB 13094《客车结构安全要求》",
+    "玉柴、潍柴、宁德时代、福伊特、艾里逊、米其林、Firestone、ContiTech、申沃、金龙、福田欧辉等厂商官网"
   ],
   "fields": {
     "operation-status": [
       "待上线",
+      "待投放",
+      "已上线",
       "运营中",
+      "正常运营",
+      "试运行",
+      "试运营",
+      "调试中",
+      "待命",
+      "备班",
+      "备用",
+      "机动",
       "停驶",
-      "维修中",
+      "临时停驶",
+      "长期停驶",
+      "季节性停驶",
       "停运",
       "封存",
-      "报废"
+      "闲置",
+      "维修中",
+      "保养中",
+      "小修",
+      "中修",
+      "大修",
+      "待修",
+      "待件",
+      "事故车",
+      "待报废",
+      "报废",
+      "已报废",
+      "注销",
+      "退役",
+      "下线",
+      "租赁",
+      "借用",
+      "调拨",
+      "外借",
+      "复驶",
+      "恢复运营",
+      "充电中",
+      "待充电",
+      "在途",
+      "待检",
+      "年检"
     ],
     "fuel-type": [
-      "纯电动",
-      "插电式混合动力",
-      "油电混合",
-      "增程式电动",
-      "燃料电池",
-      "氢燃料",
-      "汽油",
-      "柴油",
-      "天然气",
-      "液化石油气",
-      "甲醇",
-      "太阳能",
+      {
+        "value": "柴油",
+        "aliases": [
+          "Diesel",
+          "D"
+        ]
+      },
+      {
+        "value": "国五柴油",
+        "aliases": [
+          "China V"
+        ]
+      },
+      {
+        "value": "国六柴油",
+        "aliases": [
+          "China VI"
+        ]
+      },
+      {
+        "value": "汽油",
+        "aliases": [
+          "Gasoline",
+          "G"
+        ]
+      },
+      {
+        "value": "车用压缩天然气",
+        "aliases": [
+          "CNG",
+          "压缩天然气"
+        ]
+      },
+      {
+        "value": "车用液化天然气",
+        "aliases": [
+          "LNG",
+          "液化天然气"
+        ]
+      },
+      {
+        "value": "天然气",
+        "aliases": [
+          "NG",
+          "燃气",
+          "CNG/LNG"
+        ]
+      },
+      {
+        "value": "液化石油气",
+        "aliases": [
+          "LPG"
+        ]
+      },
+      {
+        "value": "纯电动",
+        "aliases": [
+          "BEV",
+          "EV",
+          "纯电"
+        ]
+      },
+      {
+        "value": "插电式混合动力",
+        "aliases": [
+          "PHEV",
+          "插混"
+        ]
+      },
+      {
+        "value": "油电混合动力",
+        "aliases": [
+          "HEV",
+          "油电混动",
+          "混合动力"
+        ]
+      },
+      {
+        "value": "气电混合动力",
+        "aliases": [
+          "NG+Electric",
+          "气电混动"
+        ]
+      },
+      {
+        "value": "增程式电动",
+        "aliases": [
+          "EREV",
+          "增程"
+        ]
+      },
+      {
+        "value": "氢燃料电池",
+        "aliases": [
+          "FCEV",
+          "H2",
+          "氢能",
+          "氢燃料"
+        ]
+      },
+      {
+        "value": "燃料电池",
+        "aliases": [
+          "FCV"
+        ]
+      },
+      {
+        "value": "甲醇",
+        "aliases": [
+          "Methanol",
+          "M100",
+          "M85"
+        ]
+      },
+      {
+        "value": "乙醇",
+        "aliases": [
+          "Ethanol",
+          "E10",
+          "E85"
+        ]
+      },
+      {
+        "value": "生物柴油",
+        "aliases": [
+          "Biodiesel",
+          "B5",
+          "B10"
+        ]
+      },
+      {
+        "value": "二甲醚",
+        "aliases": [
+          "DME"
+        ]
+      },
+      {
+        "value": "双燃料（柴油-天然气）",
+        "aliases": [
+          "Dual Fuel",
+          "双燃料"
+        ]
+      },
+      {
+        "value": "汽油-天然气双燃料",
+        "aliases": [
+          "Bi-fuel"
+        ]
+      },
+      {
+        "value": "无轨电车",
+        "aliases": [
+          "Trolleybus",
+          "在线充电"
+        ]
+      },
+      {
+        "value": "超级电容",
+        "aliases": [
+          "Supercapacitor"
+        ]
+      },
+      {
+        "value": "钛酸锂快充",
+        "aliases": [
+          "LTO"
+        ]
+      },
+      {
+        "value": "换电式纯电动",
+        "aliases": [
+          "Battery Swap",
+          "换电"
+        ]
+      },
+      {
+        "value": "新能源",
+        "aliases": [
+          "NEV",
+          "新能源汽车"
+        ]
+      },
+      {
+        "value": "清洁能源",
+        "aliases": [
+          "Clean Energy"
+        ]
+      },
       "其他"
     ],
     "vehicle-type": [
-      "大型客车",
-      "中型客车",
-      "小型客车",
-      "微型客车",
-      "城市客车",
-      "公路客车",
-      "铰接客车",
-      "双层客车",
-      "无轨电车"
+      {
+        "value": "大型客车",
+        "aliases": [
+          "Large Bus"
+        ]
+      },
+      {
+        "value": "中型客车",
+        "aliases": [
+          "Medium Bus"
+        ]
+      },
+      {
+        "value": "小型客车",
+        "aliases": [
+          "Small Bus"
+        ]
+      },
+      {
+        "value": "微型客车"
+      },
+      {
+        "value": "M2类客车",
+        "aliases": [
+          "Category M2"
+        ]
+      },
+      {
+        "value": "M3类客车",
+        "aliases": [
+          "Category M3"
+        ]
+      },
+      {
+        "value": "I级客车",
+        "aliases": [
+          "Class I",
+          "城市客车等级"
+        ]
+      },
+      {
+        "value": "II级客车",
+        "aliases": [
+          "Class II"
+        ]
+      },
+      {
+        "value": "III级客车",
+        "aliases": [
+          "Class III"
+        ]
+      },
+      {
+        "value": "A级低地板客车",
+        "aliases": [
+          "Class A"
+        ]
+      },
+      {
+        "value": "B级非低地板客车",
+        "aliases": [
+          "Class B"
+        ]
+      },
+      {
+        "value": "营运客车",
+        "aliases": [
+          "Commercial Bus"
+        ]
+      },
+      {
+        "value": "大型营运客车",
+        "aliases": [
+          "Large Commercial Bus"
+        ]
+      },
+      {
+        "value": "中型营运客车",
+        "aliases": [
+          "Medium Commercial Bus"
+        ]
+      },
+      {
+        "value": "小型营运客车",
+        "aliases": [
+          "Small Commercial Bus"
+        ]
+      },
+      {
+        "value": "高一级客车",
+        "aliases": [
+          "High Grade I"
+        ]
+      },
+      {
+        "value": "高二级客车",
+        "aliases": [
+          "High Grade II"
+        ]
+      },
+      {
+        "value": "高三级客车",
+        "aliases": [
+          "High Grade III"
+        ]
+      },
+      {
+        "value": "普通级营运客车",
+        "aliases": [
+          "Ordinary Grade"
+        ]
+      },
+      {
+        "value": "城市客车",
+        "aliases": [
+          "City Bus"
+        ]
+      },
+      {
+        "value": "公路客车",
+        "aliases": [
+          "Intercity Bus",
+          "公路客运"
+        ]
+      },
+      {
+        "value": "旅游客车",
+        "aliases": [
+          "Tourist Coach"
+        ]
+      },
+      {
+        "value": "团体客车",
+        "aliases": [
+          "Group Bus",
+          "通勤客车"
+        ]
+      },
+      {
+        "value": "校车",
+        "aliases": [
+          "School Bus"
+        ]
+      },
+      {
+        "value": "幼儿校车",
+        "aliases": [
+          "Kindergarten Bus"
+        ]
+      },
+      {
+        "value": "小学生校车",
+        "aliases": [
+          "Primary School Bus"
+        ]
+      },
+      {
+        "value": "中小学生校车",
+        "aliases": [
+          "Dedicated School Bus"
+        ]
+      },
+      {
+        "value": "铰接客车",
+        "aliases": [
+          "Articulated Bus",
+          "铰接车",
+          "18米"
+        ]
+      },
+      {
+        "value": "双层客车",
+        "aliases": [
+          "Double-decker"
+        ]
+      },
+      {
+        "value": "无轨电车",
+        "aliases": [
+          "Trolleybus"
+        ]
+      },
+      {
+        "value": "越野客车",
+        "aliases": [
+          "Off-road Bus"
+        ]
+      },
+      {
+        "value": "专用客车",
+        "aliases": [
+          "Special Bus"
+        ]
+      },
+      {
+        "value": "低地板城市客车",
+        "aliases": [
+          "Low-floor Bus"
+        ]
+      },
+      {
+        "value": "低入口城市客车",
+        "aliases": [
+          "Low-entry Bus"
+        ]
+      },
+      {
+        "value": "高地板客车",
+        "aliases": [
+          "High-floor Bus"
+        ]
+      },
+      {
+        "value": "BRT客车",
+        "aliases": [
+          "BRT Bus",
+          "快速公交"
+        ]
+      },
+      {
+        "value": "社区巴士",
+        "aliases": [
+          "Community Bus",
+          "接驳巴士"
+        ]
+      },
+      {
+        "value": "微循环巴士",
+        "aliases": [
+          "Micro-loop Bus"
+        ]
+      },
+      {
+        "value": "定制公交",
+        "aliases": [
+          "Customized Bus"
+        ]
+      },
+      {
+        "value": "定制客运",
+        "aliases": [
+          "Customized Intercity"
+        ]
+      },
+      {
+        "value": "城际客车",
+        "aliases": [
+          "Intercity Coach"
+        ]
+      },
+      {
+        "value": "长途客车",
+        "aliases": [
+          "Long-distance Coach"
+        ]
+      },
+      {
+        "value": "卧铺客车",
+        "aliases": [
+          "Sleeper Coach"
+        ]
+      },
+      {
+        "value": "机场摆渡车",
+        "aliases": [
+          "Airport Shuttle"
+        ]
+      },
+      {
+        "value": "观光车",
+        "aliases": [
+          "Sightseeing Bus"
+        ]
+      },
+      {
+        "value": "无障碍客车",
+        "aliases": [
+          "Accessible Bus"
+        ]
+      },
+      {
+        "value": "客车底盘",
+        "aliases": [
+          "Bus Chassis"
+        ]
+      },
+      {
+        "value": "城市公共汽电车",
+        "aliases": [
+          "Urban Public Bus",
+          "Urban Public Trolley"
+        ]
+      },
+      {
+        "value": "公共汽车",
+        "aliases": [
+          "Public Bus",
+          "公交车"
+        ]
+      },
+      {
+        "value": "大巴",
+        "aliases": [
+          "Coach",
+          "Big Bus"
+        ]
+      },
+      {
+        "value": "中巴",
+        "aliases": [
+          "Midibus"
+        ]
+      },
+      {
+        "value": "小巴",
+        "aliases": [
+          "Minibus"
+        ]
+      },
+      {
+        "value": "快线巴士",
+        "aliases": [
+          "Express Bus"
+        ]
+      },
+      {
+        "value": "通学公交",
+        "aliases": [
+          "School Service"
+        ]
+      },
+      {
+        "value": "通勤班车",
+        "aliases": [
+          "Commuter Shuttle"
+        ]
+      },
+      {
+        "value": "旅游专线",
+        "aliases": [
+          "Tourist Line"
+        ]
+      },
+      {
+        "value": "需求响应公交",
+        "aliases": [
+          "DRT",
+          "预约公交"
+        ]
+      },
+      {
+        "value": "网约巴士",
+        "aliases": [
+          "On-demand Bus"
+        ]
+      },
+      {
+        "value": "城乡公交",
+        "aliases": [
+          "Urban-rural Bus"
+        ]
+      },
+      {
+        "value": "镇村公交",
+        "aliases": [
+          "Town-village Bus"
+        ]
+      },
+      {
+        "value": "农村客运",
+        "aliases": [
+          "Rural Passenger Transport"
+        ]
+      }
     ],
     "vehicle-model": [
-      { "value": "宇通", "aliases": ["宇通客车", "YUTONG", "ZK"] },
-      { "value": "金龙", "aliases": ["厦门金龙", "KING LONG", "XMQ"] },
-      { "value": "金旅", "aliases": ["厦门金旅", "GOLDEN DRAGON", "XML"] },
-      { "value": "海格", "aliases": ["苏州金龙", "HIGER", "KLQ"] },
-      { "value": "中通", "aliases": ["中通客车", "ZHONGTONG", "LCK"] },
-      { "value": "安凯", "aliases": ["安凯客车", "ANKAI", "HFF"] },
-      { "value": "亚星", "aliases": ["扬州亚星", "YAXING", "JS"] },
-      { "value": "申沃", "aliases": ["上海申沃", "SUNWIN", "SWB"] },
-      { "value": "比亚迪", "aliases": ["BYD", "K9"] },
-      { "value": "福田欧辉", "aliases": ["欧辉", "FOTON"] },
-      { "value": "中车电动", "aliases": ["中车时代电动", "CRRC"] },
-      { "value": "开沃", "aliases": ["南京金龙", "SKYWORTH"] },
-      { "value": "远程", "aliases": ["远程汽车", "吉利远程"] },
-      { "value": "东风超龙", "aliases": ["东风客车", "DFAC"] },
-      { "value": "五菱", "aliases": ["五菱客车", "WULING"] },
-      { "value": "依维柯", "aliases": ["IVECO"] }
+      {
+        "value": "宇通客车",
+        "aliases": [
+          "Yutong",
+          "ZK",
+          "宇通"
+        ]
+      },
+      {
+        "value": "金龙客车",
+        "aliases": [
+          "King Long",
+          "XMQ",
+          "大金龙"
+        ]
+      },
+      {
+        "value": "金旅客车",
+        "aliases": [
+          "Golden Dragon",
+          "XML",
+          "小金龙",
+          "厦门金旅"
+        ]
+      },
+      {
+        "value": "海格客车",
+        "aliases": [
+          "Higer",
+          "KLQ",
+          "苏州金龙"
+        ]
+      },
+      {
+        "value": "中通客车",
+        "aliases": [
+          "Zhongtong",
+          "LCK",
+          "中通"
+        ]
+      },
+      {
+        "value": "安凯客车",
+        "aliases": [
+          "Ankai",
+          "HFF",
+          "安凯"
+        ]
+      },
+      {
+        "value": "亚星客车",
+        "aliases": [
+          "Asiastar",
+          "JS",
+          "亚星"
+        ]
+      },
+      {
+        "value": "申沃客车",
+        "aliases": [
+          "Sunwin",
+          "SXC",
+          "申沃",
+          "上海申沃"
+        ]
+      },
+      {
+        "value": "比亚迪商用车",
+        "aliases": [
+          "BYD",
+          "比亚迪"
+        ]
+      },
+      {
+        "value": "福田欧辉",
+        "aliases": [
+          "Foton AUV",
+          "BJ",
+          "欧辉"
+        ]
+      },
+      {
+        "value": "中车电动",
+        "aliases": [
+          "CRRC",
+          "TEG",
+          "中车时代电动",
+          "南车时代"
+        ]
+      },
+      {
+        "value": "开沃汽车",
+        "aliases": [
+          "Skywell",
+          "NJL",
+          "南京金龙",
+          "创维汽车"
+        ]
+      },
+      {
+        "value": "银隆新能源",
+        "aliases": [
+          "Yinlong",
+          "Guangtong",
+          "CAT",
+          "广通",
+          "格力钛"
+        ]
+      },
+      {
+        "value": "黄海客车",
+        "aliases": [
+          "Huanghai",
+          "DD",
+          "丹东黄海"
+        ]
+      },
+      {
+        "value": "申龙客车",
+        "aliases": [
+          "Sunlong",
+          "SLK",
+          "上海申龙"
+        ]
+      },
+      {
+        "value": "蜀都客车",
+        "aliases": [
+          "Shudu",
+          "CDK",
+          "成都客车"
+        ]
+      },
+      {
+        "value": "恒通客车",
+        "aliases": [
+          "Hengtong",
+          "CKZ",
+          "重庆恒通"
+        ]
+      },
+      {
+        "value": "东风客车",
+        "aliases": [
+          "Dongfeng",
+          "EQ",
+          "DF",
+          "东风超龙"
+        ]
+      },
+      {
+        "value": "一汽客车",
+        "aliases": [
+          "FAW",
+          "CA",
+          "一汽大连"
+        ]
+      },
+      {
+        "value": "江淮客车",
+        "aliases": [
+          "JAC",
+          "HK",
+          "江淮"
+        ]
+      },
+      {
+        "value": "五菱客车",
+        "aliases": [
+          "Wuling",
+          "GL",
+          "五菱"
+        ]
+      },
+      {
+        "value": "南京依维柯",
+        "aliases": [
+          "NAVECO",
+          "NJ",
+          "依维柯"
+        ]
+      },
+      {
+        "value": "上汽大通",
+        "aliases": [
+          "Maxus",
+          "SH",
+          "大通"
+        ]
+      },
+      {
+        "value": "江铃全顺",
+        "aliases": [
+          "Ford Transit",
+          "JX",
+          "全顺"
+        ]
+      },
+      {
+        "value": "金杯客车",
+        "aliases": [
+          "Jinbei",
+          "SY",
+          "金杯"
+        ]
+      },
+      {
+        "value": "长安客车",
+        "aliases": [
+          "Changan",
+          "SC",
+          "长安"
+        ]
+      },
+      {
+        "value": "丰田考斯特",
+        "aliases": [
+          "Toyota Coaster",
+          "柯斯达"
+        ]
+      },
+      {
+        "value": "百路佳",
+        "aliases": [
+          "Bonluck",
+          "JXK"
+        ]
+      },
+      {
+        "value": "北方客车",
+        "aliases": [
+          "North Bus",
+          "BFC",
+          "北京北方"
+        ]
+      },
+      {
+        "value": "飞驰客车",
+        "aliases": [
+          "Feichi",
+          "FSQ",
+          "佛山飞驰"
+        ]
+      },
+      {
+        "value": "奇瑞万达",
+        "aliases": [
+          "Chery Wanda",
+          "WD",
+          "万达客车"
+        ]
+      },
+      {
+        "value": "吉利星际",
+        "aliases": [
+          "Geely Interstellar"
+        ]
+      },
+      {
+        "value": "万象客车",
+        "aliases": [
+          "Wanxiang",
+          "上海万象"
+        ]
+      },
+      {
+        "value": "少林客车",
+        "aliases": [
+          "Shaolin",
+          "SLG"
+        ]
+      },
+      {
+        "value": "舒驰客车",
+        "aliases": [
+          "Shuchi",
+          "YTK"
+        ]
+      },
+      {
+        "value": "上饶客车",
+        "aliases": [
+          "Shangrao",
+          "SR"
+        ]
+      },
+      {
+        "value": "大运客车",
+        "aliases": [
+          "Dayun"
+        ]
+      },
+      {
+        "value": "中植客车",
+        "aliases": [
+          "Zhongzhi",
+          "ZX",
+          "已停产"
+        ]
+      },
+      {
+        "value": "沂星客车",
+        "aliases": [
+          "Yixing",
+          "已停产"
+        ]
+      },
+      {
+        "value": "陆地方舟",
+        "aliases": [
+          "Landport",
+          "已停产"
+        ]
+      },
+      {
+        "value": "威麟客车",
+        "aliases": [
+          "Weilin",
+          "已停产"
+        ]
+      },
+      {
+        "value": "乐达客车",
+        "aliases": [
+          "Leda",
+          "已停产"
+        ]
+      },
+      {
+        "value": "峨眉客车",
+        "aliases": [
+          "Emei",
+          "已停产"
+        ]
+      },
+      {
+        "value": "昆明客车",
+        "aliases": [
+          "Kunming",
+          "已停产"
+        ]
+      },
+      {
+        "value": "建康客车",
+        "aliases": [
+          "Jiankang",
+          "已停产"
+        ]
+      },
+      {
+        "value": "青年客车",
+        "aliases": [
+          "Youngman",
+          "JNP",
+          "青年尼奥普兰",
+          "已停产"
+        ]
+      },
+      {
+        "value": "西沃客车",
+        "aliases": [
+          "Xiwo",
+          "XW",
+          "西安沃尔沃",
+          "已停产"
+        ]
+      },
+      {
+        "value": "桂林大宇",
+        "aliases": [
+          "Guilin Daewoo",
+          "GDW",
+          "已停产"
+        ]
+      },
+      {
+        "value": "扬子江客车",
+        "aliases": [
+          "Yangzijiang",
+          "WG",
+          "武汉扬子江",
+          "已停产"
+        ]
+      },
+      {
+        "value": "五洲龙客车",
+        "aliases": [
+          "Wuzhoulong",
+          "WZL",
+          "已停产"
+        ]
+      },
+      {
+        "value": "常隆客车",
+        "aliases": [
+          "Changlong",
+          "YS",
+          "已停产"
+        ]
+      },
+      {
+        "value": "长江客车",
+        "aliases": [
+          "Changjiang",
+          "CJ",
+          "常州长江",
+          "已停产"
+        ]
+      },
+      {
+        "value": "京华客车",
+        "aliases": [
+          "Jinghua",
+          "BK",
+          "北京京华",
+          "已停产"
+        ]
+      },
+      {
+        "value": "天津客车",
+        "aliases": [
+          "Tianjin",
+          "TJ",
+          "已停产"
+        ]
+      },
+      {
+        "value": "广州客车",
+        "aliases": [
+          "Guangzhou",
+          "GZ",
+          "已停产"
+        ]
+      },
+      {
+        "value": "黑龙江客车",
+        "aliases": [
+          "Heilongjiang",
+          "HLJ",
+          "已停产"
+        ]
+      },
+      {
+        "value": "四平客车",
+        "aliases": [
+          "Siping",
+          "SP",
+          "已停产"
+        ]
+      },
+      {
+        "value": "衡山客车",
+        "aliases": [
+          "Hengshan",
+          "HS",
+          "已停产"
+        ]
+      },
+      {
+        "value": "骊山客车",
+        "aliases": [
+          "Lishan",
+          "LS",
+          "已停产"
+        ]
+      },
+      {
+        "value": "安源客车",
+        "aliases": [
+          "Anyuan",
+          "PK",
+          "已停产"
+        ]
+      },
+      {
+        "value": "牡丹客车",
+        "aliases": [
+          "Mudan",
+          "MD",
+          "已停产"
+        ]
+      },
+      {
+        "value": "沃尔沃客车",
+        "aliases": [
+          "Volvo",
+          "进口"
+        ]
+      },
+      {
+        "value": "斯堪尼亚",
+        "aliases": [
+          "Scania",
+          "进口"
+        ]
+      },
+      {
+        "value": "曼恩客车",
+        "aliases": [
+          "MAN",
+          "进口"
+        ]
+      },
+      {
+        "value": "奔驰客车",
+        "aliases": [
+          "Mercedes-Benz",
+          "进口"
+        ]
+      },
+      {
+        "value": "日野客车",
+        "aliases": [
+          "Hino",
+          "进口"
+        ]
+      },
+      {
+        "value": "三菱扶桑",
+        "aliases": [
+          "Mitsubishi Fuso",
+          "进口"
+        ]
+      },
+      {
+        "value": "五十铃客车",
+        "aliases": [
+          "Isuzu",
+          "进口"
+        ]
+      },
+      {
+        "value": "现代客车",
+        "aliases": [
+          "Hyundai",
+          "进口"
+        ]
+      },
+      {
+        "value": "大宇客车",
+        "aliases": [
+          "Daewoo",
+          "进口"
+        ]
+      },
+      {
+        "value": "日产柴",
+        "aliases": [
+          "Nissan Diesel",
+          "UD",
+          "进口"
+        ]
+      },
+      {
+        "value": "塔塔客车",
+        "aliases": [
+          "Tata",
+          "进口"
+        ]
+      },
+      {
+        "value": "索拉瑞斯",
+        "aliases": [
+          "Solaris",
+          "进口"
+        ]
+      },
+      {
+        "value": "赛特拉",
+        "aliases": [
+          "Setra",
+          "进口"
+        ]
+      },
+      {
+        "value": "尼奥普兰",
+        "aliases": [
+          "Neoplan",
+          "进口"
+        ]
+      }
     ],
     "engine": [
-      { "value": "潍柴", "aliases": ["WEICHAI", "WP"] },
-      { "value": "玉柴", "aliases": ["YUCHAI", "YC"] },
-      { "value": "锡柴", "aliases": ["一汽解放", "FAW"] },
-      { "value": "上柴", "aliases": ["上海柴油机"] },
-      { "value": "康明斯", "aliases": ["CUMMINS"] },
-      { "value": "云内", "aliases": ["云内动力"] },
-      { "value": "全柴", "aliases": ["全柴动力"] },
-      { "value": "大柴", "aliases": ["大连柴油机"] }
+      {
+        "value": "潍柴",
+        "aliases": [
+          "Weichai",
+          "WP",
+          "潍柴动力"
+        ]
+      },
+      {
+        "value": "玉柴",
+        "aliases": [
+          "Yuchai",
+          "YC",
+          "广西玉柴"
+        ]
+      },
+      {
+        "value": "锡柴",
+        "aliases": [
+          "FAW Xichai",
+          "CA"
+        ]
+      },
+      {
+        "value": "上柴",
+        "aliases": [
+          "SDEC",
+          "SC",
+          "上海柴油机"
+        ]
+      },
+      {
+        "value": "云内",
+        "aliases": [
+          "Yunnei",
+          "YN",
+          "昆明云内",
+          "德威"
+        ]
+      },
+      {
+        "value": "全柴",
+        "aliases": [
+          "Quanchai",
+          "QC",
+          "安徽全柴"
+        ]
+      },
+      {
+        "value": "大柴",
+        "aliases": [
+          "FAW Dalian",
+          "CA",
+          "一汽解放大连"
+        ]
+      },
+      {
+        "value": "朝柴",
+        "aliases": [
+          "Chaochai",
+          "CY",
+          "东风朝柴"
+        ]
+      },
+      {
+        "value": "扬柴",
+        "aliases": [
+          "Yangchai",
+          "YZ",
+          "潍柴扬柴"
+        ]
+      },
+      {
+        "value": "杭发",
+        "aliases": [
+          "Hangfa",
+          "WD615",
+          "中国重汽杭发"
+        ]
+      },
+      {
+        "value": "斯太尔",
+        "aliases": [
+          "Steyr",
+          "WD615"
+        ]
+      },
+      {
+        "value": "东风康明斯",
+        "aliases": [
+          "DCEC",
+          "Cummins",
+          "ISB",
+          "ISDe",
+          "ISL",
+          "ISZ"
+        ]
+      },
+      {
+        "value": "西安康明斯",
+        "aliases": [
+          "XCE",
+          "ISM",
+          "ISX"
+        ]
+      },
+      {
+        "value": "广西康明斯",
+        "aliases": [
+          "GCIC",
+          "QSB",
+          "QSL"
+        ]
+      },
+      {
+        "value": "康明斯",
+        "aliases": [
+          "Cummins"
+        ]
+      },
+      {
+        "value": "上汽菲亚特红岩",
+        "aliases": [
+          "FPT",
+          "F1C",
+          "F2C",
+          "Cursor",
+          "上菲红"
+        ]
+      },
+      {
+        "value": "曼恩",
+        "aliases": [
+          "MAN",
+          "D08",
+          "D20",
+          "D26",
+          "D28",
+          "D38"
+        ]
+      },
+      {
+        "value": "奔驰发动机",
+        "aliases": [
+          "Mercedes-Benz",
+          "OM906",
+          "OM926",
+          "OM457",
+          "OM471"
+        ]
+      },
+      {
+        "value": "日野",
+        "aliases": [
+          "Hino",
+          "P11C",
+          "E13C",
+          "J08E"
+        ]
+      },
+      {
+        "value": "上海日野",
+        "aliases": [
+          "Shanghai Hino",
+          "P11C"
+        ]
+      },
+      {
+        "value": "斗山",
+        "aliases": [
+          "Doosan",
+          "DV11",
+          "DL06",
+          "DE12"
+        ]
+      },
+      {
+        "value": "道依茨",
+        "aliases": [
+          "Deutz",
+          "BF6M1013",
+          "TCD2013"
+        ]
+      },
+      {
+        "value": "帕金斯",
+        "aliases": [
+          "Perkins",
+          "1106",
+          "1206",
+          "1506"
+        ]
+      },
+      {
+        "value": "华柴",
+        "aliases": [
+          "Huachai",
+          "BF6M1013",
+          "华北柴油机"
+        ]
+      },
+      {
+        "value": "淄柴",
+        "aliases": [
+          "Zichai",
+          "6170",
+          "Z170"
+        ]
+      },
+      {
+        "value": "济柴",
+        "aliases": [
+          "Jichai",
+          "190",
+          "260"
+        ]
+      },
+      {
+        "value": "常柴",
+        "aliases": [
+          "Changchai",
+          "4L",
+          "4M"
+        ]
+      },
+      {
+        "value": "莱动",
+        "aliases": [
+          "Laidong",
+          "4L22",
+          "4L68"
+        ]
+      },
+      {
+        "value": "新柴",
+        "aliases": [
+          "Xinchai",
+          "4D",
+          "4E"
+        ]
+      },
+      {
+        "value": "扬动",
+        "aliases": [
+          "Yangdong",
+          "YD4",
+          "YD6"
+        ]
+      },
+      {
+        "value": "依维柯发动机",
+        "aliases": [
+          "Iveco",
+          "F1C",
+          "F1A"
+        ]
+      },
+      {
+        "value": "索菲姆",
+        "aliases": [
+          "Sofim",
+          "F1C"
+        ]
+      },
+      {
+        "value": "日产柴",
+        "aliases": [
+          "UD",
+          "FE6",
+          "GE13"
+        ]
+      },
+      {
+        "value": "三菱扶桑",
+        "aliases": [
+          "Fuso",
+          "6M60",
+          "6D16"
+        ]
+      },
+      {
+        "value": "五十铃",
+        "aliases": [
+          "Isuzu",
+          "4HK1",
+          "6HK1",
+          "4JJ1"
+        ]
+      },
+      {
+        "value": "现代发动机",
+        "aliases": [
+          "Hyundai",
+          "D6CA",
+          "D6CB"
+        ]
+      },
+      {
+        "value": "大宇发动机",
+        "aliases": [
+          "Daewoo",
+          "DE12",
+          "DV11"
+        ]
+      },
+      {
+        "value": "一汽解放动力",
+        "aliases": [
+          "FAW Power"
+        ]
+      },
+      {
+        "value": "潍柴动力（集团）",
+        "aliases": [
+          "Weichai Power",
+          "潍柴+扬柴+杭发+西港"
+        ]
+      },
+      {
+        "value": "潍柴 WP10H",
+        "aliases": [
+          "WP10H"
+        ]
+      },
+      {
+        "value": "潍柴 WP12",
+        "aliases": [
+          "WP12"
+        ]
+      },
+      {
+        "value": "潍柴 WP13",
+        "aliases": [
+          "WP13"
+        ]
+      },
+      {
+        "value": "潍柴西港 WP12NG",
+        "aliases": [
+          "WP12NG",
+          "潍柴西港"
+        ]
+      },
+      {
+        "value": "玉柴 YC6L",
+        "aliases": [
+          "YC6L"
+        ]
+      },
+      {
+        "value": "玉柴 YC6MK",
+        "aliases": [
+          "YC6MK"
+        ]
+      },
+      {
+        "value": "玉柴 YC6K",
+        "aliases": [
+          "YC6K"
+        ]
+      },
+      {
+        "value": "锡柴 CA6DM3",
+        "aliases": [
+          "CA6DM3"
+        ]
+      }
     ],
     "motor": [
-      { "value": "精进电动", "aliases": ["JJE"] },
-      { "value": "大洋电机", "aliases": ["OCEAN"] },
-      { "value": "中车时代电气", "aliases": ["时代电气", "CRRC"] },
-      { "value": "汇川技术", "aliases": ["INOVANCE"] },
-      { "value": "卧龙电驱", "aliases": ["WOLONG"] },
-      { "value": "宇通电机", "aliases": ["宇通自制"] }
+      {
+        "value": "精进电动",
+        "aliases": [
+          "JJE",
+          "精进"
+        ]
+      },
+      {
+        "value": "大洋电机",
+        "aliases": [
+          "Broad Ocean"
+        ]
+      },
+      {
+        "value": "中车时代电气",
+        "aliases": [
+          "CRRC Times Electric",
+          "时代电气"
+        ]
+      },
+      {
+        "value": "汇川技术",
+        "aliases": [
+          "Inovance",
+          "汇川"
+        ]
+      },
+      {
+        "value": "卧龙电驱",
+        "aliases": [
+          "Wolong"
+        ]
+      },
+      {
+        "value": "苏州绿控",
+        "aliases": [
+          "Lvkon",
+          "绿控"
+        ]
+      },
+      {
+        "value": "上海电驱动",
+        "aliases": [
+          "Shanghai Edrive"
+        ]
+      },
+      {
+        "value": "深圳大地和",
+        "aliases": [
+          "Dadihe"
+        ]
+      },
+      {
+        "value": "巨一动力",
+        "aliases": [
+          "JEE",
+          "巨一"
+        ]
+      },
+      {
+        "value": "特百佳",
+        "aliases": [
+          "TebaiJia",
+          "电驱桥"
+        ]
+      },
+      {
+        "value": "潍柴新能源",
+        "aliases": [
+          "Weichai NE"
+        ]
+      },
+      {
+        "value": "宇通自制",
+        "aliases": [
+          "Yutong"
+        ]
+      },
+      {
+        "value": "比亚迪",
+        "aliases": [
+          "BYD"
+        ]
+      },
+      {
+        "value": "华为数字能源",
+        "aliases": [
+          "Huawei DriveONE",
+          "DriveONE"
+        ]
+      },
+      {
+        "value": "法雷奥西门子",
+        "aliases": [
+          "Valeo Siemens"
+        ]
+      },
+      {
+        "value": "采埃孚电机",
+        "aliases": [
+          "ZF",
+          "CeTrax",
+          "AVE130"
+        ]
+      },
+      {
+        "value": "日立",
+        "aliases": [
+          "Hitachi Astemo"
+        ]
+      },
+      {
+        "value": "东芝",
+        "aliases": [
+          "Toshiba"
+        ]
+      },
+      {
+        "value": "三菱电机",
+        "aliases": [
+          "Mitsubishi Electric"
+        ]
+      },
+      {
+        "value": "博世",
+        "aliases": [
+          "Bosch"
+        ]
+      },
+      {
+        "value": "大陆电机",
+        "aliases": [
+          "Continental"
+        ]
+      },
+      {
+        "value": "麦格纳",
+        "aliases": [
+          "Magna"
+        ]
+      },
+      {
+        "value": "凯博易控",
+        "aliases": [
+          "eKontrol"
+        ]
+      },
+      {
+        "value": "盘毂动力",
+        "aliases": [
+          "PanGu",
+          "轴向磁通"
+        ]
+      },
+      {
+        "value": "中车株洲电机",
+        "aliases": [
+          "CRRC Zhuzhou"
+        ]
+      },
+      {
+        "value": "湘潭电机",
+        "aliases": [
+          "XEMC"
+        ]
+      },
+      {
+        "value": "南洋电机",
+        "aliases": [
+          "Nanyang"
+        ]
+      },
+      {
+        "value": "方正电机",
+        "aliases": [
+          "Fangzheng"
+        ]
+      },
+      {
+        "value": "江特电机",
+        "aliases": [
+          "Jiangte"
+        ]
+      },
+      {
+        "value": "东风电驱动",
+        "aliases": [
+          "DFM eDrive"
+        ]
+      },
+      {
+        "value": "法士特新能源",
+        "aliases": [
+          "Fast NE"
+        ]
+      },
+      {
+        "value": "上汽变速器",
+        "aliases": [
+          "SAIC Transmission"
+        ]
+      },
+      {
+        "value": "一汽解放电驱",
+        "aliases": [
+          "FAW eDrive"
+        ]
+      },
+      "ABB",
+      {
+        "value": "西门子",
+        "aliases": [
+          "Siemens"
+        ]
+      },
+      {
+        "value": "安川",
+        "aliases": [
+          "Yaskawa"
+        ]
+      },
+      {
+        "value": "雷米",
+        "aliases": [
+          "Remy"
+        ]
+      },
+      {
+        "value": "中车大同",
+        "aliases": [
+          "CRRC Datong"
+        ]
+      },
+      {
+        "value": "兰州电机",
+        "aliases": [
+          "Lanzhou Motor"
+        ]
+      }
     ],
     "battery": [
-      { "value": "宁德时代", "aliases": ["CATL"] },
-      { "value": "比亚迪", "aliases": ["BYD"] },
-      { "value": "亿纬锂能", "aliases": ["EVE"] },
-      { "value": "国轩高科", "aliases": ["GUOXUAN"] },
-      { "value": "中创新航", "aliases": ["CALB", "中航锂电"] },
-      { "value": "力神", "aliases": ["LISHEN"] },
-      { "value": "微宏动力", "aliases": ["MICROVAST"] },
-      { "value": "盟固利", "aliases": ["MGL"] }
+      {
+        "value": "宁德时代",
+        "aliases": [
+          "CATL"
+        ]
+      },
+      {
+        "value": "比亚迪",
+        "aliases": [
+          "BYD",
+          "刀片电池"
+        ]
+      },
+      {
+        "value": "亿纬锂能",
+        "aliases": [
+          "EVE",
+          "亿纬"
+        ]
+      },
+      {
+        "value": "国轩高科",
+        "aliases": [
+          "Gotion",
+          "国轩"
+        ]
+      },
+      {
+        "value": "中创新航",
+        "aliases": [
+          "CALB",
+          "中航锂电"
+        ]
+      },
+      {
+        "value": "力神",
+        "aliases": [
+          "Lishen",
+          "天津力神"
+        ]
+      },
+      {
+        "value": "微宏动力",
+        "aliases": [
+          "Microvast",
+          "微宏"
+        ]
+      },
+      {
+        "value": "盟固利",
+        "aliases": [
+          "Mengguli",
+          "中信国安盟固利"
+        ]
+      },
+      {
+        "value": "万向A123",
+        "aliases": [
+          "Wanxiang A123",
+          "万向一二三"
+        ]
+      },
+      {
+        "value": "孚能科技",
+        "aliases": [
+          "Farasis"
+        ]
+      },
+      {
+        "value": "远景动力",
+        "aliases": [
+          "Envision AESC",
+          "远景"
+        ]
+      },
+      {
+        "value": "星恒电源",
+        "aliases": [
+          "Phylion",
+          "星恒"
+        ]
+      },
+      {
+        "value": "鹏辉能源",
+        "aliases": [
+          "Highpower"
+        ]
+      },
+      {
+        "value": "南都电源",
+        "aliases": [
+          "Narada"
+        ]
+      },
+      {
+        "value": "超威",
+        "aliases": [
+          "Chaowei"
+        ]
+      },
+      {
+        "value": "天能",
+        "aliases": [
+          "Tianneng"
+        ]
+      },
+      {
+        "value": "瑞浦兰钧",
+        "aliases": [
+          "Rept"
+        ]
+      },
+      {
+        "value": "蜂巢能源",
+        "aliases": [
+          "SVOLT",
+          "蜂巢"
+        ]
+      },
+      {
+        "value": "欣旺达",
+        "aliases": [
+          "Sunwoda"
+        ]
+      },
+      {
+        "value": "格力钛",
+        "aliases": [
+          "Gree Titan",
+          "银隆",
+          "钛酸锂"
+        ]
+      },
+      {
+        "value": "清陶能源",
+        "aliases": [
+          "Qingtao",
+          "固态电池"
+        ]
+      },
+      {
+        "value": "卫蓝新能源",
+        "aliases": [
+          "WeLion",
+          "半固态"
+        ]
+      },
+      {
+        "value": "三星SDI",
+        "aliases": [
+          "Samsung SDI"
+        ]
+      },
+      {
+        "value": "LG新能源",
+        "aliases": [
+          "LG Energy Solution",
+          "LG"
+        ]
+      },
+      "SK On",
+      {
+        "value": "松下",
+        "aliases": [
+          "Panasonic"
+        ]
+      },
+      {
+        "value": "东芝电池",
+        "aliases": [
+          "Toshiba",
+          "SCiB"
+        ]
+      },
+      {
+        "value": "汤浅",
+        "aliases": [
+          "GS Yuasa"
+        ]
+      },
+      {
+        "value": "中科科技",
+        "aliases": [
+          "Zhongke"
+        ]
+      },
+      {
+        "value": "国联研究院",
+        "aliases": [
+          "国联汽车动力电池研究院"
+        ]
+      },
+      {
+        "value": "沃特玛",
+        "aliases": [
+          "OptimumNano",
+          "已停产",
+          "破产"
+        ]
+      },
+      {
+        "value": "国能电池",
+        "aliases": [
+          "Guoneng",
+          "已停产"
+        ]
+      },
+      {
+        "value": "捷威动力",
+        "aliases": [
+          "Jiewei",
+          "已停产"
+        ]
+      },
+      {
+        "value": "光宇",
+        "aliases": [
+          "Coslight",
+          "边缘化"
+        ]
+      },
+      {
+        "value": "春兰",
+        "aliases": [
+          "Chunlan",
+          "已退出"
+        ]
+      },
+      {
+        "value": "亿能",
+        "aliases": [
+          "Yineng",
+          "边缘化"
+        ]
+      },
+      {
+        "value": "桑顿新能源",
+        "aliases": [
+          "Sangton",
+          "边缘化"
+        ]
+      },
+      {
+        "value": "塔菲尔",
+        "aliases": [
+          "Tafel",
+          "边缘化"
+        ]
+      }
     ],
     "transmission": [
-      { "value": "采埃孚", "aliases": ["ZF"] },
-      { "value": "法士特", "aliases": ["FAST"] },
-      { "value": "綦江齿轮", "aliases": ["綦齿", "QJ"] },
-      { "value": "伊顿", "aliases": ["EATON"] },
-      { "value": "艾里逊", "aliases": ["ALLISON"] },
-      { "value": "大齿", "aliases": ["大同齿轮"] }
+      {
+        "value": "采埃孚",
+        "aliases": [
+          "ZF",
+          "采埃孚变速箱"
+        ],
+        "drive": "both"
+      },
+      {
+        "value": "采埃孚 EcoLife",
+        "aliases": [
+          "EcoLife"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "采埃孚 Ecomat",
+        "aliases": [
+          "Ecomat",
+          "Ecomat 6HP"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "福伊特",
+        "aliases": [
+          "Voith"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "福伊特 DIWA.6",
+        "aliases": [
+          "DIWA.6",
+          "DIWA"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "艾里逊",
+        "aliases": [
+          "Allison"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "艾里逊 T3100",
+        "aliases": [
+          "T3100",
+          "T系列"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "伊顿",
+        "aliases": [
+          "Eaton",
+          "UltraShift"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "法士特",
+        "aliases": [
+          "Fast",
+          "陕西法士特"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "法士特 F6A",
+        "aliases": [
+          "F6A",
+          "F8A"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "法士特 F-SHIFT",
+        "aliases": [
+          "F-SHIFT",
+          "法士特AMT"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "綦江齿轮",
+        "aliases": [
+          "Qijiang",
+          "QJ805",
+          "QJ1506",
+          "綦齿"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "綦齿 AMT",
+        "aliases": [
+          "Qijiang AMT"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "大齿",
+        "aliases": [
+          "Datong",
+          "DC6J",
+          "DC7J",
+          "DC12J"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "大齿 AMT",
+        "aliases": [
+          "Datong AMT"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "六安",
+        "aliases": [
+          "Lu'an",
+          "LC6T",
+          "LC8T"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "六安 AMT",
+        "aliases": [
+          "Lu'an AMT"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "杭州依维柯",
+        "aliases": [
+          "Hangzhou Iveco",
+          "2840.6",
+          "2865.6"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "唐山爱信",
+        "aliases": [
+          "Tangshan Aisin",
+          "5S",
+          "6S"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "格特拉克",
+        "aliases": [
+          "Getrag"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "东风变速箱",
+        "aliases": [
+          "Dongfeng",
+          "DF6S",
+          "DF8S"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "绿控 AMT",
+        "aliases": [
+          "Lvkon AMT"
+        ],
+        "drive": "ev"
+      },
+      {
+        "value": "比亚迪集成电驱",
+        "aliases": [
+          "BYD eDrive",
+          "无传统变速箱"
+        ],
+        "drive": "ev"
+      },
+      {
+        "value": "潍柴 AMT",
+        "aliases": [
+          "Weichai W-AMT"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "一汽解放 AMT",
+        "aliases": [
+          "FAW AMT"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "中国重汽 AMT",
+        "aliases": [
+          "Sinotruk AMT"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "上汽变速器",
+        "aliases": [
+          "SAIC Transmission"
+        ],
+        "drive": "both"
+      },
+      {
+        "value": "万里扬",
+        "aliases": [
+          "Wanliyang"
+        ],
+        "drive": "both"
+      },
+      {
+        "value": "青山工业",
+        "aliases": [
+          "Qingshan"
+        ],
+        "drive": "both"
+      },
+      {
+        "value": "蓝黛传动",
+        "aliases": [
+          "Landai"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "泰乐玛",
+        "aliases": [
+          "Telma"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "福伊特缓速器",
+        "aliases": [
+          "Voith Retarder",
+          "VR115",
+          "VR3250"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "电涡流缓速器",
+        "aliases": [
+          "Eddy Current Retarder",
+          "缓速器"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "特尔佳",
+        "aliases": [
+          "Terjia"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "凯迈",
+        "aliases": [
+          "Kaimai"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "法士特缓速器",
+        "aliases": [
+          "Fast Retarder"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "采埃孚缓速器",
+        "aliases": [
+          "ZF Retarder"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "舍弗勒",
+        "aliases": [
+          "Schaeffler"
+        ],
+        "drive": "ev"
+      },
+      {
+        "value": "杭齿",
+        "aliases": [
+          "Hangchi"
+        ],
+        "drive": "ice"
+      },
+      {
+        "value": "特百佳",
+        "aliases": [
+          "TebaiJia"
+        ],
+        "drive": "ev"
+      },
+      {
+        "value": "凯博易控",
+        "aliases": [
+          "eKontrol"
+        ],
+        "drive": "ev"
+      }
     ],
     "axle": [
-      { "value": "东风德纳", "aliases": ["DANA"] },
-      { "value": "汉德车桥", "aliases": ["HANDE"] },
-      { "value": "方盛车桥", "aliases": ["FANGSHENG"] },
-      { "value": "青特车桥", "aliases": ["QINGTE"] }
+      {
+        "value": "东风德纳",
+        "aliases": [
+          "Dana",
+          "DF",
+          "德纳"
+        ]
+      },
+      {
+        "value": "汉德车桥",
+        "aliases": [
+          "Hande",
+          "HDZ",
+          "陕汽汉德"
+        ]
+      },
+      {
+        "value": "方盛车桥",
+        "aliases": [
+          "FangSheng",
+          "FS"
+        ]
+      },
+      {
+        "value": "青特车桥",
+        "aliases": [
+          "Qingte",
+          "QT"
+        ]
+      },
+      {
+        "value": "合肥美桥",
+        "aliases": [
+          "Hefei Meiqiao",
+          "HF"
+        ]
+      },
+      {
+        "value": "富华车桥",
+        "aliases": [
+          "FUWA",
+          "富华"
+        ]
+      },
+      {
+        "value": "美驰",
+        "aliases": [
+          "Meritor"
+        ]
+      },
+      {
+        "value": "阿文美驰",
+        "aliases": [
+          "ArvinMeritor"
+        ]
+      },
+      {
+        "value": "SAF-Holland",
+        "aliases": [
+          "SAF"
+        ]
+      },
+      {
+        "value": "采埃孚车桥",
+        "aliases": [
+          "ZF",
+          "AVN"
+        ]
+      },
+      {
+        "value": "安凯车桥",
+        "aliases": [
+          "Ankai",
+          "AK"
+        ]
+      },
+      {
+        "value": "宇通精益达",
+        "aliases": [
+          "Yutong Jingyi",
+          "精益达"
+        ]
+      },
+      {
+        "value": "中车车桥",
+        "aliases": [
+          "CRRC"
+        ]
+      },
+      {
+        "value": "大同车桥",
+        "aliases": [
+          "Datong",
+          "DT"
+        ]
+      },
+      {
+        "value": "义和车桥",
+        "aliases": [
+          "Yihe",
+          "YH"
+        ]
+      },
+      {
+        "value": "前进车桥",
+        "aliases": [
+          "Qianjin",
+          "QJ"
+        ]
+      },
+      {
+        "value": "中国重汽桥",
+        "aliases": [
+          "Sinotruk",
+          "STR"
+        ]
+      },
+      {
+        "value": "一汽解放桥",
+        "aliases": [
+          "FAW"
+        ]
+      },
+      {
+        "value": "东风车桥",
+        "aliases": [
+          "Dongfeng"
+        ]
+      },
+      {
+        "value": "江淮车桥",
+        "aliases": [
+          "JAC"
+        ]
+      },
+      {
+        "value": "福田车桥",
+        "aliases": [
+          "Foton"
+        ]
+      },
+      {
+        "value": "上汽红岩桥",
+        "aliases": [
+          "Hongyan"
+        ]
+      },
+      {
+        "value": "北奔车桥",
+        "aliases": [
+          "Beiben"
+        ]
+      },
+      {
+        "value": "华菱车桥",
+        "aliases": [
+          "CAMC"
+        ]
+      },
+      {
+        "value": "柳汽车桥",
+        "aliases": [
+          "Dongfeng Liuzhou"
+        ]
+      },
+      {
+        "value": "大运车桥",
+        "aliases": [
+          "Dayun"
+        ]
+      },
+      {
+        "value": "三环车桥",
+        "aliases": [
+          "Sanhuan"
+        ]
+      },
+      {
+        "value": "湖北车桥",
+        "aliases": [
+          "Hubei Axle"
+        ]
+      },
+      {
+        "value": "湖南车桥",
+        "aliases": [
+          "Hunan Axle"
+        ]
+      },
+      {
+        "value": "山东蓬翔",
+        "aliases": [
+          "Pengxiang"
+        ]
+      },
+      "BPW",
+      {
+        "value": "康迈",
+        "aliases": [
+          "ConMet"
+        ]
+      },
+      {
+        "value": "中信戴卡",
+        "aliases": [
+          "Dicastal",
+          "铝轮毂"
+        ]
+      },
+      {
+        "value": "约斯特",
+        "aliases": [
+          "JOST"
+        ]
+      }
     ],
     "chassis": [
-      { "value": "一汽解放", "aliases": ["FAW"] },
-      { "value": "东风商用车", "aliases": ["东风"] },
-      { "value": "陕汽", "aliases": ["SHACMAN"] },
-      { "value": "中国重汽", "aliases": ["SINOTRUK"] },
-      { "value": "福田", "aliases": ["FOTON"] }
+      {
+        "value": "全承载式车身",
+        "aliases": [
+          "Fully Integral",
+          "全承载"
+        ]
+      },
+      {
+        "value": "半承载式车身",
+        "aliases": [
+          "Semi-integral"
+        ]
+      },
+      {
+        "value": "非承载式底盘",
+        "aliases": [
+          "Body-on-frame",
+          "有梁式"
+        ]
+      },
+      {
+        "value": "三段式底盘",
+        "aliases": [
+          "Three-section Chassis"
+        ]
+      },
+      {
+        "value": "客车专用底盘",
+        "aliases": [
+          "Bus Chassis"
+        ]
+      },
+      {
+        "value": "一汽解放底盘",
+        "aliases": [
+          "FAW"
+        ]
+      },
+      {
+        "value": "东风底盘",
+        "aliases": [
+          "Dongfeng"
+        ]
+      },
+      {
+        "value": "陕汽底盘",
+        "aliases": [
+          "Shacman"
+        ]
+      },
+      {
+        "value": "中国重汽底盘",
+        "aliases": [
+          "Sinotruk"
+        ]
+      },
+      {
+        "value": "福田底盘",
+        "aliases": [
+          "Foton"
+        ]
+      },
+      {
+        "value": "江淮底盘",
+        "aliases": [
+          "JAC"
+        ]
+      },
+      {
+        "value": "宇通底盘",
+        "aliases": [
+          "Yutong"
+        ]
+      },
+      {
+        "value": "金龙底盘",
+        "aliases": [
+          "King Long"
+        ]
+      },
+      {
+        "value": "安凯底盘",
+        "aliases": [
+          "Ankai"
+        ]
+      },
+      {
+        "value": "申沃底盘",
+        "aliases": [
+          "Sunwin"
+        ]
+      },
+      {
+        "value": "黄海底盘",
+        "aliases": [
+          "Huanghai"
+        ]
+      },
+      {
+        "value": "中车底盘",
+        "aliases": [
+          "CRRC"
+        ]
+      },
+      {
+        "value": "开沃底盘",
+        "aliases": [
+          "Skywell"
+        ]
+      },
+      {
+        "value": "沃尔沃底盘",
+        "aliases": [
+          "Volvo"
+        ]
+      },
+      {
+        "value": "斯堪尼亚底盘",
+        "aliases": [
+          "Scania"
+        ]
+      },
+      {
+        "value": "曼恩底盘",
+        "aliases": [
+          "MAN"
+        ]
+      },
+      {
+        "value": "奔驰底盘",
+        "aliases": [
+          "Mercedes-Benz"
+        ]
+      },
+      {
+        "value": "日野底盘",
+        "aliases": [
+          "Hino"
+        ]
+      },
+      {
+        "value": "五十铃底盘",
+        "aliases": [
+          "Isuzu"
+        ]
+      },
+      {
+        "value": "现代底盘",
+        "aliases": [
+          "Hyundai"
+        ]
+      },
+      {
+        "value": "大宇底盘",
+        "aliases": [
+          "Daewoo"
+        ]
+      },
+      {
+        "value": "依维柯底盘",
+        "aliases": [
+          "Iveco"
+        ]
+      },
+      {
+        "value": "尼奥普兰底盘",
+        "aliases": [
+          "Neoplan"
+        ]
+      },
+      {
+        "value": "赛特拉底盘",
+        "aliases": [
+          "Setra"
+        ]
+      }
     ],
     "tire": [
-      { "value": "米其林", "aliases": ["MICHELIN"] },
-      { "value": "普利司通", "aliases": ["BRIDGESTONE"] },
-      { "value": "固特异", "aliases": ["GOODYEAR"] },
-      { "value": "马牌", "aliases": ["大陆", "CONTINENTAL"] },
-      { "value": "朝阳", "aliases": ["中策", "CHAOYANG"] },
-      { "value": "玲珑", "aliases": ["LINGLONG"] },
-      { "value": "双钱", "aliases": ["DOUBLE COIN"] },
-      { "value": "正新", "aliases": ["MAXXIS"] },
-      { "value": "韩泰", "aliases": ["HANKOOK"] },
-      { "value": "佳通", "aliases": ["GITI"] }
+      {
+        "value": "米其林",
+        "aliases": [
+          "Michelin"
+        ]
+      },
+      {
+        "value": "普利司通",
+        "aliases": [
+          "Bridgestone"
+        ]
+      },
+      {
+        "value": "固特异",
+        "aliases": [
+          "Goodyear"
+        ]
+      },
+      {
+        "value": "马牌",
+        "aliases": [
+          "Continental",
+          "大陆"
+        ]
+      },
+      {
+        "value": "倍耐力",
+        "aliases": [
+          "Pirelli"
+        ]
+      },
+      {
+        "value": "邓禄普",
+        "aliases": [
+          "Dunlop"
+        ]
+      },
+      {
+        "value": "横滨",
+        "aliases": [
+          "Yokohama"
+        ]
+      },
+      {
+        "value": "东洋",
+        "aliases": [
+          "Toyo"
+        ]
+      },
+      {
+        "value": "韩泰",
+        "aliases": [
+          "Hankook"
+        ]
+      },
+      {
+        "value": "锦湖",
+        "aliases": [
+          "Kumho"
+        ]
+      },
+      {
+        "value": "佳通",
+        "aliases": [
+          "Giti"
+        ]
+      },
+      {
+        "value": "正新",
+        "aliases": [
+          "CST",
+          "玛吉斯",
+          "Maxxis"
+        ]
+      },
+      {
+        "value": "建大",
+        "aliases": [
+          "Kenda"
+        ]
+      },
+      {
+        "value": "朝阳",
+        "aliases": [
+          "Chaoyang",
+          "中策",
+          "Zhongce"
+        ]
+      },
+      {
+        "value": "玲珑",
+        "aliases": [
+          "Linglong"
+        ]
+      },
+      {
+        "value": "三角",
+        "aliases": [
+          "Triangle"
+        ]
+      },
+      {
+        "value": "双钱",
+        "aliases": [
+          "Double Coin"
+        ]
+      },
+      {
+        "value": "回力",
+        "aliases": [
+          "Warrior"
+        ]
+      },
+      {
+        "value": "双星",
+        "aliases": [
+          "Double Star"
+        ]
+      },
+      {
+        "value": "风神",
+        "aliases": [
+          "Aeolus"
+        ]
+      },
+      {
+        "value": "贵州轮胎",
+        "aliases": [
+          "Guizhou Tyre",
+          "前进",
+          "Qianjin"
+        ]
+      },
+      {
+        "value": "万力",
+        "aliases": [
+          "Wanli"
+        ]
+      },
+      {
+        "value": "成山",
+        "aliases": [
+          "Chengshan"
+        ]
+      },
+      {
+        "value": "华丰",
+        "aliases": [
+          "Huafeng"
+        ]
+      },
+      {
+        "value": "珠江",
+        "aliases": [
+          "Pearl River"
+        ]
+      },
+      {
+        "value": "赛轮",
+        "aliases": [
+          "Sailun"
+        ]
+      },
+      {
+        "value": "通用股份",
+        "aliases": [
+          "General"
+        ]
+      },
+      {
+        "value": "固铂",
+        "aliases": [
+          "Cooper"
+        ]
+      },
+      {
+        "value": "金宇",
+        "aliases": [
+          "JinYu"
+        ]
+      },
+      {
+        "value": "兴源",
+        "aliases": [
+          "Xingyuan"
+        ]
+      },
+      {
+        "value": "八亿",
+        "aliases": [
+          "Bayi"
+        ]
+      }
     ],
     "suspension": [
-      "空气悬架",
-      "钢板弹簧",
-      "少片簧",
-      "独立悬架",
-      "气囊悬挂",
-      "扭杆弹簧"
+      {
+        "value": "空气悬架",
+        "aliases": [
+          "Air Suspension"
+        ]
+      },
+      {
+        "value": "电控空气悬架",
+        "aliases": [
+          "ECAS"
+        ]
+      },
+      {
+        "value": "钢板弹簧",
+        "aliases": [
+          "Leaf Spring"
+        ]
+      },
+      {
+        "value": "少片簧",
+        "aliases": [
+          "Parabolic Leaf Spring"
+        ]
+      },
+      {
+        "value": "多片簧",
+        "aliases": [
+          "Multi-leaf Spring"
+        ]
+      },
+      {
+        "value": "独立悬架",
+        "aliases": [
+          "Independent Suspension"
+        ]
+      },
+      {
+        "value": "扭杆弹簧",
+        "aliases": [
+          "Torsion Bar"
+        ]
+      },
+      {
+        "value": "橡胶悬架",
+        "aliases": [
+          "Rubber Suspension"
+        ]
+      },
+      {
+        "value": "液压悬架",
+        "aliases": [
+          "Hydraulic Suspension"
+        ]
+      },
+      {
+        "value": "平衡悬架",
+        "aliases": [
+          "Balance Suspension"
+        ]
+      },
+      {
+        "value": "双横臂",
+        "aliases": [
+          "Double Wishbone"
+        ]
+      },
+      {
+        "value": "麦弗逊",
+        "aliases": [
+          "MacPherson"
+        ]
+      },
+      {
+        "value": "连续阻尼控制",
+        "aliases": [
+          "CDC"
+        ]
+      },
+      {
+        "value": "空气弹簧",
+        "aliases": [
+          "Air Spring",
+          "气囊"
+        ]
+      },
+      {
+        "value": "螺旋弹簧",
+        "aliases": [
+          "Coil Spring"
+        ]
+      },
+      {
+        "value": "稳定杆",
+        "aliases": [
+          "Anti-roll Bar",
+          "防侧倾"
+        ]
+      },
+      {
+        "value": "减振器",
+        "aliases": [
+          "Shock Absorber"
+        ]
+      },
+      {
+        "value": "推力杆",
+        "aliases": [
+          "Thrust Rod"
+        ]
+      },
+      {
+        "value": "导向臂",
+        "aliases": [
+          "Guide Arm"
+        ]
+      },
+      {
+        "value": "高度阀",
+        "aliases": [
+          "Height Valve"
+        ]
+      },
+      {
+        "value": "凡士通",
+        "aliases": [
+          "Firestone"
+        ]
+      },
+      {
+        "value": "康迪泰克",
+        "aliases": [
+          "ContiTech"
+        ]
+      },
+      {
+        "value": "住友",
+        "aliases": [
+          "Sumitomo"
+        ]
+      },
+      {
+        "value": "中鼎",
+        "aliases": [
+          "Zhongding"
+        ]
+      },
+      {
+        "value": "伊顿悬架",
+        "aliases": [
+          "Eaton"
+        ]
+      },
+      "SKF",
+      {
+        "value": "采埃孚悬架",
+        "aliases": [
+          "ZF",
+          "ECAS"
+        ]
+      },
+      {
+        "value": "威伯科",
+        "aliases": [
+          "WABCO",
+          "现ZF"
+        ]
+      },
+      {
+        "value": "克诺尔",
+        "aliases": [
+          "Knorr-Bremse"
+        ]
+      },
+      {
+        "value": "上海科曼",
+        "aliases": [
+          "Koman"
+        ]
+      },
+      {
+        "value": "北京驰创达",
+        "aliases": [
+          "Chichuangda"
+        ]
+      },
+      {
+        "value": "瀚瑞森",
+        "aliases": [
+          "Hendrickson"
+        ]
+      },
+      {
+        "value": "SAF-Holland",
+        "aliases": [
+          "SAF"
+        ]
+      },
+      "BPW",
+      {
+        "value": "约斯特",
+        "aliases": [
+          "JOST"
+        ]
+      },
+      {
+        "value": "浙江天成",
+        "aliases": [
+          "Tiancheng"
+        ]
+      },
+      {
+        "value": "宁波拓普",
+        "aliases": [
+          "Tuopu"
+        ]
+      },
+      {
+        "value": "山东美晨",
+        "aliases": [
+          "Meichen"
+        ]
+      },
+      {
+        "value": "一汽富奥",
+        "aliases": [
+          "Fawer"
+        ]
+      },
+      {
+        "value": "东风悬架",
+        "aliases": [
+          "Dongfeng"
+        ]
+      },
+      {
+        "value": "宇通精益达",
+        "aliases": [
+          "Yutong Jingyi"
+        ]
+      },
+      {
+        "value": "安凯悬架",
+        "aliases": [
+          "Ankai"
+        ]
+      },
+      {
+        "value": "中车悬架",
+        "aliases": [
+          "CRRC"
+        ]
+      },
+      {
+        "value": "特瑞堡",
+        "aliases": [
+          "Trelleborg"
+        ]
+      },
+      {
+        "value": "派克",
+        "aliases": [
+          "Parker"
+        ]
+      },
+      {
+        "value": "博世悬架",
+        "aliases": [
+          "Bosch"
+        ]
+      },
+      {
+        "value": "大陆悬架",
+        "aliases": [
+          "Continental"
+        ]
+      },
+      {
+        "value": "天纳克",
+        "aliases": [
+          "Tenneco"
+        ]
+      },
+      {
+        "value": "蒙诺",
+        "aliases": [
+          "Monroe"
+        ]
+      },
+      {
+        "value": "萨克斯",
+        "aliases": [
+          "Sachs"
+        ]
+      },
+      "KYB",
+      {
+        "value": "倍适登",
+        "aliases": [
+          "Bilstein"
+        ]
+      },
+      {
+        "value": "Öhlins",
+        "aliases": [
+          "Ohlins"
+        ]
+      }
     ],
     "step": [
-      "一级踏步",
-      "二级踏步",
-      "三级踏步",
-      "低地板",
-      "低入口"
+      {
+        "value": "一级踏步",
+        "aliases": [
+          "One-step"
+        ]
+      },
+      {
+        "value": "二级踏步",
+        "aliases": [
+          "Two-step"
+        ]
+      },
+      {
+        "value": "三级踏步",
+        "aliases": [
+          "Three-step"
+        ]
+      },
+      {
+        "value": "四级踏步",
+        "aliases": [
+          "Four-step"
+        ]
+      },
+      {
+        "value": "低地板",
+        "aliases": [
+          "Low-floor"
+        ]
+      },
+      {
+        "value": "低入口",
+        "aliases": [
+          "Low-entry"
+        ]
+      },
+      {
+        "value": "全低地板",
+        "aliases": [
+          "Full Low-floor"
+        ]
+      },
+      {
+        "value": "半低地板",
+        "aliases": [
+          "Semi Low-floor"
+        ]
+      },
+      {
+        "value": "前低后高",
+        "aliases": [
+          "Low Front High Rear"
+        ]
+      },
+      {
+        "value": "平地板",
+        "aliases": [
+          "Flat Floor"
+        ]
+      },
+      {
+        "value": "阶梯式",
+        "aliases": [
+          "Stepped"
+        ]
+      },
+      {
+        "value": "无障碍踏板",
+        "aliases": [
+          "Wheelchair Ramp",
+          "轮椅导板"
+        ]
+      },
+      {
+        "value": "电动伸缩踏步",
+        "aliases": [
+          "Electric Step"
+        ]
+      },
+      {
+        "value": "气动踏步",
+        "aliases": [
+          "Pneumatic Step"
+        ]
+      },
+      {
+        "value": "手动翻转踏步",
+        "aliases": [
+          "Manual Folding Step"
+        ]
+      }
     ],
     "air-conditioner": [
-      { "value": "开利", "aliases": ["CARRIER"] },
-      { "value": "冷王", "aliases": ["THERMO KING"] },
-      { "value": "电装", "aliases": ["DENSO"] },
-      { "value": "三电", "aliases": ["SANDEN"] },
-      { "value": "松芝", "aliases": ["SONGZ"] },
-      { "value": "科林", "aliases": ["KELIN"] },
-      { "value": "豫新", "aliases": ["YUXIN"] }
+      {
+        "value": "开利",
+        "aliases": [
+          "Carrier"
+        ]
+      },
+      {
+        "value": "冷王",
+        "aliases": [
+          "Thermo King"
+        ]
+      },
+      {
+        "value": "电装",
+        "aliases": [
+          "Denso"
+        ]
+      },
+      {
+        "value": "三电",
+        "aliases": [
+          "Sanden"
+        ]
+      },
+      {
+        "value": "松芝",
+        "aliases": [
+          "Songz",
+          "加冷松芝"
+        ]
+      },
+      {
+        "value": "科林",
+        "aliases": [
+          "Kelin"
+        ]
+      },
+      {
+        "value": "豫新",
+        "aliases": [
+          "Yuxin"
+        ]
+      },
+      {
+        "value": "法雷奥",
+        "aliases": [
+          "Valeo"
+        ]
+      },
+      {
+        "value": "汉拿",
+        "aliases": [
+          "Halla"
+        ]
+      },
+      {
+        "value": "贝尔",
+        "aliases": [
+          "Bell"
+        ]
+      },
+      {
+        "value": "奥特佳",
+        "aliases": [
+          "Aotecar"
+        ]
+      },
+      {
+        "value": "格力",
+        "aliases": [
+          "Gree"
+        ]
+      },
+      {
+        "value": "美的",
+        "aliases": [
+          "Midea"
+        ]
+      },
+      {
+        "value": "中车空调",
+        "aliases": [
+          "CRRC"
+        ]
+      },
+      {
+        "value": "加冷",
+        "aliases": [
+          "Jialeng"
+        ]
+      },
+      {
+        "value": "澳柯玛",
+        "aliases": [
+          "Aucma"
+        ]
+      },
+      {
+        "value": "创维空调",
+        "aliases": [
+          "Skyworth"
+        ]
+      },
+      {
+        "value": "凯雪",
+        "aliases": [
+          "Kaixue"
+        ]
+      },
+      {
+        "value": "天喜",
+        "aliases": [
+          "Tianxi"
+        ]
+      },
+      {
+        "value": "通盛",
+        "aliases": [
+          "Tongsheng"
+        ]
+      },
+      {
+        "value": "精益空调",
+        "aliases": [
+          "Jingyi"
+        ]
+      }
     ],
     "door": [
-      "内摆门",
-      "外摆门",
-      "折叠门",
-      "平移门",
-      "塞拉门",
-      "双内摆门"
+      {
+        "value": "内摆门",
+        "aliases": [
+          "Inward Swing Door"
+        ]
+      },
+      {
+        "value": "外摆门",
+        "aliases": [
+          "Outward Swing Door"
+        ]
+      },
+      {
+        "value": "折叠门",
+        "aliases": [
+          "Folding Door"
+        ]
+      },
+      {
+        "value": "平移门",
+        "aliases": [
+          "Sliding Door"
+        ]
+      },
+      {
+        "value": "塞拉门",
+        "aliases": [
+          "Plug Door"
+        ]
+      },
+      {
+        "value": "单内摆门",
+        "aliases": [
+          "Single Inward Swing"
+        ]
+      },
+      {
+        "value": "双内摆门",
+        "aliases": [
+          "Double Inward Swing"
+        ]
+      },
+      {
+        "value": "单外摆门",
+        "aliases": [
+          "Single Outward Swing"
+        ]
+      },
+      {
+        "value": "双外摆门",
+        "aliases": [
+          "Double Outward Swing"
+        ]
+      },
+      {
+        "value": "气动门",
+        "aliases": [
+          "Pneumatic Door"
+        ]
+      },
+      {
+        "value": "电动门",
+        "aliases": [
+          "Electric Door"
+        ]
+      },
+      {
+        "value": "手动门",
+        "aliases": [
+          "Manual Door"
+        ]
+      },
+      {
+        "value": "对开折叠门",
+        "aliases": [
+          "Bi-fold Door"
+        ]
+      },
+      {
+        "value": "外摆-内藏门",
+        "aliases": [
+          "Outward-sliding Door"
+        ]
+      },
+      {
+        "value": "内藏门",
+        "aliases": [
+          "Inward-sliding Door"
+        ]
+      },
+      {
+        "value": "外挂门",
+        "aliases": [
+          "Outside-hung Door"
+        ]
+      },
+      {
+        "value": "推拉门",
+        "aliases": [
+          "Slide Door"
+        ]
+      },
+      {
+        "value": "乘客门",
+        "aliases": [
+          "Passenger Door"
+        ]
+      },
+      {
+        "value": "司机门",
+        "aliases": [
+          "Driver Door"
+        ]
+      },
+      {
+        "value": "安全门",
+        "aliases": [
+          "Safety Door"
+        ]
+      },
+      {
+        "value": "应急门",
+        "aliases": [
+          "Emergency Door"
+        ]
+      },
+      {
+        "value": "逃生门",
+        "aliases": [
+          "Escape Door"
+        ]
+      },
+      {
+        "value": "行李舱门",
+        "aliases": [
+          "Luggage Door"
+        ]
+      },
+      {
+        "value": "侧舱门",
+        "aliases": [
+          "Side Compartment Door"
+        ]
+      }
     ]
+  },
+  "powertrain": {
+    "note": "动力系统按燃料类型联动：profiles.fields 列出该燃料该填的字段，其余字段禁用并清空；drive 用于过滤变速器候选（条目上的 drive 为 ev / ice / both，不写视为通用）。",
+    "fields": [
+      "engine",
+      "motor",
+      "battery",
+      "transmission"
+    ],
+    "profiles": {
+      "ice": {
+        "label": "内燃机",
+        "drive": "ice",
+        "fields": [
+          "engine",
+          "transmission"
+        ]
+      },
+      "ev": {
+        "label": "纯电动",
+        "drive": "ev",
+        "fields": [
+          "motor",
+          "battery",
+          "transmission"
+        ]
+      },
+      "hybrid": {
+        "label": "混合动力",
+        "drive": "all",
+        "fields": [
+          "engine",
+          "motor",
+          "battery",
+          "transmission"
+        ]
+      },
+      "fuel-cell": {
+        "label": "燃料电池",
+        "drive": "ev",
+        "fields": [
+          "motor",
+          "battery",
+          "transmission"
+        ]
+      },
+      "trolley": {
+        "label": "无轨电车",
+        "drive": "ev",
+        "fields": [
+          "motor",
+          "transmission"
+        ]
+      },
+      "capacitor": {
+        "label": "超级电容",
+        "drive": "ev",
+        "fields": [
+          "motor",
+          "transmission"
+        ]
+      },
+      "any": {
+        "label": "未确定",
+        "drive": "all",
+        "fields": [
+          "engine",
+          "motor",
+          "battery",
+          "transmission"
+        ]
+      }
+    },
+    "byFuel": {
+      "柴油": "ice",
+      "国五柴油": "ice",
+      "国六柴油": "ice",
+      "生物柴油": "ice",
+      "二甲醚": "ice",
+      "汽油": "ice",
+      "甲醇": "ice",
+      "乙醇": "ice",
+      "车用压缩天然气": "ice",
+      "车用液化天然气": "ice",
+      "天然气": "ice",
+      "液化石油气": "ice",
+      "双燃料（柴油-天然气）": "ice",
+      "汽油-天然气双燃料": "ice",
+      "纯电动": "ev",
+      "换电式纯电动": "ev",
+      "钛酸锂快充": "ev",
+      "插电式混合动力": "hybrid",
+      "油电混合动力": "hybrid",
+      "气电混合动力": "hybrid",
+      "增程式电动": "hybrid",
+      "氢燃料电池": "fuel-cell",
+      "燃料电池": "fuel-cell",
+      "无轨电车": "trolley",
+      "超级电容": "capacitor",
+      "新能源": "any",
+      "清洁能源": "any",
+      "其他": "any"
+    }
   }
 }

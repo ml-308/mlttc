@@ -110,8 +110,8 @@
             font-size: var(--hcw-button-font-size, var(--text-body, 0.9375rem));
             font-weight: 700;
             letter-spacing: -0.01em;
-            /* 裁掉字体自带的上下空白，文字才在胶囊里真的居中（不支持的浏览器保持原样） */
-            text-box: trim-both cap alphabetic;
+            /* 不做 text-box: trim-both cap alphabetic 裁切：中文字体的 cap 高远小于汉字实际高度，
+               裁到 cap/baseline 会把中文整体顶上去（胶囊里看着偏上），所以统一交给 flex 居中 */
             /* --hcw-button-min-height / --hcw-button-min-width：按钮最小高/宽，默认 2.4rem */
             /* 触控热区 ≥40×40：图标可以 16px，手指按下去的区域不能跟着变小 */
             min-height: var(--hcw-button-min-height, var(--touch-target, 2.5rem));

@@ -11,8 +11,9 @@
             --surface-light: #222238;
             --text: #e0e0e0;
             --text-secondary: #a0a0b8;
-            --accent: #4ade80;
-            --accent-dark: #22c55e;
+            --snake-accent: color-mix(in srgb, var(--primary) 62%, #ffffff);
+            --snake-accent-dark: color-mix(in srgb, var(--primary) 85%, #000000);
+            --snake-accent-soft: color-mix(in srgb, var(--snake-accent) 55%, #ffffff);
             --danger: #ef4444;
             --danger-glow: #f87171;
             --gold: #fbbf24;
@@ -36,7 +37,7 @@
         body {
             background: var(--bg);
             background-image:
-                radial-gradient(ellipse at 50% 30%, rgba(74, 222, 128, 0.06) 0%, transparent 70%),
+                radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--snake-accent) 6%, transparent) 0%, transparent 70%),
                 radial-gradient(ellipse at 80% 70%, rgba(99, 102, 241, 0.04) 0%, transparent 60%),
                 radial-gradient(ellipse at 20% 60%, rgba(251, 191, 36, 0.03) 0%, transparent 50%);
             min-height: 100vh;
@@ -73,7 +74,7 @@
             font-size: 2rem;
             font-weight: 800;
             letter-spacing: -0.02em;
-            background: linear-gradient(135deg, #4ade80 0%, #22d3bb 50%, #4ade80 100%);
+            background: linear-gradient(135deg, var(--snake-accent) 0%, color-mix(in srgb, var(--snake-accent) 60%, #22d3bb) 50%, var(--snake-accent) 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -131,7 +132,7 @@
         }
 
         .score-item.current-score {
-            border-color: rgba(74, 222, 128, 0.3);
+            border-color: color-mix(in srgb, var(--snake-accent) 30%, transparent);
             background: var(--surface-light);
         }
 
@@ -166,7 +167,7 @@
             }
             40% {
                 transform: scale(1.35);
-                color: #4ade80;
+                color: var(--snake-accent);
             }
             100% {
                 transform: scale(1);
@@ -177,7 +178,7 @@
             position: relative;
             border-radius: var(--radius-lg);
             overflow: hidden;
-            box-shadow: var(--shadow-lg), 0 0 0 2px var(--border), 0 0 80px rgba(74, 222, 128, 0.08);
+            box-shadow: var(--shadow-lg), 0 0 0 2px var(--border), 0 0 80px color-mix(in srgb, var(--snake-accent) 8%, transparent);
             background: var(--surface);
             max-width: 100%;
             aspect-ratio: 1;
@@ -258,7 +259,7 @@
         }
 
         .btn-restart {
-            background: var(--accent);
+            background: var(--snake-accent);
             color: #0f0f1a;
             border: none;
             padding: 12px 32px;
@@ -268,19 +269,19 @@
             cursor: pointer;
             letter-spacing: 0.02em;
             transition: all 0.25s;
-            box-shadow: 0 6px 24px rgba(74, 222, 128, 0.35);
+            box-shadow: 0 6px 24px color-mix(in srgb, var(--snake-accent) 35%, transparent);
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
         }
 
         .btn-restart:hover {
-            background: #6ee7a7;
+            background: var(--snake-accent-soft);
             transform: translateY(-2px);
-            box-shadow: 0 10px 32px rgba(74, 222, 128, 0.45);
+            box-shadow: 0 10px 32px color-mix(in srgb, var(--snake-accent) 45%, transparent);
         }
         .btn-restart:active {
             transform: scale(0.95);
-            box-shadow: 0 4px 16px rgba(74, 222, 128, 0.3);
+            box-shadow: 0 4px 16px color-mix(in srgb, var(--snake-accent) 30%, transparent);
         }
 
         .hint-text {
@@ -355,7 +356,7 @@
             background: var(--btn-active);
             transform: scale(0.9);
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-            border-color: rgba(74, 222, 128, 0.5);
+            border-color: color-mix(in srgb, var(--snake-accent) 50%, transparent);
             transition: all 0.05s;
         }
         .ctrl-btn:active::after {
@@ -363,7 +364,7 @@
             position: absolute;
             inset: -3px;
             border-radius: 10px;
-            background: rgba(74, 222, 128, 0.2);
+            background: color-mix(in srgb, var(--snake-accent) 20%, transparent);
             animation: btnRipple 0.3s ease-out;
         }
         @keyframes btnRipple {
@@ -566,7 +567,7 @@
             cursor: pointer;
         }
         .game-auth-header .auth-user-info strong:hover {
-            color: var(--accent, #4ade80);
+            color: var(--snake-accent, #4ade80);
         }
     </style>
 </head>
@@ -649,6 +650,33 @@
             // ============ 画布设置 ============
             canvas.width = CANVAS_SIZE;
             canvas.height = CANVAS_SIZE;
+
+            // ============ 主题色（跟随站点自定义主色） ============
+            /* 画布只认具体颜色值，CSS 变量里的 color-mix() 解析出来是 color(srgb …)，
+               fillStyle 不认；所以直接读 --primary（#rrggbb）再往白色提亮 38%，
+               与 CSS 里 --snake-accent（62% 主色 + 38% 白）保持同一档亮度。 */
+            let accentCache = null;
+
+            function accentRgb() {
+                if (accentCache) return accentCache;
+                const primary = (getComputedStyle(document.documentElement).getPropertyValue('--primary') || '').trim() || '#1db954';
+                let r = 74, g = 222, b = 128;
+                const hex = /^#?([0-9a-f]{6})$/i.exec(primary);
+                if (hex) {
+                    const n = parseInt(hex[1], 16);
+                    r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255;
+                } else {
+                    const m = /(\d+)\s*\D+\s*(\d+)\s*\D+\s*(\d+)/.exec(primary);
+                    if (m) { r = Number(m[1]); g = Number(m[2]); b = Number(m[3]); }
+                }
+                const lift = (c) => Math.round(c + (255 - c) * 0.38);
+                accentCache = { r: lift(r), g: lift(g), b: lift(b) };
+                return accentCache;
+            }
+
+            // 换主题 / 换主色（auth-header.js 改 html 的 data-theme 或内联 style）后重新解析
+            new MutationObserver(() => { accentCache = null; })
+                .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
 
             // ============ 音效系统 ============
             let audioCtx = null;
@@ -864,11 +892,12 @@
 
                 // 四个角的微妙光晕
                 const glowRadius = 60;
+                const accent = accentRgb();
                 const corners = [
-                    { x: 0, y: 0, color: 'rgba(74,222,128,0.03)' },
+                    { x: 0, y: 0, color: `rgba(${accent.r},${accent.g},${accent.b},0.03)` },
                     { x: CANVAS_SIZE, y: 0, color: 'rgba(99,102,241,0.02)' },
                     { x: 0, y: CANVAS_SIZE, color: 'rgba(251,191,36,0.02)' },
-                    { x: CANVAS_SIZE, y: CANVAS_SIZE, color: 'rgba(74,222,128,0.02)' },
+                    { x: CANVAS_SIZE, y: CANVAS_SIZE, color: `rgba(${accent.r},${accent.g},${accent.b},0.02)` },
                 ];
                 for (const corner of corners) {
                     const gradient = ctx.createRadialGradient(corner.x, corner.y, 0, corner.x, corner.y, glowRadius);
@@ -929,16 +958,18 @@
                     const cy = seg.y * CELL_SIZE + CELL_SIZE / 2;
                     const t = snake.length > 1 ? i / (snake.length - 1) : 0; // 0=头, 1=尾
 
-                    // 身体颜色渐变：头部亮绿 -> 尾部深绿
-                    const r = Math.round(34 + t * 15);
-                    const g = Math.round(197 + t * 20 - t * 40);
-                    const b = Math.round(94 - t * 40);
+                    // 身体颜色渐变：头部用主题色，越靠近尾部越暗
+                    const accent = accentRgb();
+                    const tail = 1 - t * 0.34;
+                    const r = Math.round(accent.r * tail);
+                    const g = Math.round(accent.g * tail);
+                    const b = Math.round(accent.b * tail);
                     const alpha = isGameOver ? 0.5 + Math.sin(Date.now() * 0.01 + i) * 0.3 : 1;
 
                     let segmentColor;
                     if (i === 0 && !isGameOver) {
                         // 蛇头特殊颜色
-                        segmentColor = '#22c55e';
+                        segmentColor = `rgb(${accent.r},${accent.g},${accent.b})`;
                     } else if (isGameOver) {
                         segmentColor = `rgba(239,68,68,${alpha})`;
                     } else {
@@ -949,7 +980,7 @@
 
                     // 阴影
                     if (i === 0 && !isGameOver) {
-                        ctx.shadowColor = 'rgba(34,197,94,0.5)';
+                        ctx.shadowColor = `rgba(${accent.r},${accent.g},${accent.b},0.5)`;
                         ctx.shadowBlur = 6;
                     }
 

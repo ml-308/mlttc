@@ -17,34 +17,38 @@
     <script src="/src/auth-header.js" type="module"></script>
     <style>
         /* ---------- 棋盘配色：深浅两套，取站点色系 ---------- */
+        /* 墙 / 玩家 / 起点都跟随自定义主题色（--primary 家族），换主题或换主色即时生效 */
         body {
             --maze-board: #f5f5f7;
-            --maze-wall: #1db954;
-            --maze-trail: rgba(29, 185, 84, .16);
+            --maze-wall: var(--primary);
+            --maze-trail: var(--primary);
+            --maze-trail-alpha: .16;
             --maze-goal: #ff9500;
-            --maze-start: #169c46;
-            --maze-player: #1db954;
+            --maze-start: var(--primary-dark);
+            --maze-player: var(--primary);
             --maze-overlay: rgba(245, 245, 247, .78);
         }
 
         [data-theme="dark"] body {
             --maze-board: #121212;
-            --maze-wall: #1db954;
-            --maze-trail: rgba(29, 185, 84, .22);
+            --maze-wall: var(--primary);
+            --maze-trail: var(--primary);
+            --maze-trail-alpha: .22;
             --maze-goal: #ffb340;
-            --maze-start: #1ed760;
-            --maze-player: #1ed760;
+            --maze-start: var(--primary-light);
+            --maze-player: var(--primary-light);
             --maze-overlay: rgba(0, 0, 0, .72);
         }
 
         @media (prefers-color-scheme: dark) {
             html:not([data-theme]) body {
                 --maze-board: #121212;
-                --maze-wall: #1db954;
-                --maze-trail: rgba(29, 185, 84, .22);
+                --maze-wall: var(--primary);
+                --maze-trail: var(--primary);
+                --maze-trail-alpha: .22;
                 --maze-goal: #ffb340;
-                --maze-start: #1ed760;
-                --maze-player: #1ed760;
+                --maze-start: var(--primary-light);
+                --maze-player: var(--primary-light);
                 --maze-overlay: rgba(0, 0, 0, .72);
             }
         }
@@ -476,13 +480,33 @@
             let palette = readPalette();
 
             /* ================= 配色（跟着站点主题走） ================= */
+            /** 把任意 CSS 颜色（hex / rgb）转成带透明度的 rgba，画布只认具体颜色值 */
+            function withAlpha(color, alpha) {
+                const text = String(color || '').trim();
+                const hex = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text);
+                if (hex) {
+                    let n = hex[1];
+                    if (n.length === 3) n = n.split('').map((c) => c + c).join('');
+                    const v = parseInt(n, 16);
+                    return `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${alpha})`;
+                }
+                const rgb = /^rgba?\(([^)]+)\)$/i.exec(text);
+                if (rgb) {
+                    const [r, g, b] = rgb[1].split(',').map((v) => Number(v.trim()));
+                    return `rgba(${r},${g},${b},${alpha})`;
+                }
+                return text;
+            }
+
             function readPalette() {
                 const cs = getComputedStyle(document.body);
                 const v = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
+                const wall = v('--maze-wall', '#1db954');
                 return {
                     board: v('--maze-board', '#f5f5f7'),
-                    wall: v('--maze-wall', '#1db954'),
-                    trail: v('--maze-trail', 'rgba(29,185,84,.16)'),
+                    wall,
+                    // 轨迹是同色墙体的一层薄雾：主题色可以是任意颜色，透明度在这里算
+                    trail: withAlpha(wall, Number(v('--maze-trail-alpha', '.16')) || 0.16),
                     goal: v('--maze-goal', '#ff9500'),
                     start: v('--maze-start', '#169c46'),
                     player: v('--maze-player', '#1db954')
